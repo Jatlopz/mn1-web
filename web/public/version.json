@@ -1,6 +1,6 @@
 {
-  "version": "0.4.4",
+  "version": "0.4.5",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Equipos propios, candado de posición, tres horarios rápidos y predeterminado del widget."
+  "notes": "Candado abierto y cerrado visibles también después de tocar: contraste corregido."
 }

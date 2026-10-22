@@ -1896,6 +1896,10 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .lock-toggle{position:absolute;top:.5rem;right:.5rem;z-index:3;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #4d6650;border-radius:50%;background:#101b16d9;color:#d8efc6;cursor:pointer;backdrop-filter:blur(8px)}
 .lock-toggle:hover:not(:disabled){border-color:var(--lime);color:var(--lime)}
 .lock-toggle[aria-pressed="true"]{background:var(--lime);border-color:var(--lime);color:var(--lime-ink)}
+.lock-toggle[aria-pressed="true"]:hover:not(:disabled),
+.lock-toggle[aria-pressed="true"]:focus,
+.lock-toggle[aria-pressed="true"]:focus-visible,
+.lock-toggle[aria-pressed="true"]:active{border-color:var(--lime);color:var(--lime-ink)}
 .lock-toggle:disabled{cursor:not-allowed;opacity:.55}
 .lock-icon{width:20px;height:20px;display:block}
 .lock-toggle[aria-pressed="false"] .lock-icon--closed,
