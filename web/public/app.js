@@ -19,6 +19,7 @@ import {
   createMn1Bridge,
   isPngDataUrl,
   isValidHour,
+  isValidVaultKey,
   normalizeCapabilities,
   pngBase64FromDataUrl,
   pngDataUrlFromBase64,

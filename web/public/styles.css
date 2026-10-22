@@ -1917,3 +1917,5 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .cover-dialog .dialog-actions .button {flex:1;min-height:44px;font-size:.8rem;padding:.5rem;}
 @media (prefers-reduced-motion:reduce) {.profile-cover-edit {transition:none;}}
 @media (forced-colors:active) {.profile-card-media,.profile-card-shade,.cover-preview-image,.cover-preview::after {display:none;} .profile-cover-edit,.cover-sources button,.cover-effects button {background:Canvas;color:ButtonText;border:1px solid ButtonText;} .brand-projector {color:CanvasText;filter:none;}}
+
+.profile-card-wrap .profile-name {hyphens:none;word-break:normal;overflow-wrap:normal;}
