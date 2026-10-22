@@ -1932,3 +1932,7 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .profile-card-wrap[data-has-cover=true] .profile-card-shade {background:linear-gradient(180deg,rgba(3,12,8,var(--cover-shade,.35)),rgba(3,12,8,.72));}
 
 .profile-card-media,.cover-preview-image {filter:blur(calc(var(--cover-blur,0px) * .25));}
+
+/* Reportar al pie de los equipos, sin cubrir las tarjetas. */
+.profile-card-wrap .profile-card {min-height:138px;}
+.teams-screen>.report-entry {margin:.85rem 0 0;}
