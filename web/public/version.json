@@ -1,6 +1,6 @@
 {
-  "version": "0.1.3",
+  "version": "0.3.0",
   "protocol": 1,
-  "updated": "2026-10-21",
-  "notes": "Interfaz publicada por HTTPS con GitHub Pages. PNG y hora se preparan en Android."
+  "updated": "2026-10-22",
+  "notes": "Workspace web v1: cuatro equipos, foto original, editor Canvas, dictado y PNG para compartir."
 }

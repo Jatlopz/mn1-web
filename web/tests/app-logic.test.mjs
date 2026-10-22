@@ -13,6 +13,7 @@ import {
   splitMessage,
   textLength,
   validateDraft,
+  validateWorkspaceDraft,
 } from '../public/app.js';
 import { BridgeError, MN1_LIMITS } from '../public/bridge.js';
 
@@ -78,6 +79,12 @@ test('rechaza mensaje vacío, excesivo o fuera de formato', () => {
   assert.ok(validateDraft(draft({ message: 'x'.repeat(MN1_LIMITS.MESSAGE_MAX_LENGTH + 1) })).errors.message);
   assert.ok(validateDraft(draft({ hour: '8:00' })).errors.hour);
   assert.ok(validateDraft(draft({ hour: '24:00' })).errors.hour);
+});
+
+test('el workspace acepta un destino y el modo heredado exige dos', () => {
+  const one = draft({ targetLabels: ['Telares'] });
+  assert.equal(validateWorkspaceDraft(one).ok, true);
+  assert.equal(validateDraft(one).ok, false);
 });
 
 test('exige entre 2 y 10 etiquetas no vacías y con longitud limitada', () => {

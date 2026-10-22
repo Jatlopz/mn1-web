@@ -260,6 +260,12 @@ code {
   color: var(--accent-text);
 }
 
+.mode-badge[data-mode="preview"] {
+  border-color: color-mix(in srgb, var(--cyan) 55%, transparent);
+  background: color-mix(in srgb, var(--cyan) 10%, transparent);
+  color: var(--cyan-text);
+}
+
 .mode-badge[data-mode="checking"] {
   border-color: color-mix(in srgb, var(--cyan) 55%, transparent);
   color: var(--cyan-text);
@@ -1029,6 +1035,262 @@ fieldset.control-block {
   .dialog-actions .button {
     flex: 1 1 100%;
   }
+}
+
+/* Workspace de equipos ---------------------------------------------------- */
+
+.profiles-panel {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: clamp(1rem, 2.2vw, 1.6rem);
+  padding: clamp(1rem, 2.2vw, 1.35rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.profiles-panel .kicker,
+.editor-panel .kicker,
+.voice-panel .kicker {
+  color: var(--text-muted);
+}
+
+.profiles-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-high);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+@media (min-width: 760px) {
+  .profile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.profile-card {
+  --profile-color: var(--lime);
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 74px;
+  padding: 0.75rem 0.8rem 0.7rem;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--profile-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 100ms ease;
+}
+
+.profile-card--champions { --profile-color: #f5c542; }
+.profile-card--espartanos { --profile-color: #e35d4f; }
+.profile-card--super-guerreros { --profile-color: #35e3c8; }
+.profile-card--indestructibles { --profile-color: #c8f751; }
+
+.profile-card:hover:not(:disabled) {
+  background: var(--surface-highest);
+  border-color: var(--profile-color);
+}
+
+.profile-card:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.profile-card.is-active {
+  border-color: var(--profile-color);
+  background: color-mix(in srgb, var(--profile-color) 13%, var(--surface-high));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--profile-color) 55%, transparent);
+}
+
+.profile-card.is-active::after {
+  content: "Activo";
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  color: var(--profile-color);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.profile-name {
+  padding-right: 3.1rem;
+  font-size: 0.94rem;
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.profile-meta {
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.profiles-notice {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(255, 208, 138, 0.42);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* Editor de la hora sobre la foto ---------------------------------------- */
+
+.editor-panel,
+.voice-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.layout > .editor-panel,
+.layout > .voice-panel {
+  grid-column: 1 / -1;
+}
+
+.overlay-grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+@media (min-width: 620px) {
+  .overlay-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1040px) {
+  .overlay-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.range {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  accent-color: var(--lime);
+  cursor: pointer;
+}
+
+.color-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+  cursor: pointer;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+  font-size: 0.88rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.check-line input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--lime);
+}
+
+.preview-canvas {
+  width: auto;
+  max-width: 100%;
+  max-height: min(65vh, 560px);
+  margin: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Dictado ---------------------------------------------------------------- */
+
+.voice-panel .panel-head {
+  align-items: flex-start;
+}
+
+.voice-panel .button-primary {
+  flex: 0 0 auto;
+}
+
+.speech-result {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-high);
+}
+
+.speech-transcript {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.proposal-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.proposal-list li::marker {
+  color: var(--lime);
+}
+
+.speech-result .button {
+  justify-self: start;
 }
 
 /* Pie -------------------------------------------------------------------- */

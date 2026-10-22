@@ -1,29 +1,79 @@
 /*
- * MN1 híbrido · app web
+ * MN1 híbrido · app web del workspace.
  *
- * - Vista previa del anuncio, hora 08/09 y hora personalizada.
- * - Mensaje y etiquetas editables (2–10 etiquetas orientativas).
- * - Imagen PNG tal cual la prepara Android: sin recorte, sin overlay ni marca añadida.
- * - Guardar/compartir sólo a través del puente v1. En navegador se muestra modo preview
- *   y NUNCA se simula éxito.
- *
- * La validación pura se exporta para poder revisarla con Node sin DOM.
+ * - Catálogo de cuatro equipos y activeProfileId en WEB.
+ * - Cada equipo conserva mensaje, hora, destinos, foto ORIGINAL y overlay.
+ * - Persistencia: almacén privado nativo (VAULT_GET/PUT) en APK BASE; IndexedDB en navegador.
+ * - Editor Canvas: posición, tamaño, fuente, color y fecha opcional.
+ * - Voz: RECOGNIZE_SPEECH + parser español; sólo propone, nunca envía.
+ * - APK3: se conserva el flujo anterior (plantilla única y compartir) con aviso honesto.
+ * - La web nunca simula guardado nativo, selector, micrófono ni entrega.
  */
 
 import {
   BridgeError,
+  CAPABILITIES,
   MN1_LIMITS,
   PROTOCOL_VERSION,
+  SPEECH_LANGUAGE,
   createMn1Bridge,
+  isPngDataUrl,
   isValidHour,
+  normalizeCapabilities,
+  pngBase64FromDataUrl,
+  pngDataUrlFromBase64,
+  textLength,
 } from './bridge.js';
+import {
+  DEFAULT_PROFILE_ID,
+  DEFAULT_TARGETS,
+  HOUR_PRESETS,
+  OVERLAY_FONTS,
+  PROFILE_CATALOG,
+  cloneTemplate,
+  createDefaultWorkspace,
+  createProfileTemplate,
+  getProfileDefinition,
+  isProfileId,
+  migrateLegacyWorkspace,
+  normalizeOverlay,
+  normalizeTargetLabels,
+  normalizeTemplate,
+  normalizeWorkspaceState,
+  updateProfile,
+  validateDraft as validateProfileDraft,
+} from './profiles.js';
+import {
+  BridgeVaultAdapter,
+  MemoryVault,
+  VaultClient,
+  WORKSPACE_KEYS,
+  createBrowserVault,
+  imageKeyForProfile,
+} from './storage.js';
+import {
+  RendererError,
+  drawOverlay,
+  formatDateEs,
+  loadImageElement,
+  prepareImageFile,
+  renderCompositePng,
+} from './renderer.js';
+import {
+  SPEECH_EXAMPLE,
+  parseSpanishCommand,
+} from './voice.js';
 
-export const APP_VERSION = '0.1.3';
-export const HOUR_PRESETS = Object.freeze(['08:00', '09:00']);
-export const DEFAULT_MESSAGE =
-  'Batiseñal MN1 {hora}. Convocatoria del equipo Los Indestructibles de Sacos. ' +
-  'Destinos: Telares y Extrusión.';
-export const DEFAULT_TARGETS = Object.freeze(['Telares', 'Extrusión']);
+export const APP_VERSION = '0.3.0';
+export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
+
+export {
+  DEFAULT_TARGETS,
+  HOUR_PRESETS,
+  isPngDataUrl,
+  normalizeTargetLabels,
+  textLength,
+};
 
 const HOUR_TOKEN = '{hora}';
 const MAX_IMAGE_DATA_URL = MN1_LIMITS.IMAGE_DATA_URL_MAX_LENGTH;
@@ -31,10 +81,6 @@ const MAX_IMAGE_DATA_URL = MN1_LIMITS.IMAGE_DATA_URL_MAX_LENGTH;
 /* ------------------------------------------------------------------------- */
 /* Lógica pura (testeable sin DOM)                                            */
 /* ------------------------------------------------------------------------- */
-
-export function textLength(value) {
-  return Array.from(String(value ?? '')).length;
-}
 
 export function sanitizeHourPart(value) {
   return String(value ?? '').replace(/\D/g, '').slice(0, 2);
@@ -87,66 +133,16 @@ export function splitMessage(message, hour) {
   return parts;
 }
 
-export function normalizeTargetLabels(value) {
-  if (!Array.isArray(value)
-      || value.length < MN1_LIMITS.TARGETS_MIN
-      || value.length > MN1_LIMITS.TARGETS_MAX) {
-    return null;
-  }
-  const labels = [];
-  for (const raw of value) {
-    if (typeof raw !== 'string') return null;
-    const label = raw.trim();
-    if (label.length < 1 || textLength(label) > MN1_LIMITS.LABEL_MAX_LENGTH) return null;
-    labels.push(label);
-  }
-  return labels;
+export function renderHourMessage(message, hour) {
+  return String(message ?? '').split(HOUR_TOKEN).join(hour);
 }
 
-export function validateDraft(draft) {
-  const message = typeof draft?.message === 'string' ? draft.message : '';
-  const hour = typeof draft?.hour === 'string' ? draft.hour : '';
-  const rawLabels = Array.isArray(draft?.targetLabels) ? draft.targetLabels : [];
-  const labels = rawLabels.map((label) => (typeof label === 'string' ? label.trim() : ''));
-  const errors = {};
-
-  const trimmedMessage = message.trim();
-  if (trimmedMessage.length === 0) {
-    errors.message = 'Escribe el mensaje antes de guardar o compartir.';
-  } else if (textLength(trimmedMessage) > MN1_LIMITS.MESSAGE_MAX_LENGTH) {
-    errors.message = `El mensaje no puede superar ${MN1_LIMITS.MESSAGE_MAX_LENGTH} caracteres.`;
-  }
-
-  if (!isValidHour(hour)) {
-    errors.hour = 'La hora debe tener formato HH:mm entre 00:00 y 23:59.';
-  }
-
-  if (labels.length < MN1_LIMITS.TARGETS_MIN) {
-    errors.targets = `Añade al menos ${MN1_LIMITS.TARGETS_MIN} etiquetas.`;
-  } else if (labels.length > MN1_LIMITS.TARGETS_MAX) {
-    errors.targets = `El máximo es ${MN1_LIMITS.TARGETS_MAX} etiquetas.`;
-  } else if (labels.some((label) => label.length === 0)) {
-    errors.targets = 'Completa o elimina las etiquetas vacías.';
-  } else if (labels.some((label) => textLength(label) > MN1_LIMITS.LABEL_MAX_LENGTH)) {
-    errors.targets = `Cada etiqueta puede tener hasta ${MN1_LIMITS.LABEL_MAX_LENGTH} caracteres.`;
-  }
-
-  return {
-    ok: Object.keys(errors).length === 0,
-    errors,
-    normalized: {
-      message: trimmedMessage,
-      hour,
-      targetLabels: labels,
-    },
-  };
+export function validateDraft(draft, options = {}) {
+  return validateProfileDraft(draft, options);
 }
 
-export function isPngDataUrl(value) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_IMAGE_DATA_URL) {
-    return false;
-  }
-  return /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+export function validateWorkspaceDraft(draft) {
+  return validateProfileDraft(draft, { minTargets: MN1_LIMITS.TARGETS_MIN_WORKSPACE });
 }
 
 export function describeBridgeError(error) {
@@ -157,26 +153,28 @@ export function describeBridgeError(error) {
     case 'bridge_unavailable':
       return 'Vista previa: la app Android no está conectada. No se guardó ni se compartió nada.';
     case 'timeout':
-      return 'La app Android no respondió a tiempo. No se asumió ningún resultado; inténtalo de nuevo desde la app.';
+      return 'La app Android no respondió a tiempo. No se asumió ningún resultado; inténtalo de nuevo.';
     case 'payload_too_large':
-      return 'La petición supera el límite de 32 KB del puente. Acorta el mensaje o las etiquetas.';
+      return 'La petición supera el límite del puente (32 KB habitual o 12 MiB para almacén/PNG). Acorta el contenido.';
     case 'unsupported_action':
-      return 'Esta versión de la app no admite la acción solicitada.';
+      return 'Esta versión de la app no admite la acción solicitada. Actualiza a la APK BASE.';
     case 'duplicate_request_id':
       return 'Se detectó una petición duplicada y no se repitió.';
     case 'invalid_result':
       return 'La app devolvió una respuesta que no cumple el contrato v1.';
+    case 'invalid_payload':
+      return 'La petición no cumple el formato del contrato v1.';
     case 'native_post_failed':
       return 'No se pudo entregar la petición a Android. No se asumió ningún resultado.';
     case 'bridge_closed':
       return 'El puente se cerró antes de recibir respuesta.';
     default:
-      return error.message || 'No se pudo completar la acción nativa.';
+      return error.message || 'No se pudo completar la acción.';
   }
 }
 
 /* ------------------------------------------------------------------------- */
-/* Arranque y DOM                                                            */
+/* DOM y estado                                                              */
 /* ------------------------------------------------------------------------- */
 
 function byId(id) {
@@ -184,13 +182,44 @@ function byId(id) {
 }
 
 function createDefaultDraft() {
+  return cloneDraftFromProfile(createProfileTemplate(DEFAULT_PROFILE_ID));
+}
+
+function cloneDraftFromProfile(profile) {
   return {
-    message: DEFAULT_MESSAGE,
-    hour: HOUR_PRESETS[0],
-    targetLabels: [...DEFAULT_TARGETS],
-    imageDataUrl: null,
-    overlay: null,
+    message: profile.message,
+    hour: profile.hour,
+    targetLabels: [...profile.targetLabels],
+    overlay: { ...profile.overlay },
+    imageKey: profile.imageKey,
+    imageWidth: profile.imageWidth,
+    imageHeight: profile.imageHeight,
   };
+}
+
+function activeProfileOf(app) {
+  if (!app.workspace) return null;
+  return app.workspace.profiles[app.workspace.activeProfileId] ?? null;
+}
+
+function isWorkspace(app) {
+  return app.uiMode === 'browser' || app.uiMode === 'workspace';
+}
+
+function canUseNative(app) {
+  return app.mode === 'native' && app.bridge.refreshMode();
+}
+
+function capability(app, name) {
+  return app.capabilitySet instanceof Set && app.capabilitySet.has(name);
+}
+
+function targetMinimum(app) {
+  return isWorkspace(app) ? MN1_LIMITS.TARGETS_MIN_WORKSPACE : MN1_LIMITS.TARGETS_MIN;
+}
+
+function activeValidation(app) {
+  return validateProfileDraft(app.draft, { minTargets: targetMinimum(app) });
 }
 
 function showStatus(dom, text, tone = 'info') {
@@ -218,27 +247,113 @@ function setFieldError(element, text) {
   element.textContent = text || '';
 }
 
+function storageLabel(app) {
+  return app.storage?.label || (isWorkspace(app) ? 'almacén local' : 'la app');
+}
+
+function profilesNoticeText(app) {
+  const notices = [];
+  if (app.uiMode === 'legacy') {
+    notices.push(
+      'Esta APK3 mantiene la plantilla única y el compartir anterior. ' +
+      'Los cuatro equipos, la foto original, el editor Canvas y el dictado necesitan ' +
+      'una actualización BASE de la app. No se finge guardar perfiles.',
+    );
+  }
+  if (app.uiMode === 'offline') {
+    notices.push('La app no respondió. No se modificó ni se envió nada. Usa «Actualizar vista».');
+  }
+  if (isWorkspace(app) && !app.persistent) {
+    notices.push(
+      'No se pudo abrir el almacén duradero: este borrador vive en memoria temporal ' +
+      `y se perderá al recargar${app.storage?.reason ? ` (${app.storage.reason})` : ''}.`,
+    );
+  }
+  if (app.uiMode === 'browser') {
+    notices.push('Navegador: los equipos se guardan sólo en este dispositivo. No hay envío nativo ni se simula.');
+  }
+  if (app.storageBlocked) {
+    notices.push('No se pudo leer el estado guardado. No se sobrescribirá hasta que pulses «Guardar».');
+  }
+  if (app.migrationNotice) notices.push(app.migrationNotice);
+  return notices.join(' ');
+}
+
 function renderMode(dom, app) {
-  let label = 'Vista previa · sin envío';
-  let mode = 'preview';
-  if (app.mode === 'native') {
-    if (app.connection === 'checking') {
-      label = 'Conectando con la app…';
-      mode = 'checking';
-    } else if (app.connection === 'offline') {
-      label = 'App Android sin respuesta';
-      mode = 'offline';
-    } else {
-      label = 'App Android conectada';
-      mode = 'native';
-    }
+  let label = 'Cargando…';
+  let mode = 'checking';
+  let note = '';
+  if (app.uiMode === 'browser') {
+    label = 'Navegador · local';
+    mode = 'preview';
+    note = 'Modo navegador: los equipos se guardan en este navegador. No hay envío nativo ni se simula.';
+  } else if (app.uiMode === 'workspace') {
+    label = app.connection === 'offline' ? 'App BASE sin respuesta' : 'App BASE conectada';
+    mode = app.connection === 'offline' ? 'offline' : 'native';
+  } else if (app.uiMode === 'legacy') {
+    label = 'APK3 · compatibilidad';
+    mode = 'native';
+  } else if (app.uiMode === 'offline') {
+    label = 'App sin respuesta';
+    mode = 'offline';
+    note = 'No se pudo leer el estado nativo. No se asumió ningún cambio.';
   }
   dom.modeBadge.textContent = label;
   dom.modeBadge.dataset.mode = mode;
-  dom.previewNote.hidden = app.mode !== 'preview';
-  dom.modeBadge.title = app.mode === 'native'
-    ? 'Las acciones se preparan en el teléfono. La web no confirma la entrega.'
-    : 'Modo navegador: no hay puente nativo. No se guarda ni se comparte nada.';
+  dom.modeBadge.title = mode === 'native'
+    ? 'La app prepara la confirmación nativa. La web no confirma la entrega.'
+    : 'La web no simula acciones nativas.';
+  dom.previewNote.hidden = !note;
+  if (note) dom.previewNote.textContent = note;
+}
+
+function renderProfiles(dom, app) {
+  if (!dom.profileList) return;
+  dom.profileList.replaceChildren();
+  const activeId = app.workspace?.activeProfileId ?? '';
+  const activeDefinition = getProfileDefinition(activeId);
+  for (const definition of app.catalog) {
+    const template = app.workspace?.profiles?.[definition.id];
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `profile-card profile-card--${definition.id}`;
+    button.dataset.profileId = definition.id;
+    button.setAttribute('role', 'radio');
+    button.setAttribute('aria-checked', String(definition.id === activeId));
+    button.disabled = app.busy || app.listening || app.uiMode === 'legacy' || !isWorkspace(app);
+    if (definition.id === activeId) button.classList.add('is-active');
+    button.title = app.uiMode === 'legacy'
+      ? 'Los perfiles guardados necesitan la APK BASE'
+      : `Elegir ${definition.name}`;
+
+    const name = document.createElement('span');
+    name.className = 'profile-name';
+    name.textContent = definition.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'profile-meta';
+    if (app.uiMode === 'legacy') {
+      meta.textContent = 'Requiere APK BASE';
+    } else {
+      const hour = isWorkspace(app) ? template?.hour : app.draft.hour;
+      const hasImage = isWorkspace(app) && Boolean(template?.imageKey);
+      meta.textContent = `${hour ?? '--:--'}${hasImage ? ' · con foto' : ''}`;
+    }
+
+    button.append(name, meta);
+    dom.profileList.append(button);
+  }
+
+  if (dom.profilesStatus) {
+    if (app.uiMode === 'legacy') dom.profilesStatus.textContent = 'APK3 · sin perfiles guardados';
+    else if (activeDefinition) dom.profilesStatus.textContent = activeDefinition.name;
+    else dom.profilesStatus.textContent = 'Conectando…';
+  }
+  if (dom.profilesNotice) {
+    const text = profilesNoticeText(app);
+    dom.profilesNotice.hidden = text.length === 0;
+    dom.profilesNotice.textContent = text;
+  }
 }
 
 function renderCounts(dom, app) {
@@ -256,7 +371,7 @@ function renderHour(dom, app) {
     radio.checked = radio.value === hour;
     radio.disabled = app.busy;
   }
-  dom.heroHour.textContent = hour;
+  dom.heroHour.textContent = hour || '--:--';
   dom.customHour.disabled = app.busy;
   if (custom) {
     dom.customHourLabel.textContent = `Personalizada · ${hour} · Cambiar`;
@@ -295,7 +410,7 @@ function renderPreview(dom, app) {
   if (labels.length === 0) {
     const chip = document.createElement('span');
     chip.className = 'target-chip';
-    chip.textContent = 'Sin etiquetas';
+    chip.textContent = 'Sin destinos';
     dom.targetsSummary.append(chip);
   } else {
     for (const label of labels) {
@@ -308,7 +423,36 @@ function renderPreview(dom, app) {
 }
 
 function renderImage(dom, app) {
-  const dataUrl = app.draft.imageDataUrl;
+  if (isWorkspace(app)) {
+    dom.previewImage.hidden = true;
+    dom.previewImage.removeAttribute('src');
+    if (isPngDataUrl(app.imageDataUrl)) {
+      dom.canvasPreview.hidden = false;
+      dom.imagePlaceholder.hidden = true;
+      dom.imageMeta.textContent = 'Foto original sin hora · la hora se dibuja encima sólo en la vista y en el PNG para compartir.';
+      dom.canvasPreview.setAttribute(
+        'aria-label',
+        `Foto original con la hora ${app.draft.hour}${app.draft.overlay.showDate ? ` y fecha ${formatDateEs(app.draft.overlay.date)}` : ''}.`,
+      );
+      void drawCanvasPreview(dom, app);
+    } else {
+      dom.canvasPreview.hidden = true;
+      dom.imagePlaceholder.hidden = false;
+      dom.placeholderTitle.textContent = 'Sin foto original';
+      if (!canUseNative(app)) {
+        dom.placeholderCopy.textContent = 'Elige una foto desde este navegador. Se guarda completa, sin hora; la hora se dibuja sólo para la vista y el PNG para compartir.';
+      } else if (!capability(app, CAPABILITIES.RAW_IMAGE)) {
+        dom.placeholderCopy.textContent = 'Esta app no anunció raw-image-v1. Actualiza a la BASE para importar la foto original.';
+      } else {
+        dom.placeholderCopy.textContent = 'Elige una foto original en la app. La copia privada se conserva sin hora.';
+      }
+      dom.imageMeta.textContent = 'Sin foto original en este equipo.';
+    }
+    return;
+  }
+
+  dom.canvasPreview.hidden = true;
+  const dataUrl = app.legacyImageDataUrl;
   if (isPngDataUrl(dataUrl)) {
     if (dom.previewImage.getAttribute('src') !== dataUrl) {
       dom.previewImage.src = dataUrl;
@@ -321,13 +465,18 @@ function renderImage(dom, app) {
     dom.previewImage.removeAttribute('src');
     dom.previewImage.hidden = true;
     dom.imagePlaceholder.hidden = false;
-    dom.imageMeta.textContent = app.mode === 'native'
+    dom.placeholderTitle.textContent = 'Vista previa de la imagen';
+    dom.placeholderCopy.textContent = app.uiMode === 'legacy'
+      ? 'La APK3 prepara el PNG con la hora. Aquí se muestra tal cual, sin recorte ni rótulos añadidos.'
+      : 'La imagen se prepara en la app Android; esta vista previa no la simula.';
+    dom.imageMeta.textContent = app.uiMode === 'legacy'
       ? 'Aún no hay un PNG vigente. Elige o diseña la imagen en la app Android.'
       : 'La imagen se prepara en la app Android; esta vista previa no la simula.';
   }
 }
 
 function renderTargetsEditor(dom, app) {
+  const minimum = targetMinimum(app);
   dom.targetsList.replaceChildren();
   app.draft.targetLabels.forEach((label, index) => {
     const row = document.createElement('div');
@@ -341,7 +490,7 @@ function renderTargetsEditor(dom, app) {
     input.maxLength = MN1_LIMITS.LABEL_MAX_LENGTH;
     input.autocomplete = 'off';
     input.dataset.targetInput = String(index);
-    input.setAttribute('aria-label', `Etiqueta ${index + 1} de ${app.draft.targetLabels.length}`);
+    input.setAttribute('aria-label', `Destino ${index + 1} de ${app.draft.targetLabels.length}`);
     input.disabled = app.busy;
     if (app.validationShown
         && (label.trim().length === 0 || textLength(label.trim()) > MN1_LIMITS.LABEL_MAX_LENGTH)) {
@@ -353,25 +502,48 @@ function renderTargetsEditor(dom, app) {
     remove.className = 'target-remove';
     remove.dataset.removeTarget = String(index);
     remove.textContent = 'Quitar';
-    remove.setAttribute('aria-label', `Quitar la etiqueta ${index + 1}`);
-    remove.disabled = app.busy || app.draft.targetLabels.length <= MN1_LIMITS.TARGETS_MIN;
+    remove.setAttribute('aria-label', `Quitar el destino ${index + 1}`);
+    remove.disabled = app.busy || app.draft.targetLabels.length <= minimum;
 
     row.append(input, remove);
     dom.targetsList.append(row);
   });
 }
 
+function renderOverlayControls(dom, app) {
+  const overlay = app.draft.overlay;
+  const disabled = app.busy || !isWorkspace(app);
+  dom.overlayX.value = String(Math.round(overlay.x * 100));
+  dom.overlayY.value = String(Math.round(overlay.y * 100));
+  dom.overlaySize.value = String(Number((overlay.size * 100).toFixed(1)));
+  dom.overlayFont.value = OVERLAY_FONTS.includes(overlay.font) ? overlay.font : 'bold';
+  dom.overlayColor.value = overlay.color;
+  dom.overlayShowDate.checked = overlay.showDate;
+  dom.overlayDate.value = overlay.date;
+  dom.overlayDateField.hidden = !overlay.showDate;
+  for (const control of [
+    dom.overlayX,
+    dom.overlayY,
+    dom.overlaySize,
+    dom.overlayFont,
+    dom.overlayColor,
+    dom.overlayShowDate,
+    dom.overlayDate,
+    dom.resetOverlay,
+  ]) {
+    if (control) control.disabled = disabled;
+  }
+  dom.editorPanel.hidden = !isWorkspace(app);
+}
+
 function renderValidation(dom, app) {
-  const validation = validateDraft(app.draft);
+  const validation = activeValidation(app);
   const show = app.validationShown;
   setFieldError(dom.messageError, show ? validation.errors.message : '');
   setFieldError(dom.targetsError, show ? validation.errors.targets : '');
   if (dom.messageInput) {
-    if (show && validation.errors.message) {
-      dom.messageInput.setAttribute('aria-invalid', 'true');
-    } else {
-      dom.messageInput.removeAttribute('aria-invalid');
-    }
+    if (show && validation.errors.message) dom.messageInput.setAttribute('aria-invalid', 'true');
+    else dom.messageInput.removeAttribute('aria-invalid');
   }
   if (dom.targetsList) {
     for (const input of dom.targetsList.querySelectorAll('[data-target-input]')) {
@@ -384,17 +556,131 @@ function renderValidation(dom, app) {
   }
 }
 
+function renderVoice(dom, app) {
+  dom.voicePanel.hidden = !isWorkspace(app);
+  if (!isWorkspace(app)) return;
+  const supported = canUseNative(app) && capability(app, CAPABILITIES.SPEECH);
+  dom.speakToggle.disabled = app.busy || !supported;
+  dom.speakToggle.textContent = app.listening ? 'Parar' : 'Hablar';
+  if (app.uiMode === 'browser') {
+    dom.speechStatus.textContent = 'El dictado usa RECOGNIZE_SPEECH de la app BASE. En el navegador no se simula el micrófono.';
+  } else if (!capability(app, CAPABILITIES.SPEECH)) {
+    dom.speechStatus.textContent = 'Esta app no anunció speech-input-v1. Actualiza a la BASE para dictar.';
+  } else if (app.listening) {
+    dom.speechStatus.textContent = 'Escuchando una sola frase… Pulsa «Parar» para descartar la transcripción.';
+  } else {
+    dom.speechStatus.textContent = `Una sesión por toque. Ejemplo: «${SPEECH_EXAMPLE}».`;
+  }
+  renderProposal(dom, app);
+}
+
+function gapLabel(kind, type) {
+  const labels = {
+    equipo: 'el equipo',
+    hora: 'la hora',
+    destino: 'el destino',
+    texto: 'una frase reconocible',
+  };
+  const name = labels[type] ?? type;
+  return kind === 'ambiguity' ? `Hay más de un ${name} posible.` : `Falta ${name}.`;
+}
+
+function renderProposal(dom, app) {
+  const proposal = app.proposal;
+  if (!proposal) {
+    dom.speechResult.hidden = true;
+    dom.proposalList.replaceChildren();
+    dom.applyProposal.disabled = true;
+    return;
+  }
+  dom.speechResult.hidden = false;
+  dom.speechTranscript.textContent = proposal.transcript
+    ? `«${proposal.transcript}»`
+    : 'Sin transcripción.';
+  dom.proposalList.replaceChildren();
+  if (proposal.ok) {
+    const lines = [
+      `Equipo: ${proposal.profileName}`,
+      `Hora: ${proposal.hour}`,
+      `Destinos: ${proposal.targetLabels.join(', ')}`,
+      'Mensaje: se conserva el del equipo; revísalo antes de compartir.',
+    ];
+    for (const line of lines) {
+      const item = document.createElement('li');
+      item.textContent = line;
+      dom.proposalList.append(item);
+    }
+  } else if (proposal.cancelled) {
+    const item = document.createElement('li');
+    item.textContent = 'La frase pide cancelar o no preparar: no se prepara ninguna propuesta.';
+    dom.proposalList.append(item);
+  } else {
+    for (const missing of proposal.missing) {
+      const item = document.createElement('li');
+      item.textContent = gapLabel('missing', missing);
+      dom.proposalList.append(item);
+    }
+    for (const ambiguous of proposal.ambiguities) {
+      const item = document.createElement('li');
+      item.textContent = gapLabel('ambiguity', ambiguous);
+      dom.proposalList.append(item);
+    }
+    if (proposal.missing.length === 0 && proposal.ambiguities.length === 0) {
+      const item = document.createElement('li');
+      item.textContent = 'La propuesta está incompleta.';
+      dom.proposalList.append(item);
+    }
+  }
+  dom.applyProposal.disabled = app.busy || !proposal.ok || !isWorkspace(app);
+}
+
+function renderActions(dom, app) {
+  const legacy = app.uiMode === 'legacy';
+  dom.importImage.hidden = legacy || app.uiMode === 'offline' || app.uiMode === 'loading';
+  dom.pickImage.hidden = !legacy;
+  dom.openEditor.hidden = !legacy;
+  dom.downloadPng.hidden = app.uiMode !== 'browser';
+  dom.saveTemplate.textContent = legacy ? 'Guardar plantilla' : 'Guardar borrador';
+  dom.prepareShare.disabled = app.busy
+    || app.uiMode === 'browser'
+    || app.uiMode === 'offline'
+    || app.uiMode === 'loading';
+  dom.prepareShare.title = app.uiMode === 'browser'
+    ? 'El compartir nativo necesita la app BASE; en navegador usa «Descargar PNG».'
+    : '';
+  const importDisabled = app.busy
+    || (canUseNative(app) && !capability(app, CAPABILITIES.RAW_IMAGE));
+  dom.importImage.disabled = importDisabled;
+  dom.pickImage.disabled = app.busy;
+  dom.openEditor.disabled = app.busy;
+  dom.downloadPng.disabled = app.busy;
+  dom.saveTemplate.disabled = app.busy || app.uiMode === 'offline' || app.uiMode === 'loading';
+}
+
+function renderCapabilities(dom, app) {
+  if (!dom.capabilityText) return;
+  const caps = [...app.capabilitySet];
+  dom.capabilityText.textContent = caps.length > 0
+    ? caps.join(' · ')
+    : (app.uiMode === 'browser' ? 'navegador local' : 'sin capacidades nuevas');
+}
+
 function renderAll(dom, app, { syncFields = true } = {}) {
   if (syncFields) {
     dom.messageInput.value = app.draft.message;
     renderTargetsEditor(dom, app);
   }
   renderMode(dom, app);
+  renderProfiles(dom, app);
   renderCounts(dom, app);
   renderHour(dom, app);
   renderPreview(dom, app);
   renderImage(dom, app);
+  renderOverlayControls(dom, app);
+  renderVoice(dom, app);
   renderValidation(dom, app);
+  renderActions(dom, app);
+  renderCapabilities(dom, app);
 }
 
 function setBusy(dom, app, busy, label = '') {
@@ -403,20 +689,31 @@ function setBusy(dom, app, busy, label = '') {
   dom.messageInput.disabled = busy;
   for (const radio of dom.hourRadios) radio.disabled = busy;
   dom.customHour.disabled = busy;
+  dom.importImage.disabled = busy;
   dom.pickImage.disabled = busy;
   dom.openEditor.disabled = busy;
   dom.refreshState.disabled = busy;
   dom.saveTemplate.disabled = busy;
   dom.prepareShare.disabled = busy;
+  dom.downloadPng.disabled = busy;
+  dom.speakToggle.disabled = busy;
+  dom.applyProposal.disabled = busy;
   dom.addTarget.disabled = busy || app.draft.targetLabels.length >= MN1_LIMITS.TARGETS_MAX;
   for (const control of dom.targetsList.querySelectorAll('[data-target-input], [data-remove-target]')) {
     control.disabled = busy;
   }
+  for (const control of dom.profileList.querySelectorAll('[data-profile-id]')) {
+    control.disabled = busy || app.uiMode === 'legacy';
+  }
   if (busy && label) showStatus(dom, label, 'busy');
   if (!busy) {
+    renderProfiles(dom, app);
     renderTargetsEditor(dom, app);
     renderHour(dom, app);
     renderCounts(dom, app);
+    renderOverlayControls(dom, app);
+    renderVoice(dom, app);
+    renderActions(dom, app);
     updateHourDialog(dom, app);
   }
 }
@@ -463,48 +760,495 @@ function closeHourDialog(dom) {
   }
 }
 
-function applyNativeState(dom, app, data, { source = 'get', preserveDirty = false } = {}) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
-  const keepLocalDraft = preserveDirty && app.dirty;
-  const next = { ...app.draft };
+/* ------------------------------------------------------------------------- */
+/* Canvas                                                                    */
+/* ------------------------------------------------------------------------- */
 
-  if (!keepLocalDraft) {
-    if (typeof data.message === 'string'
-        && textLength(data.message) <= MN1_LIMITS.MESSAGE_MAX_LENGTH) {
-      next.message = data.message;
+async function drawCanvasPreview(dom, app) {
+  const dataUrl = app.imageDataUrl;
+  if (!isWorkspace(app) || !isPngDataUrl(dataUrl)) return;
+  const token = ++app.drawToken;
+  try {
+    let image = app.loadedImage;
+    if (!image || app.loadedImageUrl !== dataUrl) {
+      image = await loadImageElement(dataUrl);
+      if (token !== app.drawToken) return;
+      app.loadedImage = image;
+      app.loadedImageUrl = dataUrl;
     }
-    if (isValidHour(data.hour)) next.hour = data.hour;
-    const labels = normalizeTargetLabels(data.targetLabels);
-    if (labels) next.targetLabels = labels;
-  }
-
-  const hasImage = Object.prototype.hasOwnProperty.call(data, 'imageDataUrl');
-  if (hasImage) {
-    if (typeof data.imageDataUrl === 'string' && isPngDataUrl(data.imageDataUrl)) {
-      next.imageDataUrl = data.imageDataUrl;
-    } else if (data.imageDataUrl === null || data.imageDataUrl === '') {
-      next.imageDataUrl = null;
-    } else if (data.imageDataUrl !== undefined) {
-      showStatus(dom, 'La app envió una imagen que no es un PNG válido; no se muestra.', 'warning');
+    if (token !== app.drawToken || app.imageDataUrl !== dataUrl) return;
+    const width = Math.max(1, Math.round(image.naturalWidth || image.width));
+    const height = Math.max(1, Math.round(image.naturalHeight || image.height));
+    if (dom.canvasPreview.width !== width || dom.canvasPreview.height !== height) {
+      dom.canvasPreview.width = width;
+      dom.canvasPreview.height = height;
     }
-  } else if (source === 'get') {
-    next.imageDataUrl = null;
+    const ctx = dom.canvasPreview.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+    drawOverlay(ctx, width, height, app.draft.hour, app.draft.overlay);
+    dom.canvasPreview.dataset.ready = 'true';
+  } catch (error) {
+    if (token !== app.drawToken) return;
+    showStatus(dom, `No se pudo mostrar la foto original: ${error.message}`, 'warning');
   }
-
-  if (Object.prototype.hasOwnProperty.call(data, 'overlay')) {
-    next.overlay = data.overlay ?? null;
-  }
-
-  app.draft = next;
-  if (!keepLocalDraft) app.dirty = false;
-
-  if (typeof data.nativeVersion === 'string' || typeof data.nativeVersion === 'number') {
-    app.nativeVersion = String(data.nativeVersion);
-    dom.nativeVersion.textContent = `Android ${app.nativeVersion}`;
-  }
-
-  renderAll(dom, app, { syncFields: !keepLocalDraft });
 }
+
+function updateOverlayFromPointer(dom, app, event) {
+  if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
+  const rect = dom.canvasPreview.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+  app.draft.overlay = normalizeOverlay({ ...app.draft.overlay, x, y });
+  renderOverlayControls(dom, app);
+  renderImage(dom, app);
+  scheduleSave(dom, app);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Persistencia                                                              */
+/* ------------------------------------------------------------------------- */
+
+function markDirty(app) {
+  app.dirty = true;
+  app.draftRevision += 1;
+}
+
+function markUnsaved(app) {
+  app.dirty = true;
+}
+
+function enqueueStorageTask(app, task) {
+  // Serializa las instantáneas de estado para que una escritura lenta no pise a otra.
+  const run = app.saveChain.then(task, task);
+  app.saveChain = run.then(
+    () => {
+      app.saveFailed = false;
+    },
+    () => {
+      app.saveFailed = true;
+    },
+  );
+  return run;
+}
+
+function cancelScheduledSave(app) {
+  if (app.saveTimer === null) return;
+  clearTimeout(app.saveTimer);
+  app.saveTimer = null;
+}
+
+function scheduleSave(dom, app) {
+  if (!isWorkspace(app) || !app.storage) return;
+  cancelScheduledSave(app);
+  app.saveTimer = window.setTimeout(() => {
+    app.saveTimer = null;
+    void persistDraft(dom, app, { quiet: true });
+  }, 700);
+}
+
+function commitDraft(app) {
+  const profile = activeProfileOf(app);
+  if (!profile) return null;
+  const updated = updateProfile(app.workspace, app.workspace.activeProfileId, {
+    ...profile,
+    message: app.draft.message,
+    hour: app.draft.hour,
+    targetLabels: [...app.draft.targetLabels],
+    overlay: normalizeOverlay(app.draft.overlay),
+    imageKey: app.draft.imageKey,
+    imageWidth: app.draft.imageWidth,
+    imageHeight: app.draft.imageHeight,
+    updatedAt: new Date().toISOString(),
+  });
+  if (!updated) return null;
+  app.workspace = updated;
+  const normalized = updated.profiles[app.workspace.activeProfileId];
+  app.draft.message = normalized.message;
+  app.draft.hour = normalized.hour;
+  app.draft.targetLabels = [...normalized.targetLabels];
+  app.draft.overlay = { ...normalized.overlay };
+  app.draft.imageKey = normalized.imageKey;
+  app.draft.imageWidth = normalized.imageWidth;
+  app.draft.imageHeight = normalized.imageHeight;
+  return normalized;
+}
+
+function imageKeyIsReferenced(app, key) {
+  if (app.draft?.imageKey === key) return true;
+  return Object.values(app.workspace?.profiles ?? {})
+    .some((profile) => profile.imageKey === key);
+}
+
+async function removeReplacedImages(dom, app) {
+  if (!app.storage || app.pendingImageRemovals.length === 0) return;
+  const pending = app.pendingImageRemovals;
+  app.pendingImageRemovals = [];
+  const remaining = [];
+  for (const key of pending) {
+    if (!key || imageKeyIsReferenced(app, key)) {
+      if (key) remaining.push(key);
+      continue;
+    }
+    try {
+      await app.storage.removeText(key);
+    } catch (error) {
+      remaining.push(key);
+      showStatus(
+        dom,
+        `El estado se guardó, pero no se pudo retirar la foto anterior (${error.message || 'error'}). ` +
+        'No se borró ninguna clave nativa fuera del vault.',
+        'warning',
+      );
+    }
+  }
+  app.pendingImageRemovals = [...new Set([...app.pendingImageRemovals, ...remaining])];
+}
+
+async function persistDraft(dom, app, options = {}) {
+  const { quiet = false, force = false } = options;
+  cancelScheduledSave(app);
+  if (!isWorkspace(app) || !app.storage) {
+    if (!quiet) showError(dom, 'Este modo no tiene un almacén disponible. No se guardó nada.');
+    return false;
+  }
+  if (app.storageBlocked && !force) {
+    if (!quiet) showStatus(dom, 'Hay un estado guardado ilegible. Pulsa «Guardar» para reemplazarlo de forma explícita.', 'warning');
+    return false;
+  }
+  const validation = activeValidation(app);
+  if (!validation.ok) {
+    app.validationShown = true;
+    renderValidation(dom, app);
+    if (!quiet) showError(dom, 'Revisa el mensaje, la hora y los destinos antes de guardar.');
+    markUnsaved(app);
+    return false;
+  }
+  app.draft.message = validation.normalized.message;
+  app.draft.hour = validation.normalized.hour;
+  app.draft.targetLabels = [...validation.normalized.targetLabels];
+  app.draft.overlay = normalizeOverlay(app.draft.overlay);
+  const committed = commitDraft(app);
+  if (!committed) {
+    if (!quiet) showError(dom, 'No se pudo preparar el borrador para guardar.');
+    return false;
+  }
+  const revision = app.draftRevision;
+  const serializedState = JSON.stringify(app.workspace);
+  try {
+    await enqueueStorageTask(app, () => (
+      app.storage.putText(WORKSPACE_KEYS.state, serializedState)
+    ));
+    if (app.migrationPending) {
+      await markMigrated(dom, app);
+      app.migrationPending = false;
+    }
+    app.persistedRevision = Math.max(app.persistedRevision, revision);
+    app.dirty = app.draftRevision !== app.persistedRevision;
+    app.persistent = app.storage.persistent !== false;
+    app.storageBlocked = false;
+    app.lastSavedAt = new Date().toISOString();
+    if (!quiet) {
+      showStatus(
+        dom,
+        app.persistent
+          ? `Borrador guardado en ${storageLabel(app)}. No se envió nada.`
+          : `Borrador guardado sólo en ${storageLabel(app)}; se perderá al recargar. No se envió nada.`,
+        app.persistent ? 'success' : 'warning',
+      );
+    }
+    await removeReplacedImages(dom, app);
+    return true;
+  } catch (error) {
+    markUnsaved(app);
+    const message = `No se pudo guardar en ${storageLabel(app)}: ${error.message || 'error'}. No se asumió ningún guardado.`;
+    if (quiet) showStatus(dom, message, 'warning');
+    else showError(dom, message);
+    return false;
+  }
+}
+
+async function readWorkspaceFromStorage(app) {
+  const result = await app.storage.getJson(WORKSPACE_KEYS.state);
+  if (!result.ok) return { status: 'corrupt', state: null };
+  if (result.value === null) return { status: 'missing', state: null };
+  const state = normalizeWorkspaceState(result.value);
+  return state ? { status: 'ok', state } : { status: 'corrupt', state: null };
+}
+
+async function loadActiveImage(app) {
+  app.imageDataUrl = null;
+  app.loadedImage = null;
+  app.loadedImageUrl = '';
+  if (!isWorkspace(app) || !app.workspace || !app.storage) return;
+  const profile = activeProfileOf(app);
+  if (!profile || !profile.imageKey) return;
+  const token = ++app.imageLoadToken;
+  try {
+    const base64 = await app.storage.getText(profile.imageKey);
+    if (token !== app.imageLoadToken) return;
+    if (typeof base64 !== 'string') return;
+    const dataUrl = pngDataUrlFromBase64(base64);
+    if (!isPngDataUrl(dataUrl)) {
+      showStatus(app.dom, 'La copia privada de la foto no es un PNG válido; no se muestra.', 'warning');
+      return;
+    }
+    app.imageDataUrl = dataUrl;
+  } catch (error) {
+    if (token !== app.imageLoadToken) return;
+    showStatus(app.dom, `No se pudo leer la foto original: ${error.message || 'error'}.`, 'warning');
+  }
+}
+
+async function storeImportedImage(app, dataUrl, width, height) {
+  if (!isPngDataUrl(dataUrl) || dataUrl.length > MAX_IMAGE_DATA_URL) {
+    throw new RendererError('invalid_png', 'La imagen importada no es un PNG válido de hasta 8 MiB.');
+  }
+  const base64 = pngBase64FromDataUrl(dataUrl);
+  if (!base64) throw new RendererError('invalid_png', 'La imagen importada no es un PNG válido.');
+  const profileId = app.workspace.activeProfileId;
+  const previousKey = app.draft.imageKey;
+  const key = imageKeyForProfile(
+    profileId,
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+  );
+  await app.storage.putText(key, base64);
+  app.draft.imageKey = key;
+  app.draft.imageWidth = width;
+  app.draft.imageHeight = height;
+  if (previousKey && previousKey !== key && !app.pendingImageRemovals.includes(previousKey)) {
+    app.pendingImageRemovals.push(previousKey);
+  }
+  markDirty(app);
+  return key;
+}
+
+function readLegacyBrowserDraft() {
+  if (typeof localStorage === 'undefined') return null;
+  const keys = ['mn1.workspace.legacy', 'mn1.template.v1', 'mn1.template', 'mn1.draft'];
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && typeof parsed.message === 'string') return parsed;
+    } catch {
+      // Se continúa; nunca se borra la clave anterior.
+    }
+  }
+  return null;
+}
+
+async function hasMigrated(app) {
+  try {
+    return (await app.storage.getText(WORKSPACE_KEYS.migrated)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+async function markMigrated(dom, app) {
+  try {
+    await app.storage.putText(WORKSPACE_KEYS.migrated, '1');
+  } catch (error) {
+    showStatus(dom, `El workspace se guardó, pero no se pudo anotar la migración: ${error.message || 'error'}.`, 'warning');
+  }
+}
+
+async function initBrowserWorkspace(dom, app) {
+  const vault = await createBrowserVault();
+  app.storage = new VaultClient(vault.adapter, {
+    persistent: vault.persistent,
+    label: vault.label,
+    reason: vault.reason,
+  });
+  app.persistent = vault.persistent;
+  const loaded = await readWorkspaceFromStorage(app);
+  let state = loaded.state;
+  let shouldPersist = false;
+  if (loaded.status === 'corrupt') {
+    app.storageBlocked = true;
+    state = createDefaultWorkspace();
+  } else if (!state) {
+    const migrated = await hasMigrated(app);
+    const legacy = migrated ? null : readLegacyBrowserDraft();
+    state = legacy ? migrateLegacyWorkspace(legacy) : createDefaultWorkspace();
+    if (legacy) {
+      app.migrationNotice = 'Se importó la plantilla anterior a Los Indestructibles. Las claves anteriores no se borraron.';
+      app.migrationPending = true;
+    }
+    shouldPersist = !app.storageBlocked;
+  }
+  if (shouldPersist) {
+    try {
+      await app.storage.putJson(WORKSPACE_KEYS.state, state);
+      if (app.migrationPending) {
+        await markMigrated(dom, app);
+        app.migrationPending = false;
+      }
+    } catch (error) {
+      app.persistent = false;
+      showStatus(dom, `No se pudo crear el almacén local: ${error.message || 'error'}.`, 'warning');
+    }
+  }
+  app.workspace = state;
+  app.draft = cloneDraftFromProfile(activeProfileOf(app));
+  await loadActiveImage(app);
+}
+
+async function initNativeWorkspace(dom, app, legacyState) {
+  try {
+    app.storage = new VaultClient(new BridgeVaultAdapter(app.bridge), {
+      persistent: true,
+      label: 'almacén privado de la app',
+    });
+    app.persistent = true;
+    const loaded = await readWorkspaceFromStorage(app);
+    let state = loaded.state;
+    if (loaded.status === 'corrupt') {
+      app.storageBlocked = true;
+      state = createDefaultWorkspace();
+    } else if (!state) {
+      const migrated = await hasMigrated(app);
+      if (migrated) {
+        state = createDefaultWorkspace();
+      } else {
+        state = migrateLegacyWorkspace(legacyState);
+        if (capability(app, CAPABILITIES.RAW_IMAGE)) {
+          const imageResult = await requestNative(dom, app, 'GET_LEGACY_IMAGE', {}, {
+            timeoutMs: MN1_LIMITS.LEGACY_IMAGE_TIMEOUT_MS,
+            silent: true,
+          });
+          const legacyImage = imageResult?.ok ? imageResult.data?.imageDataUrl : null;
+          if (isPngDataUrl(legacyImage)) {
+            try {
+              const base64 = pngBase64FromDataUrl(legacyImage);
+              const key = imageKeyForProfile(DEFAULT_PROFILE_ID);
+              await app.storage.putText(key, base64);
+              const profile = state.profiles[DEFAULT_PROFILE_ID];
+              const width = Number(imageResult.data?.width);
+              const height = Number(imageResult.data?.height);
+              state.profiles[DEFAULT_PROFILE_ID] = normalizeTemplate({
+                ...profile,
+                imageKey: key,
+                imageWidth: Number.isInteger(width) && width > 0 ? width : null,
+                imageHeight: Number.isInteger(height) && height > 0 ? height : null,
+              }, DEFAULT_PROFILE_ID);
+            } catch (error) {
+              showStatus(dom, `La plantilla anterior se migró, pero la foto no: ${error.message || 'error'}.`, 'warning');
+            }
+          }
+        }
+        app.migrationNotice = 'Se importó la plantilla anterior a Los Indestructibles sin borrar las claves ni la foto nativa anterior.';
+        app.migrationPending = true;
+      }
+    }
+    if (!app.storageBlocked && app.migrationPending) {
+      await app.storage.putJson(WORKSPACE_KEYS.state, state);
+      await markMigrated(dom, app);
+      app.migrationPending = false;
+    }
+    app.workspace = state;
+    app.draft = cloneDraftFromProfile(activeProfileOf(app));
+    await loadActiveImage(app);
+  } catch (error) {
+    app.storage = new VaultClient(new MemoryVault(), {
+      persistent: false,
+      label: 'memoria temporal',
+      reason: error.message || 'almacén no disponible',
+    });
+    app.persistent = false;
+    const state = migrateLegacyWorkspace(legacyState);
+    app.workspace = state;
+    app.draft = cloneDraftFromProfile(activeProfileOf(app));
+    app.migrationNotice = 'El almacén nativo no está disponible; el estado vive en memoria temporal y no se finge persistencia.';
+    app.migrationPending = false;
+    await loadActiveImage(app);
+    showStatus(dom, `No se pudo usar el almacén nativo: ${error.message || 'error'}.`, 'warning');
+  }
+}
+
+async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
+  if (!isWorkspace(app)) return false;
+  if (!isProfileId(profileId)) {
+    showStatus(dom, 'El equipo solicitado no está en el catálogo.', 'warning');
+    return false;
+  }
+  if (app.switching || app.busy) return false;
+  if (profileId === app.workspace.activeProfileId && typeof options.mutate !== 'function') return true;
+  cancelScheduledSave(app);
+
+  const validation = activeValidation(app);
+  if (!validation.ok) {
+    app.validationShown = true;
+    renderValidation(dom, app);
+    showError(dom, 'Corrige el mensaje, la hora y los destinos antes de cambiar de equipo. No se perdió nada.');
+    return false;
+  }
+
+  app.draft.message = validation.normalized.message;
+  app.draft.hour = validation.normalized.hour;
+  app.draft.targetLabels = [...validation.normalized.targetLabels];
+  const committed = commitDraft(app);
+  if (!committed) {
+    showError(dom, 'No se pudo preparar el equipo actual para guardarlo.');
+    return false;
+  }
+  const committedRevision = app.draftRevision;
+
+  const next = {
+    ...app.workspace,
+    activeProfileId: profileId,
+    profiles: { ...app.workspace.profiles },
+  };
+  if (typeof options.mutate === 'function') {
+    const patched = options.mutate(cloneTemplate(next.profiles[profileId]));
+    next.profiles[profileId] = normalizeTemplate(patched, profileId);
+  }
+  const serializedNext = JSON.stringify(next);
+
+  app.switching = true;
+  setBusy(dom, app, true, 'Guardando el equipo actual y cambiando de equipo…');
+  try {
+    await enqueueStorageTask(app, async () => {
+      if (app.saveFailed) {
+        throw new Error('previous_save_failed');
+      }
+      await app.storage.putText(WORKSPACE_KEYS.state, serializedNext);
+    });
+    app.workspace = next;
+    app.draft = cloneDraftFromProfile(next.profiles[profileId]);
+    app.persistedRevision = Math.max(app.persistedRevision, committedRevision);
+    app.dirty = app.draftRevision !== app.persistedRevision;
+    app.storageBlocked = false;
+    app.proposal = null;
+    renderAll(dom, app, { syncFields: true });
+    await loadActiveImage(app);
+    renderImage(dom, app);
+    renderProfiles(dom, app);
+    await removeReplacedImages(dom, app);
+    const definition = getProfileDefinition(profileId);
+    showStatus(dom, `Equipo activo: ${definition?.name ?? profileId}. Se guardó el borrador anterior. No se envió nada.`, 'success');
+    return true;
+  } catch (error) {
+    markUnsaved(app);
+    if (error?.message === 'previous_save_failed') {
+      showError(dom, 'No se cambió de equipo: el guardado anterior no se completó. Guarda el borrador actual y vuelve a intentarlo.');
+    } else {
+      showError(dom, `No se pudo cambiar de equipo: ${error.message || 'error'}. Se conserva el equipo actual.`);
+    }
+    return false;
+  } finally {
+    app.switching = false;
+    setBusy(dom, app, false);
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Puente nativo                                                             */
+/* ------------------------------------------------------------------------- */
 
 async function requestNative(dom, app, action, payload, { timeoutMs, silent = false } = {}) {
   try {
@@ -525,21 +1269,57 @@ async function requestNative(dom, app, action, payload, { timeoutMs, silent = fa
   }
 }
 
-async function loadState(dom, app, { silent = false, preserveDirty = true, successMessage = '' } = {}) {
+function applyNativeMeta(dom, app, data) {
+  if (typeof data.nativeVersion === 'string' || typeof data.nativeVersion === 'number') {
+    app.nativeVersion = String(data.nativeVersion);
+    dom.nativeVersion.textContent = `Android ${app.nativeVersion}`;
+  }
+  app.capabilitySet = new Set(normalizeCapabilities(data.capabilities));
+  renderCapabilities(dom, app);
+}
+
+function applyLegacyState(dom, app, data, { preserveDirty = false } = {}) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+  const keepLocalDraft = preserveDirty && app.dirty;
+  const next = { ...app.draft };
+  if (!keepLocalDraft) {
+    if (typeof data.message === 'string' && textLength(data.message) <= MN1_LIMITS.MESSAGE_MAX_LENGTH) {
+      next.message = data.message;
+    }
+    if (isValidHour(data.hour)) next.hour = data.hour;
+    const labels = normalizeTargetLabels(data.targetLabels);
+    if (labels) next.targetLabels = labels;
+  }
+  const hasImage = Object.prototype.hasOwnProperty.call(data, 'imageDataUrl');
+  if (hasImage) {
+    if (typeof data.imageDataUrl === 'string' && isPngDataUrl(data.imageDataUrl)) {
+      app.legacyImageDataUrl = data.imageDataUrl;
+    } else if (data.imageDataUrl === null || data.imageDataUrl === '') {
+      app.legacyImageDataUrl = null;
+    } else if (data.imageDataUrl !== undefined) {
+      showStatus(dom, 'La app envió una imagen que no es un PNG válido; no se muestra.', 'warning');
+    }
+  } else if (!preserveDirty) {
+    app.legacyImageDataUrl = null;
+  }
+  app.draft = next;
+  app.dirty = keepLocalDraft ? app.dirty : false;
+  renderAll(dom, app, { syncFields: !keepLocalDraft });
+}
+
+async function loadLegacyState(dom, app, options = {}) {
+  const { silent = false, preserveDirty = true, successMessage = '' } = options;
   if (app.refreshInFlight) return null;
   app.refreshInFlight = true;
   try {
-    const result = await requestNative(dom, app, 'GET_STATE', {}, {
-      timeoutMs: 12_000,
-      silent,
-    });
+    const result = await requestNative(dom, app, 'GET_STATE', {}, { timeoutMs: 12_000, silent });
     if (!result) return null;
     if (!result.ok) {
       if (!silent) showStatus(dom, result.message || 'No se pudo leer la plantilla desde la app.', 'warning');
       return result;
     }
-    applyNativeState(dom, app, result.data ?? {}, {
-      source: 'get',
+    applyNativeMeta(dom, app, result.data ?? {});
+    applyLegacyState(dom, app, result.data ?? {}, {
       preserveDirty: preserveDirty || app.dirty,
     });
     if (!silent && successMessage) showStatus(dom, successMessage, 'info');
@@ -549,12 +1329,28 @@ async function loadState(dom, app, { silent = false, preserveDirty = true, succe
   }
 }
 
-async function syncTemplate(dom, app) {
-  const validation = validateDraft(app.draft);
+function ensureNative(dom, app) {
+  const native = app.bridge.refreshMode();
+  app.mode = native ? 'native' : 'preview';
+  if (!native) {
+    renderMode(dom, app);
+    showStatus(dom, 'Esta acción necesita la app Android. En el navegador no se simula ningún guardado ni envío.', 'warning');
+    return false;
+  }
+  if (app.protocolMismatch) {
+    renderMode(dom, app);
+    showStatus(dom, 'La versión web no coincide con el contrato v1. Revisa el despliegue antes de continuar.', 'warning');
+    return false;
+  }
+  return true;
+}
+
+async function syncLegacyTemplate(dom, app) {
+  const validation = validateProfileDraft(app.draft);
   if (!validation.ok) {
     app.validationShown = true;
     renderValidation(dom, app);
-    showError(dom, 'Revisa el mensaje, la hora y las etiquetas antes de continuar.');
+    showError(dom, 'Revisa el mensaje, la hora y los destinos antes de continuar.');
     return null;
   }
   app.draft.message = validation.normalized.message;
@@ -571,49 +1367,17 @@ async function syncTemplate(dom, app) {
     showStatus(dom, result.message || 'La app rechazó los cambios de la plantilla.', 'warning');
     return null;
   }
-  if (result.data) {
-    applyNativeState(dom, app, result.data, { source: 'update', preserveDirty: false });
-  }
+  if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
   app.dirty = false;
   return validation.normalized;
 }
 
-function ensureNative(dom, app) {
-  app.mode = app.bridge.refreshMode() ? 'native' : 'preview';
-  if (app.mode !== 'native') {
-    renderMode(dom, app);
-    showStatus(dom, 'Vista previa en navegador: esta acción necesita la app Android. No se guardó ni se compartió nada.', 'warning');
-    return false;
-  }
-  if (app.protocolMismatch) {
-    renderMode(dom, app);
-    showStatus(dom, 'La versión web no coincide con el contrato v1. Revisa el despliegue antes de continuar.', 'warning');
-    return false;
-  }
-  return true;
-}
-
-async function hydrate(dom, app) {
-  app.connection = 'checking';
-  renderMode(dom, app);
-  setBusy(dom, app, true, 'Conectando con la app MN1…');
-  try {
-    await loadState(dom, app, {
-      silent: false,
-      preserveDirty: false,
-      successMessage: 'Conectado a la app MN1. Revisa la plantilla; la confirmación final es en tu teléfono.',
-    });
-  } finally {
-    setBusy(dom, app, false);
-  }
-}
-
-async function handleSave(dom, app) {
+async function handleLegacySave(dom, app) {
   if (!ensureNative(dom, app) || app.busy) return;
   clearError(dom);
   setBusy(dom, app, true, 'Guardando la plantilla…');
   try {
-    const synced = await syncTemplate(dom, app);
+    const synced = await syncLegacyTemplate(dom, app);
     if (!synced) return;
     const result = await requestNative(dom, app, 'SAVE_TEMPLATE', {}, { timeoutMs: 30_000 });
     if (!result) return;
@@ -621,9 +1385,7 @@ async function handleSave(dom, app) {
       showStatus(dom, result.message || 'No se pudo guardar la plantilla. No se asumió ningún cambio.', 'warning');
       return;
     }
-    if (result.data) {
-      applyNativeState(dom, app, result.data, { source: 'update', preserveDirty: false });
-    }
+    if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
     app.dirty = false;
     const message = (result.message || 'Plantilla guardada.').trim();
     showStatus(dom, `${message} No se ha enviado nada.`, 'success');
@@ -632,12 +1394,12 @@ async function handleSave(dom, app) {
   }
 }
 
-async function handlePrepareShare(dom, app) {
+async function handleLegacyShare(dom, app) {
   if (!ensureNative(dom, app) || app.busy) return;
   clearError(dom);
   setBusy(dom, app, true, 'Preparando la imagen con la hora y el compartir…');
   try {
-    const synced = await syncTemplate(dom, app);
+    const synced = await syncLegacyTemplate(dom, app);
     if (!synced) return;
     const result = await requestNative(dom, app, 'PREPARE_SHARE', { slot: synced.hour }, {
       timeoutMs: MN1_LIMITS.PREPARE_SHARE_TIMEOUT_MS,
@@ -647,9 +1409,7 @@ async function handlePrepareShare(dom, app) {
       showStatus(dom, result.message || 'La app no pudo preparar el compartir. No se asumió ningún envío.', 'warning');
       return;
     }
-    if (result.data) {
-      applyNativeState(dom, app, result.data, { source: 'update', preserveDirty: false });
-    }
+    if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
     const message = (result.message || 'Listo para compartir. Confirma en tu teléfono.').trim();
     showStatus(dom, `${message} La web no confirma la entrega.`, 'success');
   } finally {
@@ -657,7 +1417,7 @@ async function handlePrepareShare(dom, app) {
   }
 }
 
-async function handlePickImage(dom, app) {
+async function handleLegacyPickImage(dom, app) {
   if (!ensureNative(dom, app) || app.busy) return;
   clearError(dom);
   setBusy(dom, app, true, 'Abriendo el selector de imagen…');
@@ -668,14 +1428,12 @@ async function handlePickImage(dom, app) {
       showStatus(dom, result.message || 'No se abrió el selector de imagen.', 'warning');
       return;
     }
-    if (result.data) {
-      applyNativeState(dom, app, result.data, { source: 'update', preserveDirty: true });
-    }
+    if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: true });
     app.pendingResume = 'pick';
     showStatus(dom, result.message || 'Selector de imagen abierto. Si eliges una foto, la vista previa se actualizará.', 'info');
     window.setTimeout(() => {
       if (!app.busy && app.mode === 'native') {
-        void loadState(dom, app, { silent: true, preserveDirty: true });
+        void loadLegacyState(dom, app, { silent: true, preserveDirty: true });
       }
     }, 900);
   } finally {
@@ -683,12 +1441,12 @@ async function handlePickImage(dom, app) {
   }
 }
 
-async function handleOpenEditor(dom, app) {
+async function handleLegacyOpenEditor(dom, app) {
   if (!ensureNative(dom, app) || app.busy) return;
   clearError(dom);
   setBusy(dom, app, true, 'Abriendo el editor nativo…');
   try {
-    const synced = await syncTemplate(dom, app);
+    const synced = await syncLegacyTemplate(dom, app);
     if (!synced) return;
     const result = await requestNative(dom, app, 'OPEN_EDITOR', {}, { timeoutMs: 30_000 });
     if (!result) return;
@@ -696,9 +1454,7 @@ async function handleOpenEditor(dom, app) {
       showStatus(dom, result.message || 'No se pudo abrir el editor nativo.', 'warning');
       return;
     }
-    if (result.data) {
-      applyNativeState(dom, app, result.data, { source: 'update', preserveDirty: false });
-    }
+    if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
     app.pendingResume = 'editor';
     showStatus(dom, result.message || 'Editor nativo abierto. Al volver, la vista se actualizará.', 'info');
   } finally {
@@ -706,45 +1462,580 @@ async function handleOpenEditor(dom, app) {
   }
 }
 
-async function handleRefresh(dom, app) {
-  if (!ensureNative(dom, app) || app.busy) return;
+/* ------------------------------------------------------------------------- */
+/* Acciones workspace                                                        */
+/* ------------------------------------------------------------------------- */
+
+async function handleWorkspaceSave(dom, app) {
+  if (app.busy) return;
   clearError(dom);
-  setBusy(dom, app, true, 'Actualizando la vista desde la app…');
+  setBusy(dom, app, true, 'Guardando el borrador…');
   try {
-    await loadState(dom, app, {
-      silent: false,
-      preserveDirty: app.dirty,
-      successMessage: 'Vista actualizada desde la app. La web no confirma la entrega.',
-    });
+    await persistDraft(dom, app, { force: true });
   } finally {
     setBusy(dom, app, false);
   }
 }
 
-function handleResume(dom, app) {
-  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-  if (app.mode !== 'native' || app.busy || app.refreshInFlight) return;
-  const now = Date.now();
-  if (now - app.lastResumeAt < 1200) return;
-  app.lastResumeAt = now;
-  const resumeKind = app.pendingResume;
-  const preserveDirty = resumeKind !== 'editor';
-  app.pendingResume = '';
-  void loadState(dom, app, { silent: true, preserveDirty }).then((result) => {
-    // El PhotoPicker puede cerrarse antes de que Android termine de asentar el PNG.
-    // Un segundo GET_STATE (sin inventar nada) recoge el estado vigente si ya existe.
-    if (result && resumeKind === 'pick') {
-      window.setTimeout(() => {
-        if (!app.busy && app.mode === 'native') {
-          void loadState(dom, app, { silent: true, preserveDirty: true });
-        }
-      }, 1600);
+async function applyImportedImage(dom, app, dataUrl, width, height) {
+  try {
+    const key = await storeImportedImage(app, dataUrl, width, height);
+    app.imageDataUrl = dataUrl;
+    app.loadedImage = null;
+    app.loadedImageUrl = '';
+    app.drawToken += 1;
+    const valid = activeValidation(app).ok;
+    if (valid) {
+      const saved = await persistDraft(dom, app, { quiet: true });
+      if (saved) {
+        showStatus(dom, `Foto original guardada en ${storageLabel(app)}. La hora se dibuja sólo en la vista y el PNG.`, 'success');
+      } else {
+        showStatus(dom, 'La foto se guardó en el almacén, pero el estado del equipo no se pudo persistir. Guarda explícitamente para asociarla.', 'warning');
+      }
+    } else {
+      showStatus(dom, 'Foto importada y conservada, pero el borrador tiene errores. Corrige el mensaje/hora y guarda para asociarla al equipo.', 'warning');
     }
+    renderAll(dom, app, { syncFields: false });
+    return key;
+  } catch (error) {
+    showError(dom, `No se pudo guardar la foto original: ${error.message || 'error'}.`);
+    return null;
+  }
+}
+
+async function imageDimensions(dataUrl) {
+  const image = await loadImageElement(dataUrl);
+  return {
+    width: Math.max(1, Math.round(image.naturalWidth || image.width)),
+    height: Math.max(1, Math.round(image.naturalHeight || image.height)),
+  };
+}
+
+async function handleImportImage(dom, app) {
+  if (app.busy) return;
+  if (app.uiMode === 'browser') {
+    dom.browserImageInput.value = '';
+    dom.browserImageInput.click();
+    return;
+  }
+  if (!ensureNative(dom, app)) return;
+  if (!capability(app, CAPABILITIES.RAW_IMAGE)) {
+    showStatus(dom, 'Esta app no anunció raw-image-v1. Actualiza a la APK BASE para importar la foto original.', 'warning');
+    return;
+  }
+  clearError(dom);
+  setBusy(dom, app, true, 'Abriendo el selector de foto original…');
+  try {
+    const result = await requestNative(dom, app, 'IMPORT_IMAGE', {}, {
+      timeoutMs: MN1_LIMITS.IMPORT_IMAGE_TIMEOUT_MS,
+    });
+    if (!result) return;
+    if (!result.ok) {
+      showStatus(dom, result.message || 'No se importó ninguna foto. No se asumió una imagen.', 'warning');
+      return;
+    }
+    const data = result.data ?? {};
+    if (!isPngDataUrl(data.imageDataUrl)) {
+      showError(dom, 'La app no devolvió un PNG original válido. No se guardó ninguna imagen.');
+      return;
+    }
+    let width = Number(data.width);
+    let height = Number(data.height);
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+      try {
+        const size = await imageDimensions(data.imageDataUrl);
+        width = size.width;
+        height = size.height;
+      } catch {
+        showError(dom, 'No se pudieron leer las dimensiones de la foto. No se guardó.');
+        return;
+      }
+    }
+    await applyImportedImage(dom, app, data.imageDataUrl, width, height);
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+async function handleBrowserFile(dom, app, file) {
+  if (!file || app.busy) return;
+  clearError(dom);
+  setBusy(dom, app, true, 'Preparando la foto original en el navegador…');
+  try {
+    const prepared = await prepareImageFile(file);
+    await applyImportedImage(dom, app, prepared.dataUrl, prepared.width, prepared.height);
+  } catch (error) {
+    showError(dom, `No se pudo preparar la imagen: ${error.message || 'error'}.`);
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+async function handleWorkspaceShare(dom, app) {
+  if (!ensureNative(dom, app) || app.busy) return;
+  if (!capability(app, CAPABILITIES.SHARE_PNG)) {
+    showStatus(dom, 'Esta app no anunció share-png-v1. Actualiza a la APK BASE; no se abrió el compartir.', 'warning');
+    return;
+  }
+  const validation = activeValidation(app);
+  if (!validation.ok) {
+    app.validationShown = true;
+    renderValidation(dom, app);
+    showError(dom, 'Revisa el mensaje, la hora y los destinos antes de preparar el compartir.');
+    return;
+  }
+  if (!isPngDataUrl(app.imageDataUrl)) {
+    showError(dom, 'Falta la foto original del equipo. Elige una foto antes de compartir.');
+    return;
+  }
+  let shareMessage = renderHourMessage(app.draft.message, app.draft.hour);
+  if (textLength(shareMessage) > MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH) {
+    showError(dom, `El mensaje con la hora supera ${MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH} caracteres. Acórtalo antes de compartir.`);
+    return;
+  }
+  clearError(dom);
+  setBusy(dom, app, true, 'Guardando el borrador y preparando el PNG…');
+  try {
+    const saved = await persistDraft(dom, app, { quiet: true });
+    if (!saved) return;
+    shareMessage = renderHourMessage(app.draft.message, app.draft.hour);
+    if (textLength(shareMessage) > MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH) {
+      showError(dom, `El mensaje con la hora supera ${MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH} caracteres. Acórtalo antes de compartir.`);
+      return;
+    }
+    let png;
+    try {
+      png = await renderCompositePng({
+        imageDataUrl: app.imageDataUrl,
+        hour: app.draft.hour,
+        overlay: app.draft.overlay,
+      });
+    } catch (error) {
+      showError(dom, `No se pudo componer el PNG: ${error.message || 'error'}. No se abrió el compartir.`);
+      return;
+    }
+    const result = await requestNative(dom, app, 'SHARE_PNG', {
+      imageDataUrl: png.dataUrl,
+      message: shareMessage,
+    }, { timeoutMs: MN1_LIMITS.SHARE_PNG_TIMEOUT_MS });
+    if (!result) return;
+    if (!result.ok) {
+      showStatus(dom, result.message || 'No se abrió el selector. No se asumió ningún envío.', 'warning');
+      return;
+    }
+    const message = (result.message || 'Selector abierto. El envío no está confirmado.').trim();
+    showStatus(dom, `${message} La web no confirma la entrega.`, 'success');
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+async function handleDownloadPng(dom, app) {
+  if (app.uiMode !== 'browser' || app.busy) return;
+  if (!isPngDataUrl(app.imageDataUrl)) {
+    showError(dom, 'Falta la foto original del equipo. Elige una foto antes de descargar el PNG.');
+    return;
+  }
+  const validation = activeValidation(app);
+  if (!validation.ok) {
+    app.validationShown = true;
+    renderValidation(dom, app);
+    showError(dom, 'Revisa el mensaje, la hora y los destinos antes de generar el PNG.');
+    return;
+  }
+  clearError(dom);
+  setBusy(dom, app, true, 'Componiendo el PNG para descargar…');
+  try {
+    const png = await renderCompositePng({
+      imageDataUrl: app.imageDataUrl,
+      hour: app.draft.hour,
+      overlay: app.draft.overlay,
+    });
+    const definition = getProfileDefinition(app.workspace.activeProfileId);
+    const safeName = (definition?.shortName ?? 'equipo')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase();
+    const anchor = document.createElement('a');
+    anchor.href = png.dataUrl;
+    anchor.download = `mn1-${safeName}-${app.draft.hour.replace(':', '')}.png`;
+    anchor.rel = 'noopener';
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    showStatus(dom, 'PNG descargado. No se compartió en ninguna app ni se envió nada.', 'success');
+  } catch (error) {
+    showError(dom, `No se pudo generar el PNG: ${error.message || 'error'}.`);
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+async function handleSelectProfile(dom, app, profileId) {
+  if (app.listening) {
+    showStatus(dom, 'Detén la escucha antes de cambiar de equipo. No se cambió nada.', 'warning');
+    return;
+  }
+  if (!isWorkspace(app)) {
+    showStatus(dom, 'Los perfiles guardados necesitan la APK BASE. La plantilla única sigue disponible.', 'warning');
+    return;
+  }
+  if (app.busy || profileId === app.workspace.activeProfileId) return;
+  clearError(dom);
+  await switchWorkspaceProfile(dom, app, profileId);
+}
+
+async function handleRefresh(dom, app) {
+  if (app.busy) return;
+  clearError(dom);
+  if (app.uiMode === 'browser') {
+    setBusy(dom, app, true, 'Leyendo el almacén del navegador…');
+    try {
+      const loaded = await readWorkspaceFromStorage(app);
+      if (loaded.status === 'corrupt') {
+        app.storageBlocked = true;
+        showStatus(dom, 'El estado guardado no se pudo leer; no se sobrescribió.', 'warning');
+        return;
+      }
+      if (loaded.state && !app.dirty) {
+        app.workspace = loaded.state;
+        app.draft = cloneDraftFromProfile(activeProfileOf(app));
+        await loadActiveImage(app);
+        renderAll(dom, app, { syncFields: true });
+        showStatus(dom, 'Vista actualizada desde el almacén del navegador.', 'info');
+      } else if (!loaded.state) {
+        showStatus(dom, 'No hay un workspace guardado que cargar. Se conserva el borrador actual.', 'warning');
+      } else {
+        showStatus(dom, 'Hay cambios sin guardar; no se sobrescribió el borrador.', 'warning');
+      }
+    } catch (error) {
+      showError(dom, `No se pudo leer el almacén del navegador: ${error.message || 'error'}. No se sobrescribió nada.`);
+    } finally {
+      setBusy(dom, app, false);
+    }
+    return;
+  }
+  if (app.uiMode === 'legacy') {
+    if (!ensureNative(dom, app)) return;
+    setBusy(dom, app, true, 'Actualizando la vista desde la app…');
+    try {
+      await loadLegacyState(dom, app, {
+        silent: false,
+        preserveDirty: app.dirty,
+        successMessage: 'Vista actualizada desde la app. La web no confirma la entrega.',
+      });
+    } finally {
+      setBusy(dom, app, false);
+    }
+    return;
+  }
+  if (!ensureNative(dom, app)) return;
+  setBusy(dom, app, true, 'Actualizando capacidades de la app…');
+  try {
+    const result = await requestNative(dom, app, 'GET_STATE', {}, { timeoutMs: 12_000 });
+    if (!result) return;
+    if (!result.ok) {
+      showStatus(dom, result.message || 'No se pudo leer el estado de la app.', 'warning');
+      return;
+    }
+    applyNativeMeta(dom, app, result.data ?? {});
+    if (!capability(app, CAPABILITIES.WORKSPACE)) {
+      showStatus(dom, 'La app dejó de anunciar web-workspace-v1. No se escribió nada; revisa la actualización BASE.', 'warning');
+    } else {
+      showStatus(dom, 'Capacidades de la app actualizadas. El workspace sigue en el almacén privado.', 'info');
+    }
+    renderAll(dom, app, { syncFields: false });
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Voz                                                                       */
+/* ------------------------------------------------------------------------- */
+
+async function cancelSpeech(dom, app, { quiet = false } = {}) {
+  app.speechToken += 1;
+  app.listening = false;
+  renderVoice(dom, app);
+  renderProfiles(dom, app);
+  const result = await requestNative(dom, app, 'CANCEL_SPEECH', {}, {
+    timeoutMs: 8_000,
+    silent: true,
   });
+  if (quiet) return result;
+  if (result?.ok && result.data?.cancelled === true) {
+    showStatus(dom, 'Escucha cancelada en la app. No se usará la transcripción ni se envió nada.', 'info');
+  } else if (result?.ok && result.data?.cancelled === false) {
+    showStatus(dom, 'La app indicó que no había una escucha activa. No se usó ninguna transcripción.', 'warning');
+  } else {
+    showStatus(dom, 'No se pudo confirmar la cancelación en la app. No se usará ninguna transcripción; revisa el micrófono.', 'warning');
+  }
+  return result;
+}
+
+async function handleSpeak(dom, app) {
+  if (!isWorkspace(app)) return;
+  if (!canUseNative(app)) {
+    showStatus(dom, 'El dictado necesita la app BASE. En el navegador no se simula el micrófono.', 'warning');
+    return;
+  }
+  if (!capability(app, CAPABILITIES.SPEECH)) {
+    showStatus(dom, 'Esta app no anunció speech-input-v1. Actualiza a la BASE para dictar.', 'warning');
+    return;
+  }
+  if (app.listening) {
+    showStatus(dom, 'Solicitando a la app que detenga la escucha…', 'busy');
+    await cancelSpeech(dom, app);
+    return;
+  }
+  if (app.busy) return;
+  clearError(dom);
+  const token = ++app.speechToken;
+  const speechTargets = [...app.draft.targetLabels];
+  app.listening = true;
+  app.proposal = null;
+  renderVoice(dom, app);
+  renderProfiles(dom, app);
+  renderProposal(dom, app);
+  showStatus(dom, 'Escuchando una sola frase… No se enviará nada.', 'busy');
+  try {
+    const result = await requestNative(dom, app, 'RECOGNIZE_SPEECH', {
+      language: SPEECH_LANGUAGE,
+    }, { timeoutMs: MN1_LIMITS.SPEECH_TIMEOUT_MS });
+    if (token !== app.speechToken) return;
+    if (!result) return;
+    if (!result.ok) {
+      showStatus(dom, result.message || 'No se pudo reconocer la voz. No se envió nada.', 'warning');
+      return;
+    }
+    const transcript = typeof result.data?.transcript === 'string'
+      ? result.data.transcript.trim()
+      : '';
+    if (!transcript) {
+      showStatus(dom, 'No se reconoció ninguna frase. No se envió nada.', 'warning');
+      return;
+    }
+    const proposal = parseSpanishCommand(transcript, {
+      targets: speechTargets,
+    });
+    app.proposal = proposal;
+    renderProposal(dom, app);
+    showStatus(
+      dom,
+      proposal.ok
+        ? 'Propuesta lista. Revísala y pulsa «Preparar propuesta»; no se envió nada.'
+        : proposal.cancelled
+          ? 'La frase pide cancelar o no preparar. No se preparó ninguna propuesta.'
+          : 'La propuesta está incompleta o es ambigua. Complétala antes de preparar; no se envió nada.',
+      proposal.ok ? 'info' : 'warning',
+    );
+  } finally {
+    if (token === app.speechToken) {
+      app.listening = false;
+      renderVoice(dom, app);
+      renderProfiles(dom, app);
+    }
+  }
+}
+
+async function handleApplyProposal(dom, app) {
+  const proposal = app.proposal;
+  if (!proposal?.ok || app.busy || !isWorkspace(app)) return;
+  if (!isProfileId(proposal.profileId)) {
+    showError(dom, 'La propuesta no identifica un equipo válido.');
+    return;
+  }
+  clearError(dom);
+  if (proposal.profileId === app.workspace.activeProfileId) {
+    if (app.busy) return;
+    app.draft.hour = proposal.hour;
+    app.draft.targetLabels = [...proposal.targetLabels];
+    markDirty(app);
+    setBusy(dom, app, true, 'Preparando la propuesta para este equipo…');
+    try {
+      const saved = await persistDraft(dom, app, { force: true });
+      if (!saved) return;
+      app.proposal = null;
+      renderAll(dom, app, { syncFields: true });
+      showStatus(dom, `Propuesta preparada para ${proposal.profileName}. Revisa el mensaje antes de compartir; no se envió nada.`, 'success');
+    } finally {
+      setBusy(dom, app, false);
+    }
+    return;
+  }
+
+  const switched = await switchWorkspaceProfile(dom, app, proposal.profileId, {
+    mutate: (profile) => ({
+      ...profile,
+      hour: proposal.hour,
+      targetLabels: [...proposal.targetLabels],
+    }),
+  });
+  if (switched) {
+    app.proposal = null;
+    renderProposal(dom, app);
+    showStatus(dom, `Propuesta preparada para ${proposal.profileName}. Revisa el mensaje antes de compartir; no se envió nada.`, 'success');
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Arranque                                                                  */
+/* ------------------------------------------------------------------------- */
+
+function collectDom() {
+  const dom = {
+    app: byId('app'),
+    main: byId('contenido'),
+    modeBadge: byId('mode-badge'),
+    versionBadge: byId('version-badge'),
+    previewNote: byId('preview-note'),
+    heroHour: byId('hero-hour'),
+    canvasPreview: byId('canvas-preview'),
+    previewImage: byId('preview-image'),
+    imagePlaceholder: byId('image-placeholder'),
+    placeholderTitle: byId('image-placeholder-title'),
+    placeholderCopy: byId('image-placeholder-copy'),
+    imageMeta: byId('image-meta'),
+    previewMessage: byId('preview-message'),
+    hourRadios: Array.from(document.querySelectorAll('[data-hour-option]')),
+    customHour: byId('custom-hour'),
+    customHourLabel: byId('custom-hour-label'),
+    messageInput: byId('message-input'),
+    messageCount: byId('message-count'),
+    messageError: byId('message-error'),
+    targetsList: byId('targets-list'),
+    targetsCount: byId('targets-count'),
+    targetsError: byId('targets-error'),
+    addTarget: byId('add-target'),
+    targetsSummary: byId('targets-summary'),
+    profileList: byId('profile-list'),
+    profilesStatus: byId('profiles-status'),
+    profilesNotice: byId('profiles-notice'),
+    importImage: byId('import-image'),
+    pickImage: byId('pick-image'),
+    openEditor: byId('open-editor'),
+    browserImageInput: byId('browser-image-input'),
+    refreshState: byId('refresh-state'),
+    saveTemplate: byId('save-template'),
+    prepareShare: byId('prepare-share'),
+    downloadPng: byId('download-png'),
+    status: byId('status'),
+    error: byId('error'),
+    editorPanel: byId('editor-panel'),
+    overlayX: byId('overlay-x'),
+    overlayY: byId('overlay-y'),
+    overlaySize: byId('overlay-size'),
+    overlayFont: byId('overlay-font'),
+    overlayColor: byId('overlay-color'),
+    overlayShowDate: byId('overlay-show-date'),
+    overlayDateField: byId('overlay-date-field'),
+    overlayDate: byId('overlay-date'),
+    resetOverlay: byId('reset-overlay'),
+    voicePanel: byId('voice-panel'),
+    speakToggle: byId('speak-toggle'),
+    speechStatus: byId('speech-status'),
+    speechResult: byId('speech-result'),
+    speechTranscript: byId('speech-transcript'),
+    proposalList: byId('proposal-list'),
+    applyProposal: byId('apply-proposal'),
+    hourDialog: byId('hour-dialog'),
+    hourField: byId('hour-field'),
+    minuteField: byId('minute-field'),
+    hourError: byId('hour-error'),
+    hourPreview: byId('hour-preview'),
+    hourConfirm: byId('hour-confirm'),
+    hourCancel: byId('hour-cancel'),
+    hourClose: byId('hour-close'),
+    nativeVersion: byId('native-version'),
+    capabilityText: byId('capability-text'),
+  };
+  dom.profileInput = dom.browserImageInput;
+  return dom;
+}
+
+async function hydrateNative(dom, app) {
+  app.connection = 'checking';
+  setBusy(dom, app, true, 'Conectando con la app MN1…');
+  const result = await requestNative(dom, app, 'GET_STATE', {}, { timeoutMs: 12_000 });
+  if (!result) {
+    app.uiMode = 'offline';
+    app.connection = 'offline';
+    setBusy(dom, app, false);
+    renderAll(dom, app, { syncFields: false });
+    showStatus(dom, 'La app no respondió. No se asumió ningún estado; usa «Actualizar vista».', 'warning');
+    return;
+  }
+  if (!result.ok) {
+    app.uiMode = 'offline';
+    app.connection = 'offline';
+    setBusy(dom, app, false);
+    renderAll(dom, app, { syncFields: false });
+    showStatus(dom, result.message || 'No se pudo leer el estado de la app.', 'warning');
+    return;
+  }
+  const data = result.data ?? {};
+  applyNativeMeta(dom, app, data);
+  if (capability(app, CAPABILITIES.WORKSPACE)) {
+    app.uiMode = 'workspace';
+    app.connection = 'connected';
+    await initNativeWorkspace(dom, app, data);
+    setBusy(dom, app, false);
+    renderAll(dom, app, { syncFields: true });
+    showStatus(
+      dom,
+      app.persistent
+        ? 'Conectado a la app BASE. Revisa el equipo y confirma el compartir en tu teléfono; la web no confirma la entrega.'
+        : 'Conectado, pero el almacén privado no está disponible: este borrador vive en memoria temporal. No se finge persistencia.',
+      app.persistent ? 'info' : 'warning',
+    );
+  } else {
+    app.uiMode = 'legacy';
+    app.connection = 'connected';
+    applyLegacyState(dom, app, data, { preserveDirty: false });
+    setBusy(dom, app, false);
+    renderAll(dom, app, { syncFields: true });
+    showStatus(
+      dom,
+      'APK3 detectada. Se mantiene la plantilla única y el compartir anterior. Los perfiles, la foto original, el editor Canvas y el dictado requieren la APK BASE.',
+      'warning',
+    );
+  }
+}
+
+async function hydrateBrowser(dom, app) {
+  app.uiMode = 'browser';
+  app.connection = 'preview';
+  app.mode = 'preview';
+  setBusy(dom, app, true, 'Abriendo el workspace local…');
+  try {
+    await initBrowserWorkspace(dom, app);
+  } catch (error) {
+    app.storage = new VaultClient(new MemoryVault(), {
+      persistent: false,
+      label: 'memoria temporal',
+      reason: error.message || 'IndexedDB no disponible',
+    });
+    app.persistent = false;
+    app.storageBlocked = false;
+    app.workspace = createDefaultWorkspace();
+    app.draft = cloneDraftFromProfile(activeProfileOf(app));
+    app.imageDataUrl = null;
+    showStatus(dom, `No se pudo abrir el workspace local: ${error.message || 'error'}. Usando memoria temporal.`, 'warning');
+  }
+  setBusy(dom, app, false);
+  renderAll(dom, app, { syncFields: true });
+  if (app.persistent) {
+    showStatus(dom, 'Workspace local listo. Los equipos se guardan en este navegador; no hay envío nativo.', 'info');
+  } else {
+    showStatus(dom, 'Workspace local en memoria temporal: no se afirma guardado duradero.', 'warning');
+  }
 }
 
 function readVersion(dom, app) {
-  dom.versionBadge.textContent = `Web ${APP_VERSION}`;
+  dom.versionBadge.textContent = `v${APP_VERSION}`;
   if (typeof fetch !== 'function') return;
   fetch('./version.json', { cache: 'no-store', headers: { Accept: 'application/json' } })
     .then((response) => {
@@ -761,104 +2052,66 @@ function readVersion(dom, app) {
       }
     })
     .catch(() => {
-      dom.versionBadge.textContent = `Web ${APP_VERSION}`;
+      dom.versionBadge.textContent = `v${APP_VERSION}`;
       dom.versionBadge.title = 'No se pudo leer version.json; se muestra la versión local.';
     });
 }
 
-function boot() {
-  const dom = {
-    app: byId('app'),
-    main: byId('contenido'),
-    modeBadge: byId('mode-badge'),
-    versionBadge: byId('version-badge'),
-    previewNote: byId('preview-note'),
-    heroHour: byId('hero-hour'),
-    previewMessage: byId('preview-message'),
-    previewImage: byId('preview-image'),
-    imagePlaceholder: byId('image-placeholder'),
-    imageMeta: byId('image-meta'),
-    hourRadios: Array.from(document.querySelectorAll('[data-hour-option]')),
-    customHour: byId('custom-hour'),
-    customHourLabel: byId('custom-hour-label'),
-    messageInput: byId('message-input'),
-    messageCount: byId('message-count'),
-    messageError: byId('message-error'),
-    targetsList: byId('targets-list'),
-    targetsCount: byId('targets-count'),
-    targetsError: byId('targets-error'),
-    addTarget: byId('add-target'),
-    targetsSummary: byId('targets-summary'),
-    pickImage: byId('pick-image'),
-    openEditor: byId('open-editor'),
-    refreshState: byId('refresh-state'),
-    saveTemplate: byId('save-template'),
-    prepareShare: byId('prepare-share'),
-    status: byId('status'),
-    error: byId('error'),
-    hourDialog: byId('hour-dialog'),
-    hourField: byId('hour-field'),
-    minuteField: byId('minute-field'),
-    hourError: byId('hour-error'),
-    hourPreview: byId('hour-preview'),
-    hourConfirm: byId('hour-confirm'),
-    hourCancel: byId('hour-cancel'),
-    hourClose: byId('hour-close'),
-    nativeVersion: byId('native-version'),
-  };
-
-  if (!dom.main || !dom.messageInput || !dom.previewMessage) return;
-
-  const bridge = createMn1Bridge({ root: window });
-  const app = {
-    bridge,
-    mode: bridge.mode,
-    connection: bridge.mode === 'native' ? 'checking' : 'preview',
-    draft: createDefaultDraft(),
-    busy: false,
-    dirty: false,
-    validationShown: false,
-    refreshInFlight: false,
-    nativeVersion: '',
-    pendingResume: '',
-    lastResumeAt: 0,
-    protocolMismatch: false,
-  };
-
-  renderAll(dom, app);
-  readVersion(dom, app);
-
-  wireUiEvents(dom, app);
-
-  if (app.mode === 'native') {
-    void hydrate(dom, app);
-  } else {
-    showStatus(dom, 'Vista previa en navegador. No hay puente nativo: no se guarda ni se comparte nada desde aquí.', 'warning');
+function handleResume(dom, app) {
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+  if (app.mode !== 'native' || app.busy || app.refreshInFlight) return;
+  const now = Date.now();
+  if (now - app.lastResumeAt < 1200) return;
+  app.lastResumeAt = now;
+  if (app.uiMode === 'legacy') {
+    const resumeKind = app.pendingResume;
+    const preserveDirty = resumeKind !== 'editor';
+    app.pendingResume = '';
+    void loadLegacyState(dom, app, { silent: true, preserveDirty }).then((result) => {
+      if (result && resumeKind === 'pick') {
+        window.setTimeout(() => {
+          if (!app.busy && app.mode === 'native') {
+            void loadLegacyState(dom, app, { silent: true, preserveDirty: true });
+          }
+        }, 1600);
+      }
+    });
+    return;
+  }
+  if (app.uiMode === 'workspace') {
+    void requestNative(dom, app, 'GET_STATE', {}, { timeoutMs: 12_000, silent: true }).then((result) => {
+      if (result?.ok) {
+        applyNativeMeta(dom, app, result.data ?? {});
+        renderCapabilities(dom, app);
+      }
+    });
   }
 }
 
 function wireUiEvents(dom, app) {
   dom.messageInput.addEventListener('input', (event) => {
     app.draft.message = event.target.value;
-    app.dirty = true;
+    markDirty(app);
     renderCounts(dom, app);
     renderPreview(dom, app);
     if (app.validationShown) renderValidation(dom, app);
+    scheduleSave(dom, app);
   });
 
   for (const radio of dom.hourRadios) {
     radio.addEventListener('change', (event) => {
       if (!event.target.checked) return;
       app.draft.hour = event.target.value;
-      app.dirty = true;
+      markDirty(app);
       renderHour(dom, app);
       renderPreview(dom, app);
+      renderImage(dom, app);
       if (app.validationShown) renderValidation(dom, app);
+      scheduleSave(dom, app);
     });
   }
 
   dom.customHour.addEventListener('click', () => openHourDialog(dom, app));
-
   dom.hourField.addEventListener('input', () => {
     dom.hourField.value = sanitizeHourPart(dom.hourField.value);
     updateHourDialog(dom, app);
@@ -880,24 +2133,23 @@ function wireUiEvents(dom, app) {
       dom.hourConfirm.click();
     }
   });
-
   dom.hourConfirm.addEventListener('click', () => {
     const normalized = normalizeHourDraft(dom.hourField.value, dom.minuteField.value);
     if (!normalized) return;
     app.draft.hour = normalized;
-    app.dirty = true;
+    markDirty(app);
     closeHourDialog(dom);
     renderHour(dom, app);
     renderPreview(dom, app);
+    renderImage(dom, app);
     if (app.validationShown) renderValidation(dom, app);
+    scheduleSave(dom, app);
     showStatus(dom, `Hora personalizada ${normalized}. Aún no se ha guardado.`, 'info');
     dom.customHour.focus();
   });
   dom.hourCancel.addEventListener('click', () => closeHourDialog(dom));
   dom.hourClose.addEventListener('click', () => closeHourDialog(dom));
-  dom.hourDialog.addEventListener('close', () => {
-    dom.customHour.focus();
-  });
+  dom.hourDialog.addEventListener('close', () => dom.customHour.focus());
 
   dom.targetsList.addEventListener('input', (event) => {
     const input = event.target.closest('[data-target-input]');
@@ -905,32 +2157,34 @@ function wireUiEvents(dom, app) {
     const index = Number(input.dataset.targetInput);
     if (!Number.isInteger(index) || index < 0 || index >= app.draft.targetLabels.length) return;
     app.draft.targetLabels[index] = input.value;
-    app.dirty = true;
+    markDirty(app);
     renderCounts(dom, app);
     renderPreview(dom, app);
     if (app.validationShown) renderValidation(dom, app);
+    scheduleSave(dom, app);
   });
 
   dom.targetsList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-target]');
     if (!button || app.busy) return;
-    if (app.draft.targetLabels.length <= MN1_LIMITS.TARGETS_MIN) return;
+    if (app.draft.targetLabels.length <= targetMinimum(app)) return;
     const index = Number(button.dataset.removeTarget);
     if (!Number.isInteger(index) || index < 0 || index >= app.draft.targetLabels.length) return;
     app.draft.targetLabels.splice(index, 1);
-    app.dirty = true;
+    markDirty(app);
     renderTargetsEditor(dom, app);
     renderCounts(dom, app);
     renderPreview(dom, app);
     if (app.validationShown) renderValidation(dom, app);
     const nextInput = dom.targetsList.querySelector(`[data-target-input="${Math.min(index, app.draft.targetLabels.length - 1)}"]`);
     if (nextInput) nextInput.focus();
+    scheduleSave(dom, app);
   });
 
   dom.addTarget.addEventListener('click', () => {
     if (app.busy || app.draft.targetLabels.length >= MN1_LIMITS.TARGETS_MAX) return;
     app.draft.targetLabels.push('');
-    app.dirty = true;
+    markDirty(app);
     renderTargetsEditor(dom, app);
     renderCounts(dom, app);
     renderPreview(dom, app);
@@ -938,22 +2192,122 @@ function wireUiEvents(dom, app) {
     const inputs = dom.targetsList.querySelectorAll('[data-target-input]');
     const last = inputs[inputs.length - 1];
     if (last) last.focus();
+    scheduleSave(dom, app);
   });
 
-  dom.pickImage.addEventListener('click', () => void handlePickImage(dom, app));
-  dom.openEditor.addEventListener('click', () => void handleOpenEditor(dom, app));
+  dom.profileList.addEventListener('click', (event) => {
+    const card = event.target.closest('[data-profile-id]');
+    if (!card || card.disabled) return;
+    void handleSelectProfile(dom, app, card.dataset.profileId);
+  });
+
+  dom.importImage.addEventListener('click', () => void handleImportImage(dom, app));
+  dom.pickImage.addEventListener('click', () => void handleLegacyPickImage(dom, app));
+  dom.openEditor.addEventListener('click', () => void handleLegacyOpenEditor(dom, app));
   dom.refreshState.addEventListener('click', () => void handleRefresh(dom, app));
-  dom.saveTemplate.addEventListener('click', () => void handleSave(dom, app));
-  dom.prepareShare.addEventListener('click', () => void handlePrepareShare(dom, app));
+  dom.saveTemplate.addEventListener('click', () => {
+    if (app.uiMode === 'legacy') void handleLegacySave(dom, app);
+    else void handleWorkspaceSave(dom, app);
+  });
+  dom.prepareShare.addEventListener('click', () => {
+    if (app.uiMode === 'legacy') void handleLegacyShare(dom, app);
+    else if (app.uiMode === 'workspace') void handleWorkspaceShare(dom, app);
+    else showStatus(dom, 'El compartir nativo necesita la app BASE. En navegador usa «Descargar PNG».', 'warning');
+  });
+  dom.downloadPng.addEventListener('click', () => void handleDownloadPng(dom, app));
+
+  dom.browserImageInput.addEventListener('change', () => {
+    const file = dom.browserImageInput.files?.[0] ?? null;
+    dom.browserImageInput.value = '';
+    if (file) void handleBrowserFile(dom, app, file);
+  });
+
+  const updateOverlay = () => {
+    app.draft.overlay = normalizeOverlay({
+      ...app.draft.overlay,
+      x: Number(dom.overlayX.value) / 100,
+      y: Number(dom.overlayY.value) / 100,
+      size: Number(dom.overlaySize.value) / 100,
+      font: dom.overlayFont.value,
+      color: dom.overlayColor.value,
+      showDate: dom.overlayShowDate.checked,
+      date: dom.overlayDate.value,
+    });
+    markDirty(app);
+    renderOverlayControls(dom, app);
+    renderImage(dom, app);
+    scheduleSave(dom, app);
+  };
+  dom.overlayX.addEventListener('input', updateOverlay);
+  dom.overlayY.addEventListener('input', updateOverlay);
+  dom.overlaySize.addEventListener('input', updateOverlay);
+  dom.overlayFont.addEventListener('change', updateOverlay);
+  dom.overlayColor.addEventListener('input', updateOverlay);
+  dom.overlayShowDate.addEventListener('change', () => {
+    if (dom.overlayShowDate.checked && !dom.overlayDate.value) {
+      dom.overlayDate.value = new Date().toISOString().slice(0, 10);
+    }
+    updateOverlay();
+  });
+  dom.overlayDate.addEventListener('input', updateOverlay);
+  dom.resetOverlay.addEventListener('click', () => {
+    app.draft.overlay = normalizeOverlay({
+      ...app.draft.overlay,
+      x: 0.5,
+      y: 0.78,
+      size: 0.075,
+      font: 'bold',
+      color: '#ffffff',
+      showDate: false,
+      date: '',
+    });
+    markDirty(app);
+    renderOverlayControls(dom, app);
+    renderImage(dom, app);
+    scheduleSave(dom, app);
+  });
+
+  dom.canvasPreview.addEventListener('pointerdown', (event) => {
+    if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
+    app.dragging = true;
+    if (typeof dom.canvasPreview.setPointerCapture === 'function') {
+      try {
+        dom.canvasPreview.setPointerCapture(event.pointerId);
+      } catch {
+        // El arrastre sigue funcionando con pointermove.
+      }
+    }
+    updateOverlayFromPointer(dom, app, event);
+  });
+  dom.canvasPreview.addEventListener('pointermove', (event) => {
+    if (!app.dragging) return;
+    updateOverlayFromPointer(dom, app, event);
+  });
+  const stopDragging = () => {
+    if (!app.dragging) return;
+    app.dragging = false;
+    scheduleSave(dom, app);
+  };
+  dom.canvasPreview.addEventListener('pointerup', stopDragging);
+  dom.canvasPreview.addEventListener('pointercancel', stopDragging);
+  dom.canvasPreview.addEventListener('pointerleave', stopDragging);
+
+  dom.speakToggle.addEventListener('click', () => void handleSpeak(dom, app));
+  dom.applyProposal.addEventListener('click', () => void handleApplyProposal(dom, app));
 
   dom.previewImage.addEventListener('error', () => {
     if (!dom.previewImage.getAttribute('src')) return;
-    app.draft.imageDataUrl = null;
+    app.legacyImageDataUrl = null;
     renderImage(dom, app);
     showStatus(dom, 'No se pudo mostrar el PNG recibido. La app puede regenerarlo; no se inventa una vista previa.', 'warning');
   });
 
-  document.addEventListener('visibilitychange', () => handleResume(dom, app));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && app.listening) {
+      void cancelSpeech(dom, app, { quiet: true });
+    }
+    handleResume(dom, app);
+  });
   window.addEventListener('focus', () => handleResume(dom, app));
   window.addEventListener('mn1:native-state-changed', () => handleResume(dom, app));
 
@@ -965,6 +2319,65 @@ function wireUiEvents(dom, app) {
       dom.nativeVersion.textContent = `Android ${app.nativeVersion}`;
     }
   });
+}
+
+async function boot() {
+  const dom = collectDom();
+  if (!dom.main || !dom.messageInput || !dom.previewMessage) return;
+
+  const bridge = createMn1Bridge({ root: window });
+  const app = {
+    dom,
+    bridge,
+    mode: bridge.mode,
+    connection: bridge.mode === 'native' ? 'checking' : 'preview',
+    uiMode: 'loading',
+    catalog: PROFILE_CATALOG,
+    capabilitySet: new Set(),
+    workspace: null,
+    draft: createDefaultDraft(),
+    storage: null,
+    persistent: false,
+    storageBlocked: false,
+    migrationNotice: '',
+    migrationPending: false,
+    legacyImageDataUrl: null,
+    imageDataUrl: null,
+    pendingImageRemovals: [],
+    loadedImage: null,
+    loadedImageUrl: '',
+    imageLoadToken: 0,
+    drawToken: 0,
+    dirty: false,
+    draftRevision: 0,
+    persistedRevision: 0,
+    saveChain: Promise.resolve(),
+    saveFailed: false,
+    busy: false,
+    switching: false,
+    validationShown: false,
+    refreshInFlight: false,
+    nativeVersion: '',
+    pendingResume: '',
+    lastResumeAt: 0,
+    protocolMismatch: false,
+    proposal: null,
+    listening: false,
+    speechToken: 0,
+    dragging: false,
+    saveTimer: null,
+    lastSavedAt: '',
+  };
+
+  renderAll(dom, app);
+  readVersion(dom, app);
+  wireUiEvents(dom, app);
+
+  if (app.mode === 'native') {
+    await hydrateNative(dom, app);
+  } else {
+    await hydrateBrowser(dom, app);
+  }
 }
 
 if (typeof document !== 'undefined') {

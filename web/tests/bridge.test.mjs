@@ -3,10 +3,19 @@ import assert from 'node:assert/strict';
 
 import {
   BridgeError,
+  CAPABILITIES,
   MAX_ENVELOPE_BYTES,
+  MAX_GLOBAL_ENVELOPE_BYTES,
+  MN1_LIMITS,
   Mn1Bridge,
   PROTOCOL_VERSION,
   createMn1Bridge,
+  hasCapability,
+  isValidVaultKey,
+  maxEnvelopeBytesForAction,
+  normalizeCapabilities,
+  pngBase64FromDataUrl,
+  pngDataUrlFromBase64,
   utf8ByteLength,
   validateRequestEnvelope,
   validateResultEnvelope,
@@ -278,5 +287,123 @@ test('utf8ByteLength y el límite de sobre de 32 KB están definidos', () => {
   assert.equal(utf8ByteLength('ñ'), 2);
   assert.equal(utf8ByteLength('🙂'), 4);
   assert.equal(MAX_ENVELOPE_BYTES, 32768);
+  assert.equal(MAX_GLOBAL_ENVELOPE_BYTES, 12 * 1024 * 1024);
   assert.equal(typeof Mn1Bridge, 'function');
+});
+
+test('sólo VAULT_PUT y SHARE_PNG usan el sobre global de 12 MiB', () => {
+  assert.equal(maxEnvelopeBytesForAction('VAULT_PUT'), MAX_GLOBAL_ENVELOPE_BYTES);
+  assert.equal(maxEnvelopeBytesForAction('SHARE_PNG'), MAX_GLOBAL_ENVELOPE_BYTES);
+  for (const action of ['GET_STATE', 'VAULT_GET', 'VAULT_REMOVE', 'RECOGNIZE_SPEECH', 'CANCEL_SPEECH']) {
+    assert.equal(maxEnvelopeBytesForAction(action), MAX_ENVELOPE_BYTES);
+  }
+});
+
+test('valida claves del vault y acciones nuevas', () => {
+  assert.equal(isValidVaultKey('mn1.workspace.image.indestructibles.abc'), true);
+  assert.equal(isValidVaultKey('a'.repeat(64)), true);
+  assert.equal(isValidVaultKey('a'.repeat(65)), false);
+  assert.equal(isValidVaultKey('ruta/con/barra'), false);
+  assert.equal(isValidVaultKey('ñ'), false);
+  assert.equal(isValidVaultKey(''), false);
+
+  for (const action of [
+    'VAULT_GET',
+    'VAULT_PUT',
+    'VAULT_REMOVE',
+    'IMPORT_IMAGE',
+    'GET_LEGACY_IMAGE',
+    'SHARE_PNG',
+    'RECOGNIZE_SPEECH',
+    'CANCEL_SPEECH',
+  ]) {
+    assert.doesNotThrow(() => {
+      const payload = action === 'VAULT_GET' || action === 'VAULT_REMOVE'
+        ? { key: 'clave-1' }
+        : action === 'VAULT_PUT'
+          ? { key: 'clave-1', value: 'texto' }
+          : action === 'SHARE_PNG'
+            ? { imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=', message: 'Hola' }
+            : action === 'RECOGNIZE_SPEECH'
+              ? { language: 'es-MX' }
+              : {};
+      assert.equal(validateRequestEnvelope({
+        version: 1,
+        requestId: 'id-1',
+        action,
+        payload,
+      }).ok, true);
+    });
+  }
+
+  assert.equal(validateRequestEnvelope({
+    version: 1,
+    requestId: 'id-1',
+    action: 'VAULT_REMOVE',
+    payload: { key: 'clave-1', extra: true },
+  }).code, 'invalid_payload');
+  assert.equal(validateRequestEnvelope({
+    version: 1,
+    requestId: 'id-1',
+    action: 'CANCEL_SPEECH',
+    payload: { algo: true },
+  }).code, 'invalid_payload');
+  assert.equal(validateRequestEnvelope({
+    version: 1,
+    requestId: 'id-1',
+    action: 'RECOGNIZE_SPEECH',
+    payload: { language: 'es-ES' },
+  }).code, 'invalid_payload');
+});
+
+test('SHARE_PNG exige PNG, mensaje no vacío y límite de 2000 caracteres', () => {
+  const base = {
+    version: 1,
+    requestId: 'id-1',
+    action: 'SHARE_PNG',
+  };
+  assert.equal(validateRequestEnvelope({
+    ...base,
+    payload: { imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=', message: 'Hola' },
+  }).ok, true);
+  assert.equal(validateRequestEnvelope({
+    ...base,
+    payload: { imageDataUrl: 'data:image/jpeg;base64,AAAA', message: 'Hola' },
+  }).code, 'invalid_payload');
+  assert.equal(validateRequestEnvelope({
+    ...base,
+    payload: { imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=', message: '   ' },
+  }).code, 'invalid_payload');
+  assert.equal(validateRequestEnvelope({
+    ...base,
+    payload: {
+      imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+      message: 'x'.repeat(MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH + 1),
+    },
+  }).code, 'invalid_payload');
+});
+
+test('VAULT_PUT acepta carga superior a 32 KB dentro del sobre de 12 MiB', async () => {
+  const { bridge, native, calls } = setup();
+  const pending = bridge.request('VAULT_PUT', {
+    key: 'mn1.workspace.image.champions.abc',
+    value: 'x'.repeat(40 * 1024),
+  }, { requestId: 'vault-large' });
+  assert.equal(calls.length, 1);
+  reply(native, result('vault-large', { data: { key: 'mn1.workspace.image.champions.abc', saved: true } }));
+  await pending;
+});
+
+test('capacidades y helpers PNG del contrato', () => {
+  assert.equal(CAPABILITIES.WORKSPACE, 'web-workspace-v1');
+  assert.equal(CAPABILITIES.RAW_IMAGE, 'raw-image-v1');
+  assert.equal(CAPABILITIES.SHARE_PNG, 'share-png-v1');
+  assert.equal(CAPABILITIES.SPEECH, 'speech-input-v1');
+  assert.deepEqual(normalizeCapabilities(['a', ' a ', 1, '', 'b', 'b']), ['a', 'b']);
+  assert.equal(hasCapability(['a', 'b'], 'b'), true);
+  assert.equal(hasCapability(['a'], 'b'), false);
+  assert.equal(pngBase64FromDataUrl('data:image/png;base64,iVBORw0KGgo='), 'iVBORw0KGgo=');
+  assert.equal(pngBase64FromDataUrl('data:image/jpeg;base64,AAAA'), null);
+  assert.equal(pngDataUrlFromBase64('iVBORw0KGgo='), 'data:image/png;base64,iVBORw0KGgo=');
+  assert.equal(pngDataUrlFromBase64('AAAA'), null);
 });

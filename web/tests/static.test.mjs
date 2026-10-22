@@ -9,12 +9,12 @@ async function readPublic(name) {
   return readFile(new URL(name, publicUrl), 'utf8');
 }
 
-test('version.json es visible, parseable y usa el contrato v1', async () => {
+test('version.json es visible, parseable, 0.3.0 y usa el contrato v1', async () => {
   const version = JSON.parse(await readPublic('version.json'));
-  assert.equal(typeof version.version, 'string');
+  assert.equal(version.version, '0.3.0');
   assert.match(version.version, /^\d+\.\d+\.\d+$/);
   assert.equal(version.protocol, 1);
-  assert.equal(typeof version.updated, 'string');
+  assert.equal(version.updated, '2026-10-22');
 });
 
 test('index.html carga sólo assets locales versionados y declara CSP', async () => {
@@ -30,31 +30,62 @@ test('index.html carga sólo assets locales versionados y declara CSP', async ()
   assert.match(html, /object-src 'none'/);
   assert.match(html, /base-uri 'none'/);
   assert.match(html, /form-action 'none'/);
-  assert.match(html, /href="\.\/styles\.css\?v=\d+\.\d+\.\d+"/);
-  assert.match(html, /src="\.\/app\.js\?v=\d+\.\d+\.\d+"/);
+  assert.match(html, /frame-ancestors 'none'/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.0"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.3\.0"/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i);
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
   assert.doesNotMatch(html, /https?:\/\//i);
 });
 
-test('la interfaz incluye los controles del encargo', async () => {
+test('la interfaz incluye workspace, editor, voz y compatibilidad APK3', async () => {
   const html = await readPublic('index.html');
-  assert.match(html, /id="hour-08"/);
-  assert.match(html, /id="hour-09"/);
-  assert.match(html, /id="custom-hour"/);
-  assert.match(html, /id="hour-dialog"/);
-  assert.match(html, /id="message-input"/);
-  assert.match(html, /id="targets-list"/);
-  assert.match(html, /id="pick-image"/);
-  assert.match(html, /id="open-editor"/);
-  assert.match(html, /id="save-template"/);
-  assert.match(html, /id="prepare-share"/);
-  assert.match(html, /id="preview-image"/);
-  assert.match(html, /id="mode-badge"/);
-  assert.match(html, /Vista previa · sin envío/);
+  for (const id of [
+    'profile-list',
+    'profiles-status',
+    'profiles-notice',
+    'import-image',
+    'preview-message',
+    'canvas-preview',
+    'editor-panel',
+    'overlay-x',
+    'overlay-y',
+    'overlay-size',
+    'overlay-font',
+    'overlay-color',
+    'overlay-show-date',
+    'overlay-date',
+    'voice-panel',
+    'speak-toggle',
+    'speech-status',
+    'speech-result',
+    'speech-transcript',
+    'proposal-list',
+    'apply-proposal',
+    'hour-08',
+    'hour-09',
+    'custom-hour',
+    'hour-dialog',
+    'message-input',
+    'targets-list',
+    'pick-image',
+    'open-editor',
+    'save-template',
+    'prepare-share',
+    'download-png',
+    'preview-image',
+    'mode-badge',
+    'browser-image-input',
+    'native-version',
+    'capability-text',
+  ]) {
+    assert.match(html, new RegExp(`id="${id}"`), `Falta #${id}`);
+  }
+  assert.doesNotMatch(html, /id="image-url"/);
+  assert.match(html, /Cuatro equipos|cuatro equipos|los cuatro equipos/i);
 });
 
-test('el puente implementa las seis acciones del contrato', async () => {
+test('el puente implementa las acciones heredadas y genéricas', async () => {
   const bridge = await readPublic('bridge.js');
   for (const action of [
     'GET_STATE',
@@ -63,53 +94,75 @@ test('el puente implementa las seis acciones del contrato', async () => {
     'OPEN_EDITOR',
     'SAVE_TEMPLATE',
     'PREPARE_SHARE',
+    'VAULT_GET',
+    'VAULT_PUT',
+    'VAULT_REMOVE',
+    'IMPORT_IMAGE',
+    'GET_LEGACY_IMAGE',
+    'SHARE_PNG',
+    'RECOGNIZE_SPEECH',
+    'CANCEL_SPEECH',
   ]) {
     assert.match(bridge, new RegExp(`'${action}'`));
   }
   assert.match(bridge, /mn1:native-result/);
   assert.match(bridge, /PROTOCOL_VERSION = 1/);
   assert.match(bridge, /MAX_ENVELOPE_BYTES = 32 \* 1024/);
+  assert.match(bridge, /MAX_GLOBAL_ENVELOPE_BYTES = 12 \* 1024 \* 1024/);
+  assert.match(bridge, /VAULT_KEY_PATTERN/);
+  assert.match(bridge, /speech-input-v1/);
   assert.match(bridge, /bridge_unavailable/);
-  assert.match(bridge, /timeout/);
   assert.match(bridge, /requestId/);
-  assert.match(bridge, /DEFAULT_TIMEOUT_MS/);
 });
 
 test('app no usa innerHTML ni simula éxito en modo preview', async () => {
   const app = await readPublic('app.js');
+  const storage = await readPublic('storage.js');
   assert.match(app, /from '\.\/bridge\.js'/);
+  assert.match(app, /from '\.\/profiles\.js'/);
+  assert.match(app, /from '\.\/storage\.js'/);
+  assert.match(app, /from '\.\/renderer\.js'/);
+  assert.match(app, /from '\.\/voice\.js'/);
   assert.doesNotMatch(app, /\.innerHTML\s*=/);
-  assert.match(app, /Vista previa en navegador/);
   assert.match(app, /No se guardó ni se compartió nada/);
-  assert.match(app, /No se ha enviado nada/);
   assert.match(app, /La web no confirma la entrega/);
   assert.match(app, /OPEN_EDITOR/);
   assert.match(app, /PREPARE_SHARE/);
+  assert.match(app, /VAULT_GET/);
+  assert.match(app, /removeText\(/);
+  assert.match(storage, /VAULT_REMOVE/);
+  assert.match(app, /CANCEL_SPEECH/);
+  assert.match(app, /web-workspace-v1|CAPABILITIES\.WORKSPACE/);
 });
 
 test('no se referencia file:// y package.json no tiene dependencias', async () => {
-  const [html, app, bridge, pkg] = await Promise.all([
+  const [html, app, bridge, storage, pkg] = await Promise.all([
     readPublic('index.html'),
     readPublic('app.js'),
     readPublic('bridge.js'),
+    readPublic('storage.js'),
     readFile(new URL('package.json', rootUrl), 'utf8'),
   ]);
-  assert.doesNotMatch(`${html}\n${app}\n${bridge}`, /file:\/\//);
+  assert.doesNotMatch(`${html}\n${app}\n${bridge}\n${storage}`, /file:\/\//);
   const packageJson = JSON.parse(pkg);
+  assert.equal(packageJson.version, '0.3.0');
   assert.equal(packageJson.type, 'module');
   assert.equal(packageJson.dependencies, undefined);
   assert.equal(packageJson.devDependencies, undefined);
   assert.equal(packageJson.scripts.test, 'node --test tests/*.test.mjs');
 });
 
-test('los tests existen para bridge y lógica de app', async () => {
-  const [bridgeTests, appTests] = await Promise.all([
-    readFile(new URL('tests/bridge.test.mjs', rootUrl), 'utf8'),
-    readFile(new URL('tests/app-logic.test.mjs', rootUrl), 'utf8'),
-  ]);
-  assert.match(bridgeTests, /bridge_unavailable/);
-  assert.match(bridgeTests, /timeout/);
-  assert.match(bridgeTests, /mn1:native-result/);
-  assert.match(appTests, /validateDraft/);
-  assert.match(appTests, /normalizeHourDraft/);
+test('los tests cubren puente, perfiles, voz, almacén, renderer y app', async () => {
+  const names = [
+    'bridge.test.mjs',
+    'app-logic.test.mjs',
+    'profiles.test.mjs',
+    'voice.test.mjs',
+    'storage.test.mjs',
+    'renderer.test.mjs',
+  ];
+  for (const name of names) {
+    const source = await readFile(new URL(`tests/${name}`, rootUrl), 'utf8');
+    assert.ok(source.includes("from 'node:test'"), `Falta node:test en ${name}`);
+  }
 });
