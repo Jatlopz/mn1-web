@@ -6,7 +6,7 @@ Los cambios aprobados de main se verifican y publican con GitHub Actions / Pages
 
 ## Instalar MN1
 
-Versión base con actualizador: [descargar APK](https://jatlopz.github.io/mn1-web/downloads/mn1-5-4f19aad6d96332ab.apk).
+Versión base con actualizador: [descargar APK](https://jatlopz.github.io/mn1-web/downloads/mn1-6-fa2b2a1a54852293.apk).
 
 Instalar encima de MN1 sin desinstalar ni borrar datos. Esta base añade Actualizaciones dentro de la app. Las futuras actualizaciones nativas se descargan desde ahí y Android pide confirmación para instalar. Los cambios web continúan llegando sin reinstalar. La APK es pública; el código fuente Android se mantiene privado.
 
