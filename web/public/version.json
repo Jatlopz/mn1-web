@@ -1,6 +1,6 @@
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "protocol": 1,
   "updated": "2026-10-21",
-  "notes": "Primera entrega web MN1 híbrido. Sin publicar. PNG y hora se preparan en Android."
+  "notes": "Interfaz publicada por HTTPS con GitHub Pages. PNG y hora se preparan en Android."
 }

@@ -18,7 +18,7 @@ import {
   isValidHour,
 } from './bridge.js';
 
-export const APP_VERSION = '0.1.1';
+export const APP_VERSION = '0.1.2';
 export const HOUR_PRESETS = Object.freeze(['08:00', '09:00']);
 export const DEFAULT_MESSAGE =
   'Batiseñal MN1 {hora}. Convocatoria del equipo Los Indestructibles de Sacos. ' +
