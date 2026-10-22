@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 10,
-  "versionName": "0.5.5-photo-widget",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-10-44f230010953ae0c.apk",
-  "sha256": "44f230010953ae0c264422c27fbd830d178908f9f93df232e82f0659102909dc",
-  "sizeBytes": 17921733,
-  "notes": "Widget con Aviso y Foto: cámara y reporte del equipo activo. Botones compactos legibles, marco con colores editables. Conserva datos y compartir con confirmación."
+  "versionCode": 11,
+  "versionName": "0.5.6-reflector",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-11-4021ad300d8b340d.apk",
+  "sha256": "4021ad300d8b340d0bf15eafb593c3e262e2ea6823f042cb6656b706e27194bc",
+  "sizeBytes": 17922389,
+  "notes": "Nueva identidad Batiseñal - Avisos y más. Icono de reflector y entrada animada que ilumina JT, de Joel Triminio. Conserva equipos, imágenes, widget y datos."
 }
