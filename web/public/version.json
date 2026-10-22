@@ -1,6 +1,6 @@
 {
-  "version": "0.4.2",
+  "version": "0.4.3",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Editor visual único, controles directos y altura de lienzo corregida para Android WebView."
+  "notes": "Agregar equipos con plantillas propias y encabezado Batiseñal."
 }

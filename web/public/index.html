@@ -14,17 +14,17 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>MN1 · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.4.2">
+  <link rel="stylesheet" href="./styles.css?v=0.4.3">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
 
   <div class="app" id="app">
     <header class="app-header" id="app-header">
-      <div class="brand" aria-label="MN1 Avisos de planta">
+      <div class="brand" aria-label="Batiseñal Avisos de planta">
         <span class="brand-mark" aria-hidden="true"><span class="brand-signal"></span></span>
         <div class="brand-copy">
-          <p class="brand-name">MN1</p>
+          <p class="brand-name">Batiseñal</p>
           <p class="brand-sub">Avisos de planta</p>
         </div>
       </div>
@@ -40,7 +40,9 @@
         <p class="teams-copy">Tu equipo. Tu anuncio.</p>
       </div>
 
-
+      <button class="button button-primary add-team-button" id="add-team" type="button">
+        + Agregar equipo
+      </button>
 
       <div class="profile-grid" id="profile-list" role="radiogroup" aria-label="Elegir equipo"></div>
       <p class="profiles-notice" id="profiles-notice" role="note" hidden></p>
@@ -276,6 +278,24 @@
     <p class="hint">Las mejoras web llegan al abrir MN1 con internet. Las versiones de Android se gestionan desde Actualizaciones, en la franja superior de la app.</p>
     <button class="button button-secondary" id="refresh-state" type="button">Releer datos</button>
   </dialog>
+
+  <dialog class="dialog add-team-dialog" id="add-team-dialog" aria-labelledby="add-team-title" aria-describedby="add-team-help add-team-error">
+    <div class="dialog-head">
+      <h2 id="add-team-title">Agregar equipo</h2>
+      <button class="dialog-close" id="add-team-close" type="button" aria-label="Cerrar Agregar equipo">×</button>
+    </div>
+    <p class="hint" id="add-team-help">Ponle un nombre. Se creará con su propio mensaje, hora 08:00 y sin foto.</p>
+    <div class="field">
+      <label class="field-label" for="add-team-input">Nombre del equipo</label>
+      <input class="input" id="add-team-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="add-team-help add-team-error">
+    </div>
+    <p class="field-error" id="add-team-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="button button-secondary" id="add-team-cancel" type="button">Cancelar</button>
+      <button class="button button-primary" id="add-team-create" type="button">Crear equipo</button>
+    </div>
+  </dialog>
+
   <div class="busy-overlay" id="busy-overlay" role="status" aria-live="polite" aria-hidden="true" hidden><div class="busy-glass"><span class="busy-spinner" aria-hidden="true"></span><p id="busy-label">Preparando…</p></div></div>
 
   <dialog class="dialog" id="hour-dialog" aria-labelledby="hour-dialog-title" aria-describedby="hour-dialog-help hour-error">
@@ -307,6 +327,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.4.2"></script>
+  <script type="module" src="./app.js?v=0.4.3"></script>
 </body>
 </html>

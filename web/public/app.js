@@ -32,6 +32,7 @@ import {
   OVERLAY_LIMITS,
   PROFILE_CATALOG,
   cloneTemplate,
+  createCustomTeam,
   createDefaultWorkspace,
   createProfileTemplate,
   getProfileDefinition,
@@ -41,7 +42,9 @@ import {
   normalizeTargetLabels,
   normalizeTemplate,
   normalizeWorkspaceState,
+  profileCatalogForWorkspace,
   updateProfile,
+  validateCustomTeamName,
   validateDraft as validateProfileDraft,
 } from './profiles.js';
 import {
@@ -65,7 +68,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.2';
+export const APP_VERSION = '0.4.3';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -106,13 +109,13 @@ export function toggleEditorTool(current, requested) {
 
 export function workspaceRouteFor(profileId, options = {}) {
   if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return '#equipos';
-  return isProfileId(profileId) ? `#equipo/${profileId}` : '#equipos';
+  return isProfileId(profileId, options) ? `#equipo/${profileId}` : '#equipos';
 }
 
 export function workspaceDocumentTitle(profileId, options = {}) {
   if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return 'MN1 · Equipos';
   if (options.legacy === true) return 'MN1 · Plantilla única (APK3)';
-  const definition = getProfileDefinition(profileId);
+  const definition = getProfileDefinition(profileId, options);
   return definition ? `MN1 · ${definition.name}` : 'MN1 · Equipo';
 }
 
@@ -129,9 +132,10 @@ export async function navigateToProfile(options = {}) {
     isListening = false,
     switchProfile,
     openProfile,
+    catalog,
     reportBlocked = () => {},
   } = options;
-  if (!isProfileId(profileId)) {
+  if (!isProfileId(profileId, { catalog })) {
     reportBlocked('invalid_profile');
     return false;
   }
@@ -366,7 +370,7 @@ function focusEditorTool(dom, tool) {
 function syncWorkspaceRoute(app, open, profileId, legacy) {
   if (typeof window === 'undefined') return;
   const view = open ? WORKSPACE_VIEW_OPEN : WORKSPACE_VIEW_TEAMS;
-  const hash = workspaceRouteFor(profileId, { view });
+  const hash = workspaceRouteFor(profileId, { view, catalog: app.catalog });
   try {
     if (typeof window.history?.replaceState === 'function'
         && window.location
@@ -377,7 +381,7 @@ function syncWorkspaceRoute(app, open, profileId, legacy) {
     // La navegación interna sigue funcionando aunque el WebView restrinja history.
   }
   if (typeof document !== 'undefined') {
-    document.title = workspaceDocumentTitle(profileId, { view, legacy });
+    document.title = workspaceDocumentTitle(profileId, { view, legacy, catalog: app.catalog });
   }
 }
 
@@ -442,7 +446,7 @@ export function applyWorkspaceNavigation(dom, app) {
   if (dom.workspaceTitle) {
     dom.workspaceTitle.textContent = legacy
       ? 'Plantilla única (APK3)'
-      : (getProfileDefinition(profileId)?.name ?? 'Equipo');
+      : (getProfileDefinition(profileId, { catalog: app.catalog })?.name ?? 'Equipo');
   }
   syncWorkspaceRoute(app, open, profileId, legacy);
 }
@@ -581,11 +585,15 @@ function renderMode(dom, app) {
 }
 
 function renderProfiles(dom, app) {
+  if (dom.addTeam) {
+    dom.addTeam.hidden = !isWorkspace(app);
+    dom.addTeam.disabled = app.busy === true;
+  }
   if (!dom.profileList) return;
   dom.profileList.replaceChildren();
   const activeId = app.workspace?.activeProfileId
     ?? (app.uiMode === 'legacy' ? DEFAULT_PROFILE_ID : '');
-  const activeDefinition = getProfileDefinition(activeId);
+  const activeDefinition = getProfileDefinition(activeId, { catalog: app.catalog });
   const selectable = isWorkspace(app) || app.uiMode === 'legacy';
   for (const definition of app.catalog) {
     const template = app.workspace?.profiles?.[definition.id];
@@ -593,6 +601,9 @@ function renderProfiles(dom, app) {
     button.type = 'button';
     button.className = `profile-card profile-card--${definition.id}`;
     button.dataset.profileId = definition.id;
+    if (definition.color && typeof button.style?.setProperty === 'function') {
+      button.style.setProperty('--profile-color', definition.color);
+    }
     button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(definition.id === activeId));
     button.disabled = app.busy || !selectable;
@@ -1021,6 +1032,10 @@ function setBusy(dom, app, busy, label = '') {
   dom.downloadPng.disabled = busy;
   dom.speakToggle.disabled = busy;
   dom.applyProposal.disabled = busy;
+  if (dom.addTeam) dom.addTeam.disabled = busy;
+  if (dom.addTeamInput) dom.addTeamInput.disabled = busy;
+  if (dom.addTeamCreate) dom.addTeamCreate.disabled = busy;
+  if (dom.addTeamCancel) dom.addTeamCancel.disabled = busy;
   dom.addTarget.disabled = busy || app.draft.targetLabels.length >= MN1_LIMITS.TARGETS_MAX;
   for (const control of dom.targetsList.querySelectorAll('[data-target-input], [data-remove-target]')) {
     control.disabled = busy;
@@ -1425,6 +1440,7 @@ async function initBrowserWorkspace(dom, app) {
     }
   }
   app.workspace = state;
+  app.catalog = profileCatalogForWorkspace(state);
   app.draft = cloneDraftFromProfile(activeProfileOf(app));
   await loadActiveImage(app);
 }
@@ -1482,6 +1498,7 @@ async function initNativeWorkspace(dom, app, legacyState) {
       app.migrationPending = false;
     }
     app.workspace = state;
+    app.catalog = profileCatalogForWorkspace(state);
     app.draft = cloneDraftFromProfile(activeProfileOf(app));
     await loadActiveImage(app);
   } catch (error) {
@@ -1493,6 +1510,7 @@ async function initNativeWorkspace(dom, app, legacyState) {
     app.persistent = false;
     const state = migrateLegacyWorkspace(legacyState);
     app.workspace = state;
+    app.catalog = profileCatalogForWorkspace(state);
     app.draft = cloneDraftFromProfile(activeProfileOf(app));
     app.migrationNotice = 'El almacén nativo no está disponible; el estado vive en memoria temporal y no se finge persistencia.';
     app.migrationPending = false;
@@ -1502,7 +1520,8 @@ async function initNativeWorkspace(dom, app, legacyState) {
 }
 
 function openWorkspaceFor(dom, app, profileId, options = {}) {
-  if (isWorkspace(app) && app.workspace && isProfileId(profileId)
+  if (isWorkspace(app) && app.workspace
+      && isProfileId(profileId, { customProfiles: app.workspace.customProfiles })
       && app.workspace.activeProfileId !== profileId) {
     return false;
   }
@@ -1610,7 +1629,7 @@ export function selectEditorTool(dom, app, tool, options = {}) {
 
 async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   if (!isWorkspace(app)) return false;
-  if (!isProfileId(profileId)) {
+  if (!isProfileId(profileId, { customProfiles: app.workspace?.customProfiles })) {
     showStatus(dom, 'El equipo solicitado no está en el catálogo.', 'warning');
     return false;
   }
@@ -1643,7 +1662,9 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   };
   if (typeof options.mutate === 'function') {
     const patched = options.mutate(cloneTemplate(next.profiles[profileId]));
-    next.profiles[profileId] = normalizeTemplate(patched, profileId);
+    next.profiles[profileId] = normalizeTemplate(patched, profileId, {
+      customProfiles: app.workspace.customProfiles,
+    });
   }
   const serializedNext = JSON.stringify(next);
 
@@ -1667,7 +1688,9 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
     renderImage(dom, app);
     renderProfiles(dom, app);
     await removeReplacedImages(dom, app);
-    const definition = getProfileDefinition(profileId);
+    const definition = getProfileDefinition(profileId, {
+      customProfiles: app.workspace.customProfiles,
+    });
     showStatus(dom, `Equipo activo: ${definition?.name ?? profileId}.`, 'success');
     return true;
   } catch (error) {
@@ -1899,6 +1922,139 @@ async function handleLegacyOpenEditor(dom, app) {
 }
 
 /* ------------------------------------------------------------------------- */
+/* Equipos personalizados                                                    */
+/* ------------------------------------------------------------------------- */
+
+function setAddTeamError(dom, text) {
+  setFieldError(dom.addTeamError, text);
+  if (!dom.addTeamInput) return;
+  if (text) dom.addTeamInput.setAttribute('aria-invalid', 'true');
+  else dom.addTeamInput.removeAttribute('aria-invalid');
+}
+
+function openAddTeamDialog(dom, app) {
+  if (app.busy || app.switching) {
+    showStatus(dom, 'Espera a que termine la acción actual antes de crear un equipo.', 'warning');
+    return;
+  }
+  if (!isWorkspace(app) || !app.workspace) {
+    showStatus(dom, 'Los equipos personalizados necesitan el workspace web y su almacén.', 'warning');
+    return;
+  }
+  app.addTeamSubmitted = false;
+  if (dom.addTeamInput) {
+    dom.addTeamInput.value = '';
+    dom.addTeamInput.disabled = false;
+  }
+  if (dom.addTeamCreate) dom.addTeamCreate.disabled = false;
+  if (dom.addTeamCancel) dom.addTeamCancel.disabled = false;
+  setAddTeamError(dom, '');
+  if (dom.addTeamDialog) {
+    if (typeof dom.addTeamDialog.showModal === 'function') {
+      if (!dom.addTeamDialog.open) dom.addTeamDialog.showModal();
+    } else {
+      dom.addTeamDialog.setAttribute('open', '');
+    }
+  }
+  if (dom.addTeamInput) {
+    dom.addTeamInput.focus();
+    if (typeof dom.addTeamInput.select === 'function') dom.addTeamInput.select();
+  }
+}
+
+function closeAddTeamDialog(dom) {
+  if (!dom.addTeamDialog) return;
+  if (typeof dom.addTeamDialog.close === 'function' && dom.addTeamDialog.open) {
+    dom.addTeamDialog.close();
+  } else {
+    dom.addTeamDialog.removeAttribute('open');
+  }
+}
+
+function validateAddTeamDraft(dom, app) {
+  const result = validateCustomTeamName(app.workspace, dom.addTeamInput?.value ?? '');
+  setAddTeamError(dom, result.ok ? '' : result.error);
+  return result;
+}
+
+async function handleCreateTeam(dom, app) {
+  if (!isWorkspace(app) || !app.workspace || !app.storage) {
+    setAddTeamError(dom, 'No hay un workspace con almacén disponible para crear el equipo.');
+    return;
+  }
+  if (app.busy || app.switching) {
+    setAddTeamError(dom, 'Espera a que termine la acción actual antes de crear un equipo.');
+    return;
+  }
+  clearError(dom, app);
+  app.addTeamSubmitted = true;
+  const check = validateAddTeamDraft(dom, app);
+  if (!check.ok) {
+    dom.addTeamInput?.focus();
+    return;
+  }
+  if (app.storageBlocked) {
+    setAddTeamError(
+      dom,
+      'No se creó el equipo: hay un estado guardado ilegible. Guárdalo explícitamente para reemplazarlo primero.',
+    );
+    return;
+  }
+  if (app.dirty) {
+    const saved = await flushDraftBeforeLeaving(dom, app);
+    if (!saved) {
+      setAddTeamError(dom, 'No se creó el equipo: corrige y guarda el borrador actual primero.');
+      showError(
+        dom,
+        'No se creó el equipo. El borrador actual se conserva y no se reemplazó ningún equipo.',
+        app,
+      );
+      return;
+    }
+  }
+  const created = createCustomTeam(app.workspace, check.name);
+  if (!created.ok) {
+    setAddTeamError(dom, created.error);
+    return;
+  }
+  setBusy(dom, app, true, 'Creando el equipo nuevo…');
+  try {
+    await enqueueStorageTask(app, async () => {
+      if (app.saveFailed) throw new Error('previous_save_failed');
+      await app.storage.putText(WORKSPACE_KEYS.state, JSON.stringify(created.state));
+    });
+    app.workspace = created.state;
+    app.catalog = profileCatalogForWorkspace(created.state);
+    app.draft = cloneDraftFromProfile(created.state.profiles[created.profileId]);
+    app.workspaceView = WORKSPACE_VIEW_OPEN;
+    app.editorTool = null;
+    app.dirty = false;
+    app.persistedRevision = app.draftRevision;
+    app.storageBlocked = false;
+    app.persistent = app.storage.persistent !== false;
+    app.proposal = null;
+    app.imageDataUrl = null;
+    app.loadedImage = null;
+    app.loadedImageUrl = '';
+    app.drawToken += 1;
+    app.addTeamSubmitted = false;
+    closeAddTeamDialog(dom);
+    renderAll(dom, app, { syncFields: true });
+    await loadActiveImage(app);
+    renderImage(dom, app);
+    showStatus(dom, `Equipo «${created.definition.name}» creado.`, 'success');
+  } catch (error) {
+    const message = error?.message === 'previous_save_failed'
+      ? 'No se creó el equipo: el guardado anterior no se completó.'
+      : `No se pudo guardar el equipo nuevo: ${error.message || 'error'}.`;
+    setAddTeamError(dom, message);
+    showError(dom, `${message} No se asumió ningún cambio.`, app);
+  } finally {
+    setBusy(dom, app, false);
+  }
+}
+
+/* ------------------------------------------------------------------------- */
 /* Acciones workspace                                                        */
 /* ------------------------------------------------------------------------- */
 
@@ -2090,7 +2246,9 @@ async function handleDownloadPng(dom, app) {
       hour: app.draft.hour,
       overlay: app.draft.overlay,
     });
-    const definition = getProfileDefinition(app.workspace.activeProfileId);
+    const definition = getProfileDefinition(app.workspace.activeProfileId, {
+      customProfiles: app.workspace.customProfiles,
+    });
     const safeName = (definition?.shortName ?? 'equipo')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -2139,6 +2297,7 @@ async function handleSelectProfile(dom, app, profileId) {
     activeProfileId: app.workspace?.activeProfileId ?? '',
     isBusy: app.busy || app.switching,
     isListening: app.listening,
+    catalog: app.catalog,
     switchProfile: (id) => switchWorkspaceProfile(dom, app, id),
     openProfile: (id) => openWorkspaceFor(dom, app, id),
     reportBlocked: (reason) => {
@@ -2168,6 +2327,7 @@ async function handleRefresh(dom, app) {
       }
       if (loaded.state && !app.dirty) {
         app.workspace = loaded.state;
+        app.catalog = profileCatalogForWorkspace(loaded.state);
         app.draft = cloneDraftFromProfile(activeProfileOf(app));
         await loadActiveImage(app);
         renderAll(dom, app, { syncFields: true });
@@ -2311,7 +2471,7 @@ async function handleSpeak(dom, app) {
 async function handleApplyProposal(dom, app) {
   const proposal = app.proposal;
   if (!proposal?.ok || app.busy || !isWorkspace(app)) return;
-  if (!isProfileId(proposal.profileId)) {
+  if (!isProfileId(proposal.profileId, { customProfiles: app.workspace?.customProfiles })) {
     showError(dom, 'La propuesta no identifica un equipo válido.');
     return;
   }
@@ -2439,6 +2599,13 @@ function collectDom() {
     profileList: byId('profile-list'),
     profilesStatus: byId('profiles-status'),
     profilesNotice: byId('profiles-notice'),
+    addTeam: byId('add-team'),
+    addTeamDialog: byId('add-team-dialog'),
+    addTeamInput: byId('add-team-input'),
+    addTeamError: byId('add-team-error'),
+    addTeamCreate: byId('add-team-create'),
+    addTeamCancel: byId('add-team-cancel'),
+    addTeamClose: byId('add-team-close'),
     importImage: byId('import-image'),
     pickImage: byId('pick-image'),
     openEditor: byId('open-editor'),
@@ -2553,6 +2720,7 @@ async function hydrateBrowser(dom, app) {
     app.persistent = false;
     app.storageBlocked = false;
     app.workspace = createDefaultWorkspace();
+    app.catalog = profileCatalogForWorkspace(app.workspace);
     app.draft = cloneDraftFromProfile(activeProfileOf(app));
     app.imageDataUrl = null;
     showStatus(dom, `No se pudo abrir el workspace local: ${error.message || 'error'}. Usando memoria temporal.`, 'warning');
@@ -2732,6 +2900,43 @@ function wireUiEvents(dom, app) {
     if (!card || card.disabled) return;
     void handleSelectProfile(dom, app, card.dataset.profileId);
   });
+
+  if (dom.addTeam) {
+    dom.addTeam.addEventListener('click', () => openAddTeamDialog(dom, app));
+  }
+  if (dom.addTeamInput) {
+    dom.addTeamInput.addEventListener('input', () => {
+      if (app.addTeamSubmitted) validateAddTeamDraft(dom, app);
+      else setAddTeamError(dom, '');
+    });
+    dom.addTeamInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (!dom.addTeamCreate?.disabled) void handleCreateTeam(dom, app);
+    });
+  }
+  if (dom.addTeamCreate) {
+    dom.addTeamCreate.addEventListener('click', () => void handleCreateTeam(dom, app));
+  }
+  if (dom.addTeamCancel) {
+    dom.addTeamCancel.addEventListener('click', () => closeAddTeamDialog(dom));
+  }
+  if (dom.addTeamClose) {
+    dom.addTeamClose.addEventListener('click', () => closeAddTeamDialog(dom));
+  }
+  if (dom.addTeamDialog) {
+    dom.addTeamDialog.addEventListener('click', (event) => {
+      if (event.target === dom.addTeamDialog) closeAddTeamDialog(dom);
+    });
+    dom.addTeamDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeAddTeamDialog(dom);
+    });
+    dom.addTeamDialog.addEventListener('close', () => {
+      app.addTeamSubmitted = false;
+      setAddTeamError(dom, '');
+    });
+  }
 
   if (dom.backToTeams) {
     dom.backToTeams.addEventListener('click', () => void handleBackToTeams(dom, app));
@@ -2936,6 +3141,7 @@ async function boot() {
     editorTool: null,
     navigationError: '',
     catalog: PROFILE_CATALOG,
+    addTeamSubmitted: false,
     capabilitySet: new Set(),
     workspace: null,
     draft: createDefaultDraft(),

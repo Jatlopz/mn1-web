@@ -59,6 +59,21 @@ export const PROFILE_CATALOG = Object.freeze([
 
 export const PROFILE_IDS = Object.freeze(PROFILE_CATALOG.map((profile) => profile.id));
 
+export const MAX_TOTAL_TEAMS = 24;
+export const MAX_CUSTOM_TEAMS = MAX_TOTAL_TEAMS - PROFILE_CATALOG.length;
+export const TEAM_NAME_MAX_LENGTH = 60;
+export const CUSTOM_PROFILE_ID_PATTERN =
+  /^custom-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const CUSTOM_PROFILE_COLORS = Object.freeze([
+  '#c8f751',
+  '#35e3c8',
+  '#f5c542',
+  '#ff6b6b',
+  '#9ad4ff',
+  '#d6a8ff',
+]);
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
+
 export const OVERLAY_LIMITS = Object.freeze({
   MIN_SIZE: 0.025,
   MAX_SIZE: 0.18,
@@ -122,12 +137,260 @@ export function normalizeOverlay(value) {
   };
 }
 
-export function getProfileDefinition(profileId) {
-  return PROFILE_CATALOG.find((profile) => profile.id === profileId) ?? null;
+function hasOwn(object, key) {
+  return Boolean(object)
+    && typeof object === 'object'
+    && Object.prototype.hasOwnProperty.call(object, key);
 }
 
-export function isProfileId(value) {
-  return typeof value === 'string' && PROFILE_IDS.includes(value);
+function customProfilesFrom(options = {}) {
+  if (!options || typeof options !== 'object') return [];
+  if (Array.isArray(options.customProfiles)) return options.customProfiles;
+  if (options.workspace && Array.isArray(options.workspace.customProfiles)) {
+    return options.workspace.customProfiles;
+  }
+  return [];
+}
+
+/**
+ * Definiciones disponibles sin mutar el catálogo global. `options.catalog` permite pasar
+ * el catálogo ya resuelto de la app; `options.customProfiles` añade los equipos del estado.
+ */
+export function getProfileDefinitions(options = {}) {
+  if (Array.isArray(options)) return options;
+  if (options && Array.isArray(options.catalog)) return options.catalog;
+  if (options && Array.isArray(options.definitions)) return options.definitions;
+  const customProfiles = customProfilesFrom(options);
+  return customProfiles.length > 0 ? [...PROFILE_CATALOG, ...customProfiles] : PROFILE_CATALOG;
+}
+
+export function getProfileDefinition(profileId, options = {}) {
+  if (typeof profileId !== 'string') return null;
+  return getProfileDefinitions(options).find((profile) => profile?.id === profileId) ?? null;
+}
+
+export function isProfileId(value, options = {}) {
+  return typeof value === 'string'
+    && getProfileDefinitions(options).some((profile) => profile?.id === value);
+}
+
+export function isCustomProfileId(value) {
+  return typeof value === 'string' && CUSTOM_PROFILE_ID_PATTERN.test(value);
+}
+
+export function profileCatalogForWorkspace(workspace) {
+  const customProfiles = normalizeCustomProfiles(workspace?.customProfiles);
+  return Object.freeze([
+    ...PROFILE_CATALOG,
+    ...customProfiles.map((profile) => Object.freeze({ ...profile })),
+  ]);
+}
+
+export function defaultMessageForTeam(name) {
+  return `Batiseñal MN1 {hora}. Convocatoria del equipo ${name} de Sacos. ` +
+    'Destinos: Telares y Extrusión.';
+}
+
+export function normalizeTeamNameKey(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function validateTeamName(value) {
+  if (typeof value !== 'string') {
+    return { ok: false, code: 'invalid_name', error: 'Escribe un nombre para el equipo.' };
+  }
+  if (CONTROL_CHARACTER_PATTERN.test(value)) {
+    return {
+      ok: false,
+      code: 'control_characters',
+      error: 'El nombre no puede incluir caracteres de control.',
+    };
+  }
+  const name = value.trim().replace(/\s+/g, ' ');
+  if (name.length === 0) {
+    return { ok: false, code: 'blank_name', error: 'Escribe un nombre para el equipo.' };
+  }
+  if (textLength(name) > TEAM_NAME_MAX_LENGTH) {
+    return {
+      ok: false,
+      code: 'name_too_long',
+      error: `El nombre puede tener hasta ${TEAM_NAME_MAX_LENGTH} caracteres.`,
+    };
+  }
+  return { ok: true, name };
+}
+
+export function validateCustomTeamName(state, value) {
+  const check = validateTeamName(value);
+  if (!check.ok) return check;
+  const customProfiles = normalizeCustomProfiles(state?.customProfiles);
+  if (PROFILE_CATALOG.length + customProfiles.length >= MAX_TOTAL_TEAMS) {
+    return {
+      ok: false,
+      code: 'max_teams',
+      error: `Puedes tener hasta ${MAX_TOTAL_TEAMS} equipos en total.`,
+    };
+  }
+  const key = normalizeTeamNameKey(check.name);
+  const duplicate = [...PROFILE_CATALOG, ...customProfiles]
+    .some((profile) => normalizeTeamNameKey(profile?.name) === key);
+  if (duplicate) {
+    return {
+      ok: false,
+      code: 'duplicate_name',
+      error: 'Ya existe un equipo con ese nombre.',
+    };
+  }
+  return { ok: true, name: check.name };
+}
+
+function buildCustomProfileDefinition(id, name, index, createdAt = '') {
+  return {
+    id,
+    name,
+    shortName: name,
+    color: CUSTOM_PROFILE_COLORS[index % CUSTOM_PROFILE_COLORS.length],
+    defaultMessage: defaultMessageForTeam(name),
+    createdAt: typeof createdAt === 'string' ? createdAt.slice(0, 40) : '',
+  };
+}
+
+function randomUuidV4() {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    try {
+      return cryptoApi.randomUUID();
+    } catch {
+      // Se usa la alternativa con getRandomValues o Math.random.
+    }
+  }
+  const bytes = new Uint8Array(16);
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    try {
+      cryptoApi.getRandomValues(bytes);
+    } catch {
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = Math.floor(Math.random() * 256);
+      }
+    }
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-` +
+    `${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export function generateCustomProfileId(idFactory) {
+  const raw = typeof idFactory === 'function' ? idFactory() : randomUuidV4();
+  const uuid = String(raw ?? '').trim().toLowerCase().replace(/^custom-/, '');
+  const id = `custom-${uuid}`;
+  return isCustomProfileId(id) ? id : null;
+}
+
+export function normalizeCustomProfiles(value) {
+  if (!Array.isArray(value)) return [];
+  const result = [];
+  const seenIds = new Set(PROFILE_IDS);
+  const seenNames = new Set(PROFILE_CATALOG.map((profile) => normalizeTeamNameKey(profile.name)));
+  for (const raw of value) {
+    if (result.length >= MAX_CUSTOM_TEAMS) break;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const rawId = hasOwn(raw, 'id') ? raw.id : undefined;
+    if (!isCustomProfileId(rawId)) continue;
+    const id = rawId.toLowerCase();
+    if (seenIds.has(id)) continue;
+    const nameCheck = validateTeamName(hasOwn(raw, 'name') ? raw.name : undefined);
+    if (!nameCheck.ok) continue;
+    const nameKey = normalizeTeamNameKey(nameCheck.name);
+    if (seenNames.has(nameKey)) continue;
+    seenIds.add(id);
+    seenNames.add(nameKey);
+    const createdAt = hasOwn(raw, 'createdAt') && typeof raw.createdAt === 'string'
+      ? raw.createdAt
+      : '';
+    result.push(buildCustomProfileDefinition(id, nameCheck.name, result.length, createdAt));
+  }
+  return result;
+}
+
+export function createCustomTeam(state, rawName, options = {}) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    return { ok: false, code: 'invalid_state', error: 'No hay un workspace disponible.' };
+  }
+  const check = validateCustomTeamName(state, rawName);
+  if (!check.ok) return check;
+  const customProfiles = normalizeCustomProfiles(state.customProfiles);
+  const definitions = [...PROFILE_CATALOG, ...customProfiles];
+  let profileId = null;
+  for (let attempt = 0; attempt < 8 && profileId === null; attempt += 1) {
+    const candidate = generateCustomProfileId(options.idFactory);
+    if (candidate && !definitions.some((profile) => profile.id === candidate)) {
+      profileId = candidate;
+    }
+  }
+  if (!profileId) {
+    return {
+      ok: false,
+      code: 'id_unavailable',
+      error: 'No se pudo generar un identificador seguro para el equipo.',
+    };
+  }
+  const createdAt = typeof options.createdAt === 'string'
+    ? options.createdAt
+    : new Date().toISOString();
+  const definition = buildCustomProfileDefinition(
+    profileId,
+    check.name,
+    customProfiles.length,
+    createdAt,
+  );
+  const nextCustomProfiles = [...customProfiles, definition];
+  const nextDefinitions = [...PROFILE_CATALOG, ...nextCustomProfiles];
+  const profiles = {};
+  const rawProfiles = state.profiles && typeof state.profiles === 'object' ? state.profiles : {};
+  for (const profileDefinition of nextDefinitions) {
+    const source = hasOwn(rawProfiles, profileDefinition.id)
+      ? rawProfiles[profileDefinition.id]
+      : undefined;
+    profiles[profileDefinition.id] = normalizeTemplate(source, profileDefinition.id, {
+      definitions: nextDefinitions,
+    });
+  }
+  profiles[profileId] = createProfileTemplate(profileId, {
+    definitions: nextDefinitions,
+    message: definition.defaultMessage,
+    hour: DEFAULT_HOUR,
+    targetLabels: DEFAULT_TARGETS,
+    overlay: DEFAULT_OVERLAY,
+    imageKey: null,
+    imageWidth: null,
+    imageHeight: null,
+    updatedAt: '',
+  });
+  return {
+    ok: true,
+    profileId,
+    definition,
+    template: profiles[profileId],
+    state: {
+      ...state,
+      version: 1,
+      activeProfileId: profileId,
+      profiles,
+      customProfiles: nextCustomProfiles,
+      migratedAt: typeof state.migratedAt === 'string' ? state.migratedAt : '',
+    },
+  };
 }
 
 export function normalizeTargetLabels(value, options = {}) {
@@ -145,7 +408,9 @@ export function normalizeTargetLabels(value, options = {}) {
 }
 
 export function createProfileTemplate(profileId, options = {}) {
-  const definition = getProfileDefinition(profileId) ?? getProfileDefinition(DEFAULT_PROFILE_ID);
+  const definitions = getProfileDefinitions(options);
+  const definition = getProfileDefinition(profileId, { definitions })
+    ?? getProfileDefinition(DEFAULT_PROFILE_ID, { definitions });
   return normalizeTemplate({
     message: options.message ?? definition.defaultMessage,
     hour: options.hour ?? DEFAULT_HOUR,
@@ -155,11 +420,13 @@ export function createProfileTemplate(profileId, options = {}) {
     imageWidth: options.imageWidth ?? null,
     imageHeight: options.imageHeight ?? null,
     updatedAt: options.updatedAt ?? '',
-  }, profileId);
+  }, profileId, { definitions });
 }
 
-export function normalizeTemplate(raw, profileId) {
-  const definition = getProfileDefinition(profileId) ?? getProfileDefinition(DEFAULT_PROFILE_ID);
+export function normalizeTemplate(raw, profileId, options = {}) {
+  const definitions = getProfileDefinitions(options);
+  const definition = getProfileDefinition(profileId, { definitions })
+    ?? getProfileDefinition(DEFAULT_PROFILE_ID, { definitions });
   const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const message = typeof source.message === 'string' ? source.message.trim() : '';
   const labels = normalizeTargetLabels(source.targetLabels, {
@@ -193,6 +460,7 @@ export function createDefaultWorkspace() {
     profiles: Object.fromEntries(
       PROFILE_CATALOG.map((profile) => [profile.id, createProfileTemplate(profile.id)]),
     ),
+    customProfiles: [],
     migratedAt: '',
   };
 }
@@ -200,16 +468,25 @@ export function createDefaultWorkspace() {
 export function normalizeWorkspaceState(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   if (raw.version !== 1) return null;
+  const customProfiles = normalizeCustomProfiles(raw.customProfiles);
+  const definitions = [...PROFILE_CATALOG, ...customProfiles];
+  const rawProfiles = raw.profiles && typeof raw.profiles === 'object'
+    && !Array.isArray(raw.profiles)
+    ? raw.profiles
+    : {};
   const profiles = {};
-  for (const profile of PROFILE_CATALOG) {
-    profiles[profile.id] = normalizeTemplate(raw.profiles?.[profile.id], profile.id);
+  for (const definition of definitions) {
+    const source = hasOwn(rawProfiles, definition.id) ? rawProfiles[definition.id] : undefined;
+    profiles[definition.id] = normalizeTemplate(source, definition.id, { definitions });
   }
+  const activeProfileId = isProfileId(raw.activeProfileId, { definitions })
+    ? raw.activeProfileId
+    : DEFAULT_PROFILE_ID;
   return {
     version: 1,
-    activeProfileId: isProfileId(raw.activeProfileId)
-      ? raw.activeProfileId
-      : DEFAULT_PROFILE_ID,
+    activeProfileId,
     profiles,
+    customProfiles,
     migratedAt: typeof raw.migratedAt === 'string' ? raw.migratedAt.slice(0, 40) : '',
   };
 }
@@ -223,16 +500,26 @@ export function cloneTemplate(template) {
 }
 
 export function cloneWorkspace(state) {
+  const customProfiles = Array.isArray(state?.customProfiles)
+    ? state.customProfiles.map((profile) => ({ ...profile }))
+    : [];
+  const definitions = getProfileDefinitions({ customProfiles });
+  const profiles = {};
+  for (const definition of definitions) {
+    const source = state?.profiles?.[definition.id];
+    profiles[definition.id] = source
+      ? cloneTemplate(source)
+      : createProfileTemplate(definition.id, { definitions });
+  }
   return {
     ...state,
-    profiles: Object.fromEntries(
-      PROFILE_IDS.map((profileId) => [profileId, cloneTemplate(state.profiles[profileId])]),
-    ),
+    profiles,
+    customProfiles,
   };
 }
 
 export function selectProfile(state, profileId) {
-  if (!isProfileId(profileId)) return null;
+  if (!isProfileId(profileId, { customProfiles: state?.customProfiles })) return null;
   return {
     ...state,
     activeProfileId: profileId,
@@ -241,12 +528,13 @@ export function selectProfile(state, profileId) {
 }
 
 export function updateProfile(state, profileId, template) {
-  if (!isProfileId(profileId)) return null;
+  if (!isProfileId(profileId, { customProfiles: state?.customProfiles })) return null;
+  const definitions = getProfileDefinitions({ customProfiles: state?.customProfiles });
   return {
     ...state,
     profiles: {
       ...state.profiles,
-      [profileId]: normalizeTemplate(template, profileId),
+      [profileId]: normalizeTemplate(template, profileId, { definitions }),
     },
   };
 }

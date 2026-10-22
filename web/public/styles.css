@@ -351,6 +351,27 @@ code {
   line-height: 1.45;
 }
 
+.add-team-button {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 18px;
+  font-size: 0.95rem;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(200, 247, 81, 0.16);
+}
+
+.add-team-button:hover:not(:disabled) {
+  box-shadow: 0 12px 32px rgba(200, 247, 81, 0.24);
+}
+
+.add-team-dialog .field {
+  margin-top: 0.85rem;
+}
+
+.add-team-dialog .field-error {
+  margin-top: 0.65rem;
+}
+
 .teams-toolbar {
   display: flex;
   align-items: center;
@@ -1870,3 +1891,6 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 #contenido.workspace{height:var(--mn1-editor-height,100vh);min-height:var(--mn1-editor-height,100vh)}
 .tool-drawer{flex-basis:calc(var(--mn1-editor-height,100vh)*.32);max-height:calc(var(--mn1-editor-height,100vh)*.32)}
 .hero-panel{min-height:min(8rem,calc(var(--mn1-editor-height,100vh)*.25))}
+
+/* WebView: viewport measured by host page rather than Android vh units. */
+.dialog { max-height: min(640px, calc(var(--mn1-editor-height, 100vh) * .85)); }
