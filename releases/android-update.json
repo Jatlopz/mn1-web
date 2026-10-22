@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 8,
-  "versionName": "0.5.3-camera",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-8-3928f0d57a51ae59.apk",
-  "sha256": "3928f0d57a51ae595f01343045e5afd0a15e551edf5764ae18a24f7a1a69e6fd",
-  "sizeBytes": 17921384,
-  "notes": "Cámara del sistema para reportar reuniones. Estudio web con marco y membrete por equipo, dos grupos configurables y compartir con confirmación. Conserva anuncios, fotos y datos; no envía mensajes automáticamente."
+  "versionCode": 9,
+  "versionName": "0.5.4-photo-widget",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-9-5c4123ce41bf8cb5.apk",
+  "sha256": "5c4123ce41bf8cb5b82b36c16d9d02b0abd28a57a197dc311cdd305be37e2727",
+  "sizeBytes": 17968457,
+  "notes": "Widget con Convocar y Foto: abre la cámara y el reporte del equipo seleccionado. Colores de marco editables. Conserva datos; compartir requiere confirmación."
 }
