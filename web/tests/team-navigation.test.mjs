@@ -1,5 +1,5 @@
 /*
- * Comportamiento de navegación de equipos (web 0.4.1).
+ * Comportamiento de navegación de equipos (web 0.4.2).
  *
  * Estos tests no levantan un navegador: construyen el mínimo DOM compartido del
  * editor único (#teams-screen, #contenido, HERO y drawer de herramientas) y
@@ -95,8 +95,8 @@ function visibleToolPanels(dom) {
     .map((panel) => panel.tool);
 }
 
-test('APP_VERSION es 0.4.1 y las herramientas del editor son válidas', () => {
-  assert.equal(APP_VERSION, '0.4.1');
+test('APP_VERSION es 0.4.2 y las herramientas del editor son válidas', () => {
+  assert.equal(APP_VERSION, '0.4.2');
   assert.deepEqual([...EDITOR_TOOLS], ['hour', 'message', 'voice']);
   for (const tool of EDITOR_TOOLS) assert.equal(isEditorTool(tool), true);
   assert.equal(isEditorTool('preview'), false);

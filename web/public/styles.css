@@ -1866,3 +1866,7 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .image-frame>.preview-image{width:100%;height:100%;max-width:100%;max-height:100%;min-width:0;min-height:0;object-fit:contain}
 /* Herramientas primarias visibles sin una lista larga de ajustes. */
 .tool-drawer{flex:0 0 36dvh;max-height:36dvh}.tool-drawer-head{padding:.5rem .7rem}.tool-drawer-body{padding:.45rem .65rem}.tool-panel .design-block>.hint{display:none}.hour-control{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:.35rem;border:0;padding:0;margin:0}.hour-control>legend{display:none}.hour-control .hour-options{display:contents}.hour-control .hour-pill,.hour-control .custom-hour{min-height:38px;padding:.3rem;font-size:.8rem}.hour-control .custom-hour{width:100%;margin:0;justify-content:center}.hour-control .custom-hour-edit{display:none}.font-choices{margin:.25rem 0 .5rem}.color-choices{margin:.4rem 0}.quick-size{padding:.3rem 0}.tool-panel .design-block{padding:.25rem 0}
+/* Algunos WebView informan 0 para dvh: usar la altura real del viewport JS. */
+#contenido.workspace{height:var(--mn1-editor-height,100vh);min-height:var(--mn1-editor-height,100vh)}
+.tool-drawer{flex-basis:calc(var(--mn1-editor-height,100vh)*.32);max-height:calc(var(--mn1-editor-height,100vh)*.32)}
+.hero-panel{min-height:min(8rem,calc(var(--mn1-editor-height,100vh)*.25))}

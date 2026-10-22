@@ -1,6 +1,6 @@
 {
-  "version": "0.4.1",
+  "version": "0.4.2",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Editor visual único: imagen siempre visible, herramientas directas, controles sencillos y Acerca de."
+  "notes": "Editor visual único, controles directos y altura de lienzo corregida para Android WebView."
 }

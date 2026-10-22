@@ -65,7 +65,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.1';
+export const APP_VERSION = '0.4.2';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -387,7 +387,14 @@ function syncWorkspaceRoute(app, open, profileId, legacy) {
  * los paneles, de modo que renderAll/renderOverlayControls/renderVoice no pueden
  * volver a mostrar un formulario ajeno.
  */
+function syncEditorViewport() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const height = Number(window.visualViewport?.height || window.innerHeight);
+  if (Number.isFinite(height) && height > 0) document.documentElement.style.setProperty('--mn1-editor-height', height + 'px');
+}
+
 export function applyWorkspaceNavigation(dom, app) {
+  syncEditorViewport();
   const open = app.workspaceView === WORKSPACE_VIEW_OPEN;
   const activeTool = resolveEditorTool(app.editorTool);
   app.editorTool = activeTool;
@@ -2965,6 +2972,9 @@ async function boot() {
     lastSavedAt: '',
   };
 
+  window.addEventListener('resize', syncEditorViewport);
+  window.visualViewport?.addEventListener('resize', syncEditorViewport);
+  window.requestAnimationFrame(syncEditorViewport);
   renderAll(dom, app);
   readVersion(dom, app);
   wireUiEvents(dom, app);

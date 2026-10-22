@@ -41,7 +41,7 @@ test('published bundle contains every module with coherent content hashes', asyn
   assert.match(app, /from '\.\/voice\.[a-f0-9]{16}\.js'/);
 
   const version = JSON.parse(await readFile(path.join(out, 'version.json'), 'utf8'));
-  assert.equal(version.version, '0.4.1');
+  assert.equal(version.version, '0.4.2');
   assert.equal(version.protocol, 1);
   assert.ok(files.includes('.nojekyll'));
   assert.ok(!files.some((file) => /png|apk|keystore|Android|env/.test(file)));
