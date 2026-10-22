@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 7,
-  "versionName": "0.5.2-settings",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-7-9cbcf02e30aceb4b.apk",
-  "sha256": "9cbcf02e30aceb4bd20bdd20c08d41866ee4add6a2f5e06835bf3b1bb492acc8",
-  "sizeBytes": 13377299,
-  "notes": "Settings con engranaje y Actualizaciones dentro. El widget abre el último equipo con su horario predeterminado. Conserva imágenes y datos; no envía mensajes automáticamente."
+  "versionCode": 8,
+  "versionName": "0.5.3-camera",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-8-3928f0d57a51ae59.apk",
+  "sha256": "3928f0d57a51ae595f01343045e5afd0a15e551edf5764ae18a24f7a1a69e6fd",
+  "sizeBytes": 17921384,
+  "notes": "Cámara del sistema para reportar reuniones. Estudio web con marco y membrete por equipo, dos grupos configurables y compartir con confirmación. Conserva anuncios, fotos y datos; no envía mensajes automáticamente."
 }
