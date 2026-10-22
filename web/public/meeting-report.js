@@ -111,7 +111,7 @@ export function createMeetingReport(getServices) {
       select.value=prefs.teamId;$('report-frame').value=prefs.frame;$('report-heading').value=prefs.heading;$('report-date').checked=prefs.showDate;dirty=false;logoKeys={...prefs.logoKeys};$('report-watermark').checked=prefs.watermark;$('report-watermark-opacity').value=String(Math.round(prefs.watermarkOpacity*100));$('report-watermark-position').value=prefs.watermarkPosition;
       if(!photo&&s.storage){const stored=await s.storage.getText(REPORT_PHOTO_KEY);if(stored){const savedPhoto=parseCaptureRecord(stored);if(savedPhoto){const url=pngDataUrlFromBase64(savedPhoto.imageBase64);photo=await loadImageElement(url);capture=savedPhoto;}}}
       if(token!==loadToken)return;await loadLogo();render();message(photo?'Tu último reporte está listo para editar.':'Toma una foto para crear el reporte.');
-    }catch(e){message('No se pudieron leer los datos del reporte: '+e.message,true);}finally{lock(false);}
+    }catch(e){message('No se pudieron leer los datos del reporte: '+e.message,true);return false;}finally{lock(false);}
     await pick(true);
     return true;
   }
