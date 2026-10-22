@@ -38,6 +38,7 @@ export const WORKSPACE_ACTIONS = Object.freeze([
   'VAULT_PUT',
   'VAULT_REMOVE',
   'IMPORT_IMAGE',
+  'CAPTURE_PHOTO',
   'GET_LEGACY_IMAGE',
   'SHARE_PNG',
   'RECOGNIZE_SPEECH',
@@ -49,6 +50,7 @@ export const ACTIONS = Object.freeze([...LEGACY_ACTIONS, ...WORKSPACE_ACTIONS]);
 export const CAPABILITIES = Object.freeze({
   WORKSPACE: 'web-workspace-v1',
   RAW_IMAGE: 'raw-image-v1',
+  CAMERA: 'camera-capture-v1',
   SHARE_PNG: 'share-png-v1',
   SPEECH: 'speech-input-v1',
 });
@@ -279,6 +281,7 @@ function validateActionPayload(action, payload) {
       || action === 'OPEN_EDITOR'
       || action === 'SAVE_TEMPLATE'
       || action === 'IMPORT_IMAGE'
+      || action === 'CAPTURE_PHOTO'
       || action === 'GET_LEGACY_IMAGE'
       || action === 'CANCEL_SPEECH') {
     if (Object.keys(payload).length !== 0) {

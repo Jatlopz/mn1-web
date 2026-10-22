@@ -79,13 +79,14 @@ import {
   prepareImageFile,
   renderCompositePng,
 } from './renderer.js';
+import { createMeetingReport } from './meeting-report.js';
 import { seedStarterImages } from './starter-templates.js';
 import {
   SPEECH_EXAMPLE,
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.7';
+export const APP_VERSION = '0.4.8';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -937,8 +938,7 @@ function renderProfiles(dom, app) {
       meta.textContent = 'Plantilla única (APK3)';
     } else {
       const hour = isWorkspace(app) ? template?.hour : app.draft.hour;
-      const hasImage = isWorkspace(app) && Boolean(template?.imageKey);
-      meta.textContent = `${hour ?? '--:--'}${hasImage ? ' · con foto' : ''}`;
+      meta.textContent = hour ?? '--:--';
     }
 
     button.append(media, shade, name, meta);
@@ -4436,6 +4436,7 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  createMeetingReport(() => ({mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
   await processWidgetLaunch();
 }

@@ -50,8 +50,8 @@ test('normaliza la apariencia estricta y degrada custom sin clave a none', () =>
   }), {
     mode: 'none',
     imageKey: null,
-    blur: 6,
-    shade: 0.55,
+    blur: 0,
+    shade: 0.35,
   });
 
   const normalized = normalizeCardAppearance({
@@ -62,7 +62,7 @@ test('normaliza la apariencia estricta y degrada custom sin clave a none', () =>
   });
   assert.equal(normalized.mode, 'announcement');
   assert.equal(normalized.imageKey, null);
-  assert.equal(normalized.blur, 6);
+  assert.equal(normalized.blur, 0);
   assert.equal(normalized.shade, 0.8);
 
   const low = normalizeCardAppearance({ mode: 'none', blur: 0, shade: -1 });
@@ -171,8 +171,8 @@ test('el borrador de portada aísla Guardar y Cancelar sin tocar lo guardado', (
   const saved = {
     mode: 'announcement',
     imageKey: null,
-    blur: 6,
-    shade: 0.55,
+    blur: 0,
+    shade: 0.35,
   };
   const draft = createCardCoverDraft(saved);
   draft.mode = 'custom';
@@ -183,8 +183,8 @@ test('el borrador de portada aísla Guardar y Cancelar sin tocar lo guardado', (
   assert.deepEqual(saved, {
     mode: 'announcement',
     imageKey: null,
-    blur: 6,
-    shade: 0.55,
+    blur: 0,
+    shade: 0.35,
   });
 
   const savedResult = resolveCoverSave(draft);
@@ -201,8 +201,8 @@ test('el borrador de portada aísla Guardar y Cancelar sin tocar lo guardado', (
     mode: 'announcement',
     imageKey: null,
     customImageKey: null,
-    blur: 6,
-    shade: 0.55,
+    blur: 0,
+    shade: 0.35,
     pendingImage: null,
     newKey: null,
   });

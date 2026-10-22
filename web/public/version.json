@@ -1,6 +1,6 @@
 {
-  "version": "0.4.7",
+  "version": "0.4.8",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Proyector de luz y portadas editables por equipo con imagen local, desenfoque y sombra; anuncio intacto."
+  "notes": "Estudio de reportes de reunión: foto, marco, membrete del equipo y compartir con confirmación. Cámara mediante actualizador de la base."
 }

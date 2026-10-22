@@ -103,8 +103,8 @@ export const CARD_COVER_MODES = Object.freeze(['announcement', 'custom', 'none']
 export const CARD_COVER_BLURS = Object.freeze([0, 6, 12]);
 export const CARD_COVER_SHADE_MIN = 0.35;
 export const CARD_COVER_SHADE_MAX = 0.8;
-export const CARD_COVER_SHADE_DEFAULT = 0.55;
-export const CARD_COVER_BLUR_DEFAULT = 6;
+export const CARD_COVER_SHADE_DEFAULT = 0.35;
+export const CARD_COVER_BLUR_DEFAULT = 0;
 export const CARD_COVER_THUMBNAIL_MAX_SIDE = 384;
 export const CARD_COVER_CACHE_LIMIT = 24;
 
