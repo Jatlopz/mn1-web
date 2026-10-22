@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 11,
-  "versionName": "0.5.6-reflector",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-11-4021ad300d8b340d.apk",
-  "sha256": "4021ad300d8b340d0bf15eafb593c3e262e2ea6823f042cb6656b706e27194bc",
+  "versionCode": 12,
+  "versionName": "0.5.7-reflector",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-12-4a451a8504701205.apk",
+  "sha256": "4a451a850470120500145bd413b40b6e795eb12c31229836a9d83a812e390ae1",
   "sizeBytes": 17922389,
   "notes": "Nueva identidad Batiseñal - Avisos y más. Icono de reflector y entrada animada que ilumina JT, de Joel Triminio. Conserva equipos, imágenes, widget y datos."
 }
