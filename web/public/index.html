@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0a0d10">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="MN1 · Avisos de planta. Prepara la batiseñal, el mensaje y la hora. La confirmación y el envío se realizan en tu teléfono.">
+  <!--
+    CSP de respaldo para servidores que no envían cabeceras. En producción la cabecera
+    Content-Security-Policy es la autoridad. No se usan scripts, estilos ni conexiones externas.
+    Los PNG llegan como data:image/png;base64 generados por Android.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <title>MN1 · Avisos de planta</title>
+  <link rel="stylesheet" href="./styles.css?v=0.1.1">
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <div class="app" id="app">
+    <header class="app-header">
+      <div class="brand" aria-label="MN1 Avisos de planta">
+        <span class="brand-mark" aria-hidden="true"><span class="brand-signal"></span></span>
+        <div class="brand-copy">
+          <p class="brand-name">MN1</p>
+          <p class="brand-sub">Avisos de planta</p>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span class="mode-badge" id="mode-badge" data-mode="preview">Vista previa · sin envío</span>
+        <span class="version-badge" id="version-badge" title="Versión web MN1">v—</span>
+      </div>
+    </header>
+
+    <p class="preview-note" id="preview-note" role="note">
+      Estás en una vista previa del navegador. No se guarda ni se comparte nada desde aquí.
+    </p>
+
+    <main id="contenido" class="layout" aria-busy="false">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-head">
+          <p class="kicker" id="hero-title"><span class="kicker-dot" aria-hidden="true"></span>ANUNCIO</p>
+          <p class="hero-hour" id="hero-hour">08:00</p>
+        </div>
+
+        <div class="image-frame" id="image-frame">
+          <img id="preview-image" class="preview-image" alt="" hidden>
+          <div class="image-placeholder" id="image-placeholder">
+            <span class="image-glyph" aria-hidden="true"></span>
+            <p class="image-placeholder-title">Vista previa de la imagen</p>
+            <p class="image-placeholder-copy">Android prepara el PNG con la hora. Aquí se muestra tal cual, sin recorte ni rótulos añadidos.</p>
+          </div>
+        </div>
+        <p class="image-meta" id="image-meta">La imagen se prepara en la app Android.</p>
+
+        <p class="announcement" id="preview-message" aria-live="off"></p>
+
+        <div class="hero-controls">
+          <fieldset class="control-block" id="hour-fieldset">
+            <legend class="control-legend">Hora de la convocatoria</legend>
+            <div class="hour-options">
+              <label class="hour-option">
+                <input type="radio" name="hour" value="08:00" id="hour-08" data-hour-option>
+                <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>08:00</span>
+              </label>
+              <label class="hour-option">
+                <input type="radio" name="hour" value="09:00" id="hour-09" data-hour-option>
+                <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>09:00</span>
+              </label>
+            </div>
+            <button class="custom-hour" id="custom-hour" type="button" aria-haspopup="dialog">
+              <span id="custom-hour-label">Elegir otra hora</span>
+              <span class="custom-hour-edit" aria-hidden="true">Editar</span>
+            </button>
+          </fieldset>
+
+          <div class="control-block">
+            <p class="control-legend">Imagen</p>
+            <div class="inline-actions">
+              <button class="button button-secondary" id="pick-image" type="button">Elegir imagen</button>
+              <button class="button button-ghost" id="open-editor" type="button">Diseñar hora sobre la imagen</button>
+            </div>
+            <p class="hint">Abre el selector y el editor nativo. La web no recorta ni dibuja sobre la foto.</p>
+          </div>
+        </div>
+
+        <div class="hero-targets">
+          <span class="targets-label">Para</span>
+          <div class="targets-summary" id="targets-summary" aria-label="Etiquetas orientativas de destino"></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="panel-title">
+        <div class="panel-head">
+          <h2 id="panel-title">Plantilla</h2>
+          <button class="button button-ghost button-small" id="refresh-state" type="button">Actualizar vista</button>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <label class="field-label" for="message-input">Mensaje de la convocatoria</label>
+            <span class="meta" id="message-count">0 / 2000</span>
+          </div>
+          <textarea id="message-input" class="textarea" rows="5" maxlength="2000" spellcheck="true" aria-describedby="message-help message-error"></textarea>
+          <p class="hint" id="message-help">Escribe <code>{hora}</code> y se sustituirá por la hora elegida en la vista previa.</p>
+          <p class="field-error" id="message-error" role="alert" hidden></p>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span class="field-label" id="targets-label">Etiquetas de destino</span>
+            <span class="meta" id="targets-count">2 / 10</span>
+          </div>
+          <p class="hint" id="targets-help">Son etiquetas orientativas; no identifican ni envían a ningún grupo.</p>
+          <div class="targets-editor" id="targets-list" role="list" aria-labelledby="targets-label" aria-describedby="targets-help targets-error"></div>
+          <button class="button button-ghost button-small" id="add-target" type="button">Añadir etiqueta</button>
+          <p class="field-error" id="targets-error" role="alert" hidden></p>
+        </div>
+
+        <div class="panel-note">
+          <p><strong>La app verifica y confirma.</strong> Guardar no envía. Compartir abre la confirmación nativa y después el selector de Android; la web no afirma entrega.</p>
+        </div>
+
+        <div class="actions">
+          <button class="button button-primary button-large" id="prepare-share" type="button">Preparar y compartir</button>
+          <button class="button button-secondary button-large" id="save-template" type="button">Guardar plantilla</button>
+        </div>
+
+        <p class="status" id="status" role="status" aria-live="polite" data-tone="info">Cargando la vista…</p>
+        <p class="status status-error" id="error" role="alert" hidden></p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>MN1 · Avisos de planta. La selección de grupos y la confirmación final son en tu teléfono.</p>
+      <p class="footer-meta">Contrato v1 · <span id="native-version">Sin versión nativa</span></p>
+    </footer>
+  </div>
+
+  <dialog class="dialog" id="hour-dialog" aria-labelledby="hour-dialog-title" aria-describedby="hour-dialog-help hour-error">
+    <div class="dialog-head">
+      <h2 id="hour-dialog-title">Hora personalizada</h2>
+      <button class="dialog-close" id="hour-close" type="button" aria-label="Cerrar editor de hora">×</button>
+    </div>
+    <p class="hint" id="hour-dialog-help">Formato de 24 horas, entre 00:00 y 23:59. Sólo se aplica al pulsar «Usar esta hora».</p>
+    <div class="hour-fields">
+      <div class="field">
+        <label class="field-label" for="hour-field">Hora</label>
+        <input class="input hour-input" id="hour-field" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-describedby="hour-error">
+      </div>
+      <span class="hour-separator" aria-hidden="true">:</span>
+      <div class="field">
+        <label class="field-label" for="minute-field">Minutos</label>
+        <input class="input hour-input" id="minute-field" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-describedby="hour-error">
+      </div>
+    </div>
+    <p class="field-error" id="hour-error" role="alert" hidden></p>
+    <p class="hour-preview" id="hour-preview">Escribe una hora válida.</p>
+    <div class="dialog-actions">
+      <button class="button button-secondary" id="hour-cancel" type="button">Cancelar</button>
+      <button class="button button-primary" id="hour-confirm" type="button" disabled>Usar esta hora</button>
+    </div>
+  </dialog>
+
+  <noscript>
+    <p class="noscript">MN1 necesita JavaScript para mostrar la vista previa. No se envía nada desde esta página.</p>
+  </noscript>
+
+  <script type="module" src="./app.js?v=0.1.1"></script>
+</body>
+</html>
