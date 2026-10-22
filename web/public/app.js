@@ -67,12 +67,13 @@ import {
   prepareImageFile,
   renderCompositePng,
 } from './renderer.js';
+import { seedStarterImages } from './starter-templates.js';
 import {
   SPEECH_EXAMPLE,
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.5';
+export const APP_VERSION = '0.4.6';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -581,6 +582,7 @@ function cloneDraftFromProfile(profile) {
     imageKey: profile.imageKey,
     imageWidth: profile.imageWidth,
     imageHeight: profile.imageHeight,
+    starterImageInitialized: profile.starterImageInitialized === true,
   };
 }
 
@@ -1795,6 +1797,86 @@ async function initNativeWorkspace(dom, app, legacyState) {
     app.migrationPending = false;
     await loadActiveImage(app);
     showStatus(dom, `No se pudo usar el almacén nativo: ${error.message || 'error'}.`, 'warning');
+  }
+}
+
+/**
+ * Siembra las fotos aprobadas una sola vez por arranque, después de hidratar el
+ * workspace y antes de procesar el widget. No toca estados sucios, bloqueados,
+ * corruptos, ocupados o sin almacén duradero. El estado sólo se reemplaza cuando
+ * el snapshot con las nuevas referencias se guardó de verdad.
+ */
+async function seedStarterImagesOnBoot(dom, app) {
+  if (app.starterSeedState && app.starterSeedState !== 'idle') {
+    return app.starterSeedResult ?? null;
+  }
+  if (!isWorkspace(app) || !app.workspace || !app.storage) {
+    app.starterSeedState = 'done';
+    return null;
+  }
+  if (!app.persistent || app.storage.persistent === false || app.storageBlocked
+      || app.dirty || app.listening || app.busy) {
+    app.starterSeedState = 'done';
+    return null;
+  }
+
+  // setBusy modifica app.busy: se captura el estado previo para que la siembra
+  // no se confunda con una acción en curso.
+  const seedState = {
+    dirty: app.dirty === true,
+    listening: app.listening === true,
+    busy: app.busy === true,
+    storageBlocked: app.storageBlocked === true,
+  };
+  app.starterSeedState = 'running';
+  setBusy(dom, app, true, 'Preparando las fotos de inicio…');
+  let result = null;
+  try {
+    result = await enqueueStorageTask(app, () => seedStarterImages({
+      workspace: app.workspace,
+      storage: app.storage,
+      persistent: app.persistent && app.storage.persistent !== false,
+      storageBlocked: seedState.storageBlocked,
+      dirty: seedState.dirty,
+      listening: seedState.listening,
+      busy: seedState.busy,
+      saveWorkspace: (state) => app.storage.putText(WORKSPACE_KEYS.state, JSON.stringify(state)),
+    }));
+    if (result?.changed && result.workspace) {
+      app.workspace = result.workspace;
+      app.catalog = profileCatalogForWorkspace(app.workspace);
+      app.draft = cloneDraftFromProfile(activeProfileOf(app));
+      app.dirty = false;
+      app.persistedRevision = app.draftRevision;
+      app.storageBlocked = false;
+      app.persistent = app.storage.persistent !== false;
+      await loadActiveImage(app);
+    }
+    const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+    if (warnings.length > 0) {
+      showStatus(
+        dom,
+        `No se pudieron preparar todas las fotos de inicio: ${warnings[0].message || 'error'}. ` +
+        'Las fotos no preparadas conservan su estado anterior; se reintentará al volver a abrir.',
+        'warning',
+      );
+    } else if (result?.seeded?.length > 0) {
+      showStatus(dom, 'Fotos de inicio guardadas.', 'success');
+    }
+    app.starterSeedResult = result;
+    return result;
+  } catch (error) {
+    showStatus(
+      dom,
+      `No se pudieron preparar las fotos de inicio: ${error?.message || 'error'}. ` +
+      'No se cambió ningún equipo.',
+      'warning',
+    );
+    return null;
+  } finally {
+    app.starterSeedState = 'done';
+    setBusy(dom, app, false);
+    renderAll(dom, app, { syncFields: false });
   }
 }
 
@@ -3600,6 +3682,8 @@ async function boot() {
     hydrated: false,
     widgetOpening: false,
     widgetQueue: null,
+    starterSeedState: 'idle',
+    starterSeedResult: null,
   };
 
   const processWidgetLaunch = wireWidgetLaunch(dom, app);
@@ -3615,6 +3699,7 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  await seedStarterImagesOnBoot(dom, app);
   await processWidgetLaunch();
 }
 

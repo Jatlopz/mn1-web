@@ -1,10 +1,30 @@
 import {createHash} from 'node:crypto';
-import {readFile, mkdir, writeFile} from 'node:fs/promises';
+import {readFile, mkdir, writeFile, lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const MODULES = ['app.js', 'bridge.js', 'profiles.js', 'renderer.js', 'storage.js', 'voice.js'];
+const MODULES = ['app.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
+const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// Metadatos aprobados en docs/STARTER-IMAGES.json. Se fijan aquí para que el empaquetado
+// no dependa de un JSON móvil y sólo pueda publicar estas dos imágenes.
+export const STARTER_IMAGES = Object.freeze([
+  Object.freeze({
+    path: 'templates/indestructibles.c9e3d4ac8d3d6f3f.png',
+    sha256: 'c9e3d4ac8d3d6f3f3594e4883c4d1f9c3daeb7b4dbf4055a8225a1a90ab6c203',
+    size: 2168242,
+    width: 1254,
+    height: 1254,
+  }),
+  Object.freeze({
+    path: 'templates/super-guerreros.8200d4c6f9ede505.png',
+    sha256: '8200d4c6f9ede50597c078bbb5ad7192fc9879dde83d7bd6fc8ef98ad8795a5a',
+    size: 2378319,
+    width: 1254,
+    height: 1254,
+  }),
+]);
 
 function shortHash(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
@@ -12,6 +32,26 @@ function shortHash(value) {
 
 function hashedName(name, hash) {
   return name.replace(/\.js$/, `.${hash}.js`);
+}
+
+function isWithin(file, directory) {
+  return file.startsWith(directory + path.sep);
+}
+
+async function readStarterImage(source, sourceReal, image) {
+  const file = path.join(source, image.path);
+  const info = await lstat(file);
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Invalid starter image: ${image.path}`);
+  if (info.size > MAX_STARTER_IMAGE_BYTES) throw new Error(`Starter image exceeds 4 MiB: ${image.path}`);
+  const resolved = await realpath(file);
+  if (!isWithin(resolved, sourceReal)) throw new Error(`Starter image outside source: ${image.path}`);
+  const data = await readFile(resolved);
+  if (data.length !== image.size) throw new Error(`Starter image size mismatch: ${image.path}`);
+  if (createHash('sha256').update(data).digest('hex') !== image.sha256) throw new Error(`Starter image hash mismatch: ${image.path}`);
+  if (data.length < 33 || !data.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error(`Invalid PNG signature: ${image.path}`);
+  if (data.readUInt32BE(8) !== 13 || data.toString('ascii', 12, 16) !== 'IHDR') throw new Error(`Invalid PNG IHDR: ${image.path}`);
+  if (data.readUInt32BE(16) !== image.width || data.readUInt32BE(20) !== image.height) throw new Error(`Starter image dimensions mismatch: ${image.path}`);
+  return data;
 }
 
 /**
@@ -75,12 +115,19 @@ export async function buildSite(source, destination) {
     throw new Error('HTML assets missing');
   }
 
+  const sourceReal = await realpath(source);
+  for (const image of STARTER_IMAGES) output[image.path] = await readStarterImage(source, sourceReal, image);
+
   await mkdir(destination, {recursive:true});
   output['index.html'] = html;
   output[cssName] = css;
   output['version.json'] = JSON.stringify(version, null, 2);
   output['.nojekyll'] = '';
-  await Promise.all(Object.entries(output).map(([name, content]) => writeFile(path.join(destination,name), content)));
+  for (const [name, content] of Object.entries(output)) {
+    const target = path.join(destination, name);
+    await mkdir(path.dirname(target), {recursive:true});
+    await writeFile(target, content);
+  }
   return Object.keys(output);
 }
 

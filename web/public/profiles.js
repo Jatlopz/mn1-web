@@ -495,6 +495,7 @@ export function createProfileTemplate(profileId, options = {}) {
     imageKey: options.imageKey ?? null,
     imageWidth: options.imageWidth ?? null,
     imageHeight: options.imageHeight ?? null,
+    starterImageInitialized: options.starterImageInitialized ?? false,
     updatedAt: options.updatedAt ?? '',
   }, profileId, { definitions });
 }
@@ -528,6 +529,9 @@ export function normalizeTemplate(raw, profileId, options = {}) {
     imageHeight: Number.isInteger(height) && height > 0 && height <= MN1_LIMITS.PNG_MAX_DIMENSION
       ? height
       : null,
+    // Una foto ya guardada cuenta como inicializada aunque venga de una versión
+    // anterior. Después de true, borrar o reemplazar la foto nunca la restaura.
+    starterImageInitialized: source.starterImageInitialized === true || Boolean(imageKey),
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt.slice(0, 40) : '',
   };
 }

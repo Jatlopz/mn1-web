@@ -1,6 +1,6 @@
 {
-  "version": "0.4.5",
+  "version": "0.4.6",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Candado abierto y cerrado visibles también después de tocar: contraste corregido."
+  "notes": "Plantillas iniciales sin hora para Indestructibles y Super Guerreros, conservando fotos personales de cada equipo."
 }

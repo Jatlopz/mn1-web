@@ -1,12 +1,12 @@
 # MN1 — interfaz web y canal de actualizaciones
 
-Este repositorio contiene la interfaz web, sus pruebas y las APK compiladas aprobadas para distribución. No contiene código fuente Android, imágenes de equipos ni datos de usuarios.
+Este repositorio contiene la interfaz web, sus pruebas y las APK compiladas aprobadas para distribución. Incluye únicamente las dos bases iniciales sin hora autorizadas: Indestructibles y Super Guerreros. No contiene código fuente Android ni imágenes o datos guardados por usuarios en sus teléfonos.
 
 Los cambios aprobados de main se verifican y publican con GitHub Actions / Pages. Los pull requests sólo ejecutan pruebas. El frontend se actualiza sin reinstalar la APK.
 
 ## Instalar MN1
 
-Versión base con actualizador: [descargar APK](https://jatlopz.github.io/mn1-web/downloads/mn1-6-fa2b2a1a54852293.apk).
+Versión base con actualizador: [descargar APK](https://jatlopz.github.io/mn1-web/downloads/mn1-7-9cbcf02e30aceb4b.apk).
 
 Instalar encima de MN1 sin desinstalar ni borrar datos. Esta base añade Actualizaciones dentro de la app. Las futuras actualizaciones nativas se descargan desde ahí y Android pide confirmación para instalar. Los cambios web continúan llegando sin reinstalar. La APK es pública; el código fuente Android se mantiene privado.
 
