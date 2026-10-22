@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.4.8">
+  <link rel="stylesheet" href="./styles.css?v=0.4.9">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -291,6 +291,7 @@
   <section class="report-studio" id="report-studio" aria-labelledby="report-title" hidden>
     <header class="report-header"><button class="back-button" id="report-back" type="button">← Equipos</button><h1 id="report-title">Reporte de reunión</h1></header>
     <div class="report-preview" id="report-preview"><canvas id="report-canvas" hidden></canvas><p id="report-placeholder">Tu foto aparecerá aquí con el membrete del equipo.</p></div>
+    <p class="hint report-capture-info" id="report-capture-info"></p>
     <div class="report-toolbar"><button class="button button-primary" id="report-take" type="button">Tomar foto</button><button class="button button-secondary" id="report-pick" type="button">Elegir foto</button></div>
     <div class="report-options">
       <label class="field">Equipo<select class="select" id="report-team"></select></label>
@@ -298,6 +299,7 @@
       <label class="field report-wide">Membrete<input class="input" id="report-heading" maxlength="60" value="Reunión realizada"></label>
       <label class="report-wide"><input type="checkbox" id="report-date" checked> Incluir fecha</label>
     </div>
+    <details class="report-watermark-settings"><summary>Marca de agua del equipo</summary><label class="watermark-toggle"><input id="report-watermark" type="checkbox"> Incluir logo en la foto</label><button class="button button-secondary" id="report-logo-pick" type="button">Elegir logo del equipo</button><p class="hint" id="report-logo-status"></p><label class="field">Posición<select class="select" id="report-watermark-position"><option value="bottom-right">Abajo a la derecha</option><option value="bottom-left">Abajo a la izquierda</option><option value="top-right">Arriba a la derecha</option><option value="top-left">Arriba a la izquierda</option></select></label><label class="field">Intensidad<input id="report-watermark-opacity" type="range" min="15" max="65" step="5" value="28"></label><input id="report-logo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></details>
     <details class="report-destinations"><summary>Dos grupos para reportar</summary><p class="hint">Configura sus nombres. Al compartir, selecciona los grupos y confirma el envío en WhatsApp.</p><label class="field">Grupo 1<input class="input" id="report-target-1" maxlength="40" placeholder="Nombre del grupo"></label><label class="field">Grupo 2<input class="input" id="report-target-2" maxlength="40" placeholder="Nombre del otro grupo"></label></details>
     <p id="report-status" role="status" aria-live="polite"></p>
     <div class="report-actions"><button class="button button-secondary" id="report-save" type="button">Guardar ajustes</button><button class="button button-primary" id="report-share" type="button" disabled>Compartir reporte</button></div>
@@ -414,6 +416,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.4.8"></script>
+  <script type="module" src="./app.js?v=0.4.9"></script>
 </body>
 </html>

@@ -1941,3 +1941,5 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .report-preview{overflow:hidden;}
 .report-preview canvas{position:absolute;inset:.5rem;display:block;width:calc(100% - 1rem);height:calc(100% - 1rem);min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:contain;}
 .report-header{flex-wrap:wrap;}
+
+.report-watermark-settings{margin:.8rem 0;border:1px solid #3f583d;border-radius:16px;padding:.65rem;font-size:.85rem;}.report-watermark-settings summary{color:var(--lime);cursor:pointer;}.report-watermark-settings .field,.watermark-toggle{display:block;margin:.6rem 0;}.report-watermark-settings .select{width:100%;min-height:44px;}.report-watermark-settings input[type=range]{width:100%;accent-color:var(--lime);min-height:32px;}.report-capture-info{font-size:.7rem;color:#a5bea7;margin:.5rem 0;}
