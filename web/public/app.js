@@ -38,14 +38,18 @@ import {
   getProfileDefinition,
   isProfileId,
   migrateLegacyWorkspace,
+  normalizeDefaultHour,
   normalizeOverlay,
+  normalizeQuickHours,
   normalizeTargetLabels,
   normalizeTemplate,
   normalizeWorkspaceState,
   profileCatalogForWorkspace,
+  resolveDefaultHourAfterQuickHoursEdit,
   updateProfile,
   validateCustomTeamName,
   validateDraft as validateProfileDraft,
+  validateQuickHours,
 } from './profiles.js';
 import {
   BridgeVaultAdapter,
@@ -68,7 +72,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.3';
+export const APP_VERSION = '0.4.4';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -267,6 +271,116 @@ export function stepOverlaySize(current, direction) {
   return Number(next.toFixed(4));
 }
 
+export function canEditOverlayByPointer(options = {}) {
+  const { overlay, busy = false, workspace = true, hasImage = true } = options;
+  return workspace === true
+    && busy !== true
+    && hasImage === true
+    && overlay?.locked !== true;
+}
+
+export function canMoveOverlayByPointer(dragging, overlay) {
+  return dragging === true && overlay?.locked !== true;
+}
+
+export const WIDGET_OPEN_EVENT = 'mn1:widget-open';
+export const WIDGET_HASH = '#widget';
+
+export function isWidgetHash(hash) {
+  return typeof hash === 'string' && hash === WIDGET_HASH;
+}
+
+/**
+ * La escucha se registra antes de hidratar. Mientras el arranque no terminó, los
+ * avisos fríos/calientes se guardan aquí para no perder ninguno; después se
+ * entregan una sola vez en orden.
+ */
+export function createWidgetOpenQueue() {
+  let hydrated = false;
+  let pending = [];
+  return {
+    get hydrated() {
+      return hydrated;
+    },
+    get pendingCount() {
+      return pending.length;
+    },
+    enqueue(source) {
+      if (hydrated) return false;
+      pending.push(source);
+      return true;
+    },
+    markHydrated() {
+      hydrated = true;
+      const items = pending;
+      pending = [];
+      return items;
+    },
+  };
+}
+
+/**
+ * Apertura desde el widget. Nunca envía ni simula: primero confirma la hora del
+ * widget, luego vacía/guarda el borrador pendiente y sólo después aplica la hora
+ * y abre el editor. Si el guardado falla, no navega ni consume el origen.
+ */
+export async function openWidgetDefault(options = {}) {
+  const {
+    defaultHour,
+    isBusy = false,
+    isListening = false,
+    flushSave,
+    applyDefaultHour,
+    openEditor,
+    consumeHash,
+    report = () => {},
+  } = options;
+  if (isBusy) {
+    report('busy');
+    return { ok: false, reason: 'busy' };
+  }
+  if (isListening) {
+    report('listening');
+    return { ok: false, reason: 'listening' };
+  }
+  if (!isValidHour(defaultHour)) {
+    report('missing_default');
+    return { ok: false, reason: 'missing_default' };
+  }
+  if (typeof flushSave === 'function') {
+    let saved;
+    try {
+      saved = await flushSave();
+    } catch {
+      report('save_failed');
+      return { ok: false, reason: 'save_failed' };
+    }
+    if (saved === false) {
+      report('save_failed');
+      return { ok: false, reason: 'save_failed' };
+    }
+  }
+  try {
+    await applyDefaultHour?.(defaultHour);
+  } catch {
+    report('apply_failed');
+    return { ok: false, reason: 'apply_failed' };
+  }
+  try {
+    await openEditor?.();
+  } catch {
+    report('open_failed');
+    return { ok: false, reason: 'open_failed' };
+  }
+  try {
+    consumeHash?.();
+  } catch {
+    // Consumir el hash no debe deshacer una navegación ya completada.
+  }
+  report('opened');
+  return { ok: true, hour: defaultHour };
+}
+
 export function splitMessage(message, hour) {
   const text = String(message ?? '');
   const parts = [];
@@ -456,9 +570,12 @@ function createDefaultDraft() {
 }
 
 function cloneDraftFromProfile(profile) {
+  const quickHours = normalizeQuickHours(profile.quickHours);
   return {
     message: profile.message,
     hour: profile.hour,
+    quickHours,
+    defaultHour: normalizeDefaultHour(profile.defaultHour, quickHours),
     targetLabels: [...profile.targetLabels],
     overlay: { ...profile.overlay },
     imageKey: profile.imageKey,
@@ -653,13 +770,35 @@ function renderCounts(dom, app) {
 
 function renderHour(dom, app) {
   const hour = app.draft.hour;
-  const custom = !HOUR_PRESETS.includes(hour) && isValidHour(hour);
-  for (const radio of dom.hourRadios) {
+  const quickHours = normalizeQuickHours(app.draft.quickHours);
+  const defaultHour = normalizeDefaultHour(app.draft.defaultHour, quickHours);
+  const custom = !quickHours.includes(hour) && isValidHour(hour);
+  dom.hourRadios.forEach((radio, index) => {
+    radio.value = quickHours[index] ?? '';
     radio.checked = radio.value === hour;
     radio.disabled = app.busy;
-  }
+  });
+  (dom.hourLabels ?? []).forEach((label, index) => {
+    label.textContent = quickHours[index] ?? '';
+  });
+  (dom.hourDefaultStars ?? []).forEach((star, index) => {
+    star.hidden = quickHours[index] !== defaultHour;
+  });
   dom.heroHour.textContent = hour || '--:--';
   dom.customHour.disabled = app.busy;
+  if (dom.quickHoursEdit) dom.quickHoursEdit.disabled = app.busy;
+  if (dom.widgetDefaultLabel) dom.widgetDefaultLabel.textContent = `Widget: ${defaultHour}`;
+  if (dom.useDefaultHour) {
+    const isPreset = quickHours.includes(hour);
+    dom.useDefaultHour.hidden = !isPreset;
+    dom.useDefaultHour.disabled = app.busy || defaultHour === hour;
+    dom.useDefaultHour.setAttribute(
+      'aria-label',
+      isPreset
+        ? `Usar ${hour} como hora para el widget`
+        : 'La hora actual no es uno de los tres accesos',
+    );
+  }
   if (custom) {
     dom.customHourLabel.textContent = `${hour}`;
     dom.customHour.setAttribute('aria-label', `Hora personalizada ${hour}. Cambiar hora`);
@@ -844,6 +983,25 @@ function renderOverlayControls(dom, app) {
     }
     button.disabled = disabled;
   }
+  if (dom.lockOverlay) {
+    const locked = overlay.locked === true;
+    dom.lockOverlay.hidden = !isWorkspace(app);
+    dom.lockOverlay.disabled = disabled;
+    dom.lockOverlay.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    dom.lockOverlay.setAttribute(
+      'aria-label',
+      locked ? 'Desbloquear la posición de la hora' : 'Bloquear la posición de la hora',
+    );
+    dom.lockOverlay.title = locked
+      ? 'Posición bloqueada: la hora no se mueve al arrastrar la foto'
+      : 'Bloquear la posición de la hora';
+    if (dom.lockOverlay.classList && typeof dom.lockOverlay.classList.toggle === 'function') {
+      dom.lockOverlay.classList.toggle('is-active', locked);
+    }
+    if (dom.canvasPreview?.dataset) {
+      dom.canvasPreview.dataset.overlayLocked = locked ? 'true' : 'false';
+    }
+  }
   // La visibilidad de los paneles la decide únicamente applyWorkspaceNavigation.
 }
 
@@ -1023,6 +1181,12 @@ function setBusy(dom, app, busy, label = '') {
   dom.messageInput.disabled = busy;
   for (const radio of dom.hourRadios) radio.disabled = busy;
   dom.customHour.disabled = busy;
+  if (dom.quickHoursEdit) dom.quickHoursEdit.disabled = busy;
+  if (dom.useDefaultHour) dom.useDefaultHour.disabled = busy;
+  if (dom.lockOverlay) dom.lockOverlay.disabled = busy;
+  if (dom.quickHoursSave) dom.quickHoursSave.disabled = busy;
+  if (dom.quickHoursCancel) dom.quickHoursCancel.disabled = busy;
+  for (const input of dom.quickHourInputs ?? []) input.disabled = busy;
   dom.importImage.disabled = busy;
   dom.pickImage.disabled = busy;
   dom.openEditor.disabled = busy;
@@ -1099,6 +1263,112 @@ function closeHourDialog(dom) {
   }
 }
 
+function quickHoursDraft(dom) {
+  return (dom.quickHourInputs ?? []).map((input) => String(input?.value ?? ''));
+}
+
+function updateQuickHoursDialog(dom, app) {
+  const check = validateQuickHours(quickHoursDraft(dom));
+  setFieldError(dom.quickHoursError, check.ok ? '' : check.error);
+  for (const input of dom.quickHourInputs ?? []) {
+    if (check.ok) input.removeAttribute('aria-invalid');
+    else input.setAttribute('aria-invalid', 'true');
+  }
+  const currentDefault = normalizeDefaultHour(app.draft.defaultHour, app.draft.quickHours);
+  if (check.ok) {
+    const resolved = resolveDefaultHourAfterQuickHoursEdit(currentDefault, check.hours);
+    dom.quickHoursDefaultNote.textContent = resolved.defaultChanged
+      ? `La hora del widget (${currentDefault}) no está entre los accesos. Al guardar se usará ${resolved.defaultHour}.`
+      : `Hora del widget: ${resolved.defaultHour}.`;
+  } else {
+    dom.quickHoursDefaultNote.textContent = 'Si quitas la hora del widget, se usará la primera hora nueva.';
+  }
+  dom.quickHoursSave.disabled = app.busy || !check.ok;
+}
+
+function openQuickHoursDialog(dom, app) {
+  if (app.busy || !isWorkspace(app)) return;
+  const hours = normalizeQuickHours(app.draft.quickHours);
+  (dom.quickHourInputs ?? []).forEach((input, index) => {
+    input.value = hours[index] ?? '';
+    input.removeAttribute('aria-invalid');
+  });
+  updateQuickHoursDialog(dom, app);
+  if (typeof dom.quickHoursDialog.showModal === 'function') {
+    if (!dom.quickHoursDialog.open) dom.quickHoursDialog.showModal();
+  } else {
+    dom.quickHoursDialog.setAttribute('open', '');
+  }
+  dom.quickHourInputs?.[0]?.focus();
+}
+
+function closeQuickHoursDialog(dom) {
+  if (!dom.quickHoursDialog) return;
+  if (typeof dom.quickHoursDialog.close === 'function' && dom.quickHoursDialog.open) {
+    dom.quickHoursDialog.close();
+  } else {
+    dom.quickHoursDialog.removeAttribute('open');
+  }
+}
+
+function saveQuickHoursDialog(dom, app) {
+  if (app.busy || !isWorkspace(app)) return;
+  const check = validateQuickHours(quickHoursDraft(dom));
+  if (!check.ok) {
+    updateQuickHoursDialog(dom, app);
+    return;
+  }
+  const currentDefault = normalizeDefaultHour(app.draft.defaultHour, app.draft.quickHours);
+  const resolved = resolveDefaultHourAfterQuickHoursEdit(currentDefault, check.hours);
+  if (!resolved.ok) {
+    updateQuickHoursDialog(dom, app);
+    return;
+  }
+  app.draft.quickHours = [...resolved.quickHours];
+  app.draft.defaultHour = resolved.defaultHour;
+  markDirty(app);
+  closeQuickHoursDialog(dom);
+  renderHour(dom, app);
+  scheduleSave(dom, app);
+  showStatus(
+    dom,
+    resolved.defaultChanged
+      ? `Accesos guardados. La hora del widget ahora es ${resolved.defaultHour}.`
+      : 'Accesos de hora guardados.',
+    'info',
+  );
+  if (dom.quickHoursEdit && typeof dom.quickHoursEdit.focus === 'function') {
+    dom.quickHoursEdit.focus();
+  }
+}
+
+function useCurrentHourForWidget(dom, app) {
+  if (app.busy || !isWorkspace(app)) return;
+  const quickHours = normalizeQuickHours(app.draft.quickHours);
+  if (!quickHours.includes(app.draft.hour)) return;
+  app.draft.defaultHour = app.draft.hour;
+  markDirty(app);
+  renderHour(dom, app);
+  scheduleSave(dom, app);
+  showStatus(dom, `Hora del widget: ${app.draft.hour}.`, 'info');
+}
+
+function toggleOverlayLock(dom, app) {
+  if (app.busy || !isWorkspace(app)) return;
+  const locked = app.draft.overlay?.locked === true;
+  app.draft.overlay = normalizeOverlay({ ...app.draft.overlay, locked: !locked });
+  markDirty(app);
+  renderOverlayControls(dom, app);
+  scheduleSave(dom, app);
+  showStatus(
+    dom,
+    app.draft.overlay.locked
+      ? 'Posición de la hora bloqueada. Puedes seguir cambiando hora, tipo y tamaño.'
+      : 'Posición de la hora desbloqueada.',
+    'info',
+  );
+}
+
 /* ------------------------------------------------------------------------- */
 /* Canvas                                                                    */
 /* ------------------------------------------------------------------------- */
@@ -1142,7 +1412,12 @@ export function fittedImageRect(rect, imageWidth, imageHeight) {
 }
 
 function updateOverlayFromPointer(dom, app, event) {
-  if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
+  if (!canEditOverlayByPointer({
+    overlay: app.draft.overlay,
+    busy: app.busy,
+    workspace: isWorkspace(app),
+    hasImage: isPngDataUrl(app.imageDataUrl),
+  })) return;
   const rect = fittedImageRect(dom.canvasPreview.getBoundingClientRect(), dom.canvasPreview.width, dom.canvasPreview.height);
   if (rect.width <= 0 || rect.height <= 0) return;
   const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
@@ -1202,6 +1477,8 @@ function commitDraft(app) {
     ...profile,
     message: app.draft.message,
     hour: app.draft.hour,
+    quickHours: normalizeQuickHours(app.draft.quickHours),
+    defaultHour: normalizeDefaultHour(app.draft.defaultHour, app.draft.quickHours),
     targetLabels: [...app.draft.targetLabels],
     overlay: normalizeOverlay(app.draft.overlay),
     imageKey: app.draft.imageKey,
@@ -1214,6 +1491,8 @@ function commitDraft(app) {
   const normalized = updated.profiles[app.workspace.activeProfileId];
   app.draft.message = normalized.message;
   app.draft.hour = normalized.hour;
+  app.draft.quickHours = [...normalized.quickHours];
+  app.draft.defaultHour = normalized.defaultHour;
   app.draft.targetLabels = [...normalized.targetLabels];
   app.draft.overlay = { ...normalized.overlay };
   app.draft.imageKey = normalized.imageKey;
@@ -2578,6 +2857,7 @@ function collectDom() {
     previewNote: byId('preview-note'),
     heroHour: byId('hero-hour'),
     canvasPreview: byId('canvas-preview'),
+    lockOverlay: byId('lock-overlay'),
     imageFrame: byId('image-frame'),
     previewImage: byId('preview-image'),
     imagePlaceholder: byId('image-placeholder'),
@@ -2586,6 +2866,11 @@ function collectDom() {
     imageMeta: byId('image-meta'),
     previewMessage: byId('preview-message'),
     hourRadios: Array.from(document.querySelectorAll('[data-hour-option]')),
+    hourLabels: Array.from(document.querySelectorAll('[data-hour-label]')),
+    hourDefaultStars: Array.from(document.querySelectorAll('[data-hour-default-star]')),
+    quickHoursEdit: byId('quick-hours-edit'),
+    useDefaultHour: byId('use-default-hour'),
+    widgetDefaultLabel: byId('widget-default-label'),
     customHour: byId('custom-hour'),
     customHourLabel: byId('custom-hour-label'),
     messageInput: byId('message-input'),
@@ -2648,6 +2933,13 @@ function collectDom() {
     hourConfirm: byId('hour-confirm'),
     hourCancel: byId('hour-cancel'),
     hourClose: byId('hour-close'),
+    quickHoursDialog: byId('quick-hours-dialog'),
+    quickHourInputs: Array.from(document.querySelectorAll('[data-quick-hour-input]')),
+    quickHoursError: byId('quick-hours-error'),
+    quickHoursDefaultNote: byId('quick-hours-default-note'),
+    quickHoursSave: byId('quick-hours-save'),
+    quickHoursCancel: byId('quick-hours-cancel'),
+    quickHoursClose: byId('quick-hours-close'),
     aboutDialog: byId('about-dialog'),
     openAbout: byId('open-about'),
     editorAbout: byId('editor-about'),
@@ -2808,6 +3100,39 @@ function wireUiEvents(dom, app) {
       renderImage(dom, app);
       if (app.validationShown) renderValidation(dom, app);
       scheduleSave(dom, app);
+    });
+  }
+
+  if (dom.quickHoursEdit) {
+    dom.quickHoursEdit.addEventListener('click', () => openQuickHoursDialog(dom, app));
+  }
+  if (dom.useDefaultHour) {
+    dom.useDefaultHour.addEventListener('click', () => useCurrentHourForWidget(dom, app));
+  }
+  for (const input of dom.quickHourInputs ?? []) {
+    input.addEventListener('input', () => updateQuickHoursDialog(dom, app));
+  }
+  if (dom.quickHoursSave) {
+    dom.quickHoursSave.addEventListener('click', () => saveQuickHoursDialog(dom, app));
+  }
+  if (dom.quickHoursCancel) {
+    dom.quickHoursCancel.addEventListener('click', () => closeQuickHoursDialog(dom));
+  }
+  if (dom.quickHoursClose) {
+    dom.quickHoursClose.addEventListener('click', () => closeQuickHoursDialog(dom));
+  }
+  if (dom.quickHoursDialog) {
+    dom.quickHoursDialog.addEventListener('click', (event) => {
+      if (event.target === dom.quickHoursDialog) closeQuickHoursDialog(dom);
+    });
+    dom.quickHoursDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeQuickHoursDialog(dom);
+    });
+    dom.quickHoursDialog.addEventListener('close', () => {
+      if (dom.quickHoursEdit && typeof dom.quickHoursEdit.focus === 'function') {
+        dom.quickHoursEdit.focus();
+      }
     });
   }
 
@@ -3072,8 +3397,17 @@ function wireUiEvents(dom, app) {
     });
   }
 
+  if (dom.lockOverlay) {
+    dom.lockOverlay.addEventListener('click', () => toggleOverlayLock(dom, app));
+  }
+
   dom.canvasPreview.addEventListener('pointerdown', (event) => {
-    if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
+    if (!canEditOverlayByPointer({
+      overlay: app.draft.overlay,
+      busy: app.busy,
+      workspace: isWorkspace(app),
+      hasImage: isPngDataUrl(app.imageDataUrl),
+    })) return;
     app.dragging = true;
     if (typeof dom.canvasPreview.setPointerCapture === 'function') {
       try {
@@ -3085,7 +3419,7 @@ function wireUiEvents(dom, app) {
     updateOverlayFromPointer(dom, app, event);
   });
   dom.canvasPreview.addEventListener('pointermove', (event) => {
-    if (!app.dragging) return;
+    if (!canMoveOverlayByPointer(app.dragging, app.draft.overlay)) return;
     updateOverlayFromPointer(dom, app, event);
   });
   const stopDragging = () => {
@@ -3124,6 +3458,93 @@ function wireUiEvents(dom, app) {
       dom.nativeVersion.textContent = `Android ${app.nativeVersion}`;
     }
   });
+}
+
+function consumeWidgetHash(dom, app) {
+  if (typeof window === 'undefined' || !isWidgetHash(window.location?.hash)) return;
+  const hash = workspaceRouteFor(app.workspace?.activeProfileId, {
+    view: WORKSPACE_VIEW_OPEN,
+    catalog: app.catalog,
+  });
+  try {
+    window.history?.replaceState?.(null, '', hash);
+  } catch {
+    // La navegación interna sigue funcionando aunque history esté restringido.
+  }
+}
+
+async function handleWidgetOpen(dom, app, source = 'warm') {
+  if (!isWorkspace(app) || !app.workspace) {
+    showStatus(dom, 'El widget no pudo abrir el equipo: el workspace no está disponible. No se cambió nada.', 'warning');
+    return false;
+  }
+  if (app.widgetOpening) return false;
+  app.widgetOpening = true;
+  try {
+    const profile = activeProfileOf(app);
+    const defaultHour = profile
+      ? normalizeDefaultHour(app.draft.defaultHour, app.draft.quickHours)
+      : '';
+    const result = await openWidgetDefault({
+      defaultHour,
+      isBusy: app.busy === true,
+      isListening: app.listening === true,
+      flushSave: () => flushDraftBeforeLeaving(dom, app),
+      applyDefaultHour: (hour) => {
+        app.draft.hour = hour;
+        markDirty(app);
+      },
+      openEditor: () => {
+        app.workspaceView = WORKSPACE_VIEW_OPEN;
+        app.editorTool = 'hour';
+        clearError(dom, app);
+        renderAll(dom, app, { syncFields: true });
+        consumeWidgetHash(dom, app);
+        focusEditorTool(dom, 'hour');
+        scheduleSave(dom, app);
+      },
+      consumeHash: () => consumeWidgetHash(dom, app),
+      report: (reason) => {
+        if (reason === 'busy') {
+          showStatus(dom, 'El widget esperó, pero hay una acción en curso. No se cambió la hora ni se abrió el editor.', 'warning');
+        } else if (reason === 'listening') {
+          showStatus(dom, 'El widget no abrió el editor porque hay una escucha activa. Deténla y vuelve a tocar el widget.', 'warning');
+        } else if (reason === 'missing_default') {
+          showStatus(dom, 'Este equipo no tiene una hora válida para el widget. No se abrió el editor.', 'warning');
+        } else if (reason === 'save_failed') {
+          showError(dom, 'No se abrió la hora del widget: el borrador actual no se pudo guardar. No se cambió la hora ni se envió nada.', app);
+        } else if (reason === 'apply_failed' || reason === 'open_failed') {
+          showError(dom, 'No se pudo aplicar la hora del widget ni abrir el editor. No se envió nada.', app);
+        } else if (reason === 'opened') {
+          showStatus(dom, `Hora del widget aplicada: ${defaultHour}.`, 'info');
+        }
+      },
+    });
+    return result.ok;
+  } finally {
+    app.widgetOpening = false;
+  }
+}
+
+function wireWidgetLaunch(dom, app) {
+  const queue = createWidgetOpenQueue();
+  app.widgetQueue = queue;
+  const cold = typeof window !== 'undefined' && isWidgetHash(window.location?.hash);
+  if (cold) queue.enqueue('cold');
+  window.addEventListener(WIDGET_OPEN_EVENT, () => {
+    if (!queue.enqueue('warm')) void handleWidgetOpen(dom, app, 'warm');
+  });
+  return async function processWidgetLaunch() {
+    const pending = queue.markHydrated();
+    app.hydrated = true;
+    if (pending.length === 0) return false;
+    let opened = false;
+    for (const source of pending) {
+      opened = await handleWidgetOpen(dom, app, source);
+      if (opened) break;
+    }
+    return opened;
+  };
 }
 
 async function boot() {
@@ -3176,8 +3597,12 @@ async function boot() {
     dragging: false,
     saveTimer: null,
     lastSavedAt: '',
+    hydrated: false,
+    widgetOpening: false,
+    widgetQueue: null,
   };
 
+  const processWidgetLaunch = wireWidgetLaunch(dom, app);
   window.addEventListener('resize', syncEditorViewport);
   window.visualViewport?.addEventListener('resize', syncEditorViewport);
   window.requestAnimationFrame(syncEditorViewport);
@@ -3190,6 +3615,7 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  await processWidgetLaunch();
 }
 
 if (typeof document !== 'undefined') {

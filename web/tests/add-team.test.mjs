@@ -73,6 +73,8 @@ test('crea un equipo personalizado con id seguro, plantilla propia y sin foto', 
     [...PROFILE_IDS, result.profileId].sort(),
   );
   assert.equal(result.template.hour, '08:00');
+  assert.deepEqual(result.template.quickHours, ['08:00', '09:00', '10:00']);
+  assert.equal(result.template.defaultHour, '08:00');
   assert.deepEqual(result.template.targetLabels, [...DEFAULT_TARGETS]);
   assert.equal(result.template.imageKey, null);
   assert.match(result.template.message, /Los Búhos/);
@@ -88,6 +90,8 @@ test('recarga el estado guardado con definición y plantilla del equipo propio',
   created.state.profiles[created.profileId] = {
     ...created.state.profiles[created.profileId],
     hour: '07:45',
+    quickHours: ['06:30', '07:45', '09:15'],
+    defaultHour: '09:15',
     message: 'Búhos a las {hora}',
     targetLabels: ['Telares', 'Extrusión'],
     imageKey: IMAGE_KEY_CUSTOM,
@@ -103,6 +107,8 @@ test('recarga el estado guardado con definición y plantilla del equipo propio',
   assert.equal(reloaded.customProfiles[0].id, created.profileId);
   assert.equal(reloaded.customProfiles[0].name, 'Los Búhos');
   assert.equal(reloaded.profiles[created.profileId].hour, '07:45');
+  assert.deepEqual(reloaded.profiles[created.profileId].quickHours, ['06:30', '07:45', '09:15']);
+  assert.equal(reloaded.profiles[created.profileId].defaultHour, '09:15');
   assert.equal(reloaded.profiles[created.profileId].message, 'Búhos a las {hora}');
   assert.equal(reloaded.profiles[created.profileId].imageKey, IMAGE_KEY_CUSTOM);
   assert.equal(reloaded.profiles.champions.imageKey, IMAGE_KEY_CHAMPIONS);

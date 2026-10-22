@@ -1892,5 +1892,27 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 .tool-drawer{flex-basis:calc(var(--mn1-editor-height,100vh)*.32);max-height:calc(var(--mn1-editor-height,100vh)*.32)}
 .hero-panel{min-height:min(8rem,calc(var(--mn1-editor-height,100vh)*.25))}
 
-/* WebView: viewport measured by host page rather than Android vh units. */
+/* Bloqueo de posición y accesos rápidos editables. */
+.lock-toggle{position:absolute;top:.5rem;right:.5rem;z-index:3;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #4d6650;border-radius:50%;background:#101b16d9;color:#d8efc6;cursor:pointer;backdrop-filter:blur(8px)}
+.lock-toggle:hover:not(:disabled){border-color:var(--lime);color:var(--lime)}
+.lock-toggle[aria-pressed="true"]{background:var(--lime);border-color:var(--lime);color:var(--lime-ink)}
+.lock-toggle:disabled{cursor:not-allowed;opacity:.55}
+.lock-icon{width:20px;height:20px;display:block}
+.lock-toggle[aria-pressed="false"] .lock-icon--closed,
+.lock-toggle[aria-pressed="true"] .lock-icon--open{display:none}
+.preview-canvas[data-overlay-locked="true"]{cursor:default}
+.hour-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+.hour-default-star{margin-left:.1rem;color:var(--lime);font-size:.85em;line-height:1}
+.hour-option input:checked + .hour-pill .hour-default-star{color:inherit}
+.hour-preset-actions{display:flex;align-items:center;justify-content:space-between;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.hour-widget-default{color:var(--text-muted);font-family:var(--mono);font-size:.74rem;font-weight:750}
+.hour-preset-actions .button{min-height:36px;padding:.3rem .6rem;font-size:.72rem}
+.quick-hours-edit{margin-top:.35rem}
+.quick-hours-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem;margin-top:.75rem}
+.quick-hour-input{font-family:var(--mono);font-size:1.05rem;font-weight:800;text-align:center}
+@media (max-width:380px){.quick-hours-fields{grid-template-columns:minmax(0,1fr)}}
+.hour-control{grid-template-columns:repeat(3,minmax(0,1fr))}
+.hour-control .hour-preset-actions,.hour-control .quick-hours-edit,.hour-control .custom-hour{grid-column:1 / -1}
+
+/* Android WebView viewport units may be zero: use measured page height. */
 .dialog { max-height: min(640px, calc(var(--mn1-editor-height, 100vh) * .85)); }

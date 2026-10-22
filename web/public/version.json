@@ -1,6 +1,6 @@
 {
-  "version": "0.4.3",
+  "version": "0.4.4",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Agregar equipos con plantillas propias y encabezado Batiseñal."
+  "notes": "Equipos propios, candado de posición, tres horarios rápidos y predeterminado del widget."
 }

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 6,
-  "versionName": "0.5.1-updates",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-6-fa2b2a1a54852293.apk",
-  "sha256": "fa2b2a1a548522930b66e53ee251504166dda9bf249e607d7f80a17dac31fac5",
-  "sizeBytes": 13305120,
-  "notes": "Actualizador dentro de MN1: buscar, descargar, verificar y abrir la confirmación de Android. Incluye los cuatro equipos y el editor de hora."
+  "versionCode": 7,
+  "versionName": "0.5.2-settings",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-7-9cbcf02e30aceb4b.apk",
+  "sha256": "9cbcf02e30aceb4bd20bdd20c08d41866ee4add6a2f5e06835bf3b1bb492acc8",
+  "sizeBytes": 13377299,
+  "notes": "Settings con engranaje y Actualizaciones dentro. El widget abre el último equipo con su horario predeterminado. Conserva imágenes y datos; no envía mensajes automáticamente."
 }

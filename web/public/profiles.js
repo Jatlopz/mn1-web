@@ -14,6 +14,9 @@ import {
 } from './bridge.js';
 
 export const DEFAULT_HOUR = '08:00';
+export const DEFAULT_QUICK_HOURS = Object.freeze(['08:00', '09:00', '10:00']);
+// Se conserva el export histórico de los accesos 08/09; los accesos editables de
+// cada equipo viven en `quickHours` con tres horas iniciales.
 export const HOUR_PRESETS = Object.freeze(['08:00', '09:00']);
 export const DEFAULT_TARGETS = Object.freeze(['Telares', 'Extrusión']);
 export const DEFAULT_PROFILE_ID = 'indestructibles';
@@ -92,6 +95,7 @@ export const DEFAULT_OVERLAY = Object.freeze({
   showDate: false,
   date: '',
   twelveHour: false,
+  locked: false,
 });
 
 function clamp(value, min, max, fallback) {
@@ -134,7 +138,77 @@ export function normalizeOverlay(value) {
     showDate: value.showDate === true && date.length > 0,
     date,
     twelveHour: value.twelveHour === true,
+    locked: value.locked === true,
   };
+}
+
+/**
+ * Los accesos rápidos son exactamente tres horas HH:mm distintas. Si el dato
+ * guardado está incompleto o corrupto se vuelve a los valores iniciales, sin
+ * tocar la hora vigente del equipo.
+ */
+export function normalizeQuickHours(value) {
+  if (!Array.isArray(value) || value.length !== DEFAULT_QUICK_HOURS.length) {
+    return [...DEFAULT_QUICK_HOURS];
+  }
+  const hours = [];
+  for (const raw of value) {
+    if (typeof raw !== 'string') return [...DEFAULT_QUICK_HOURS];
+    const hour = raw.trim();
+    if (!isValidHour(hour) || hours.includes(hour)) return [...DEFAULT_QUICK_HOURS];
+    hours.push(hour);
+  }
+  return hours;
+}
+
+export function validateQuickHours(value) {
+  if (!Array.isArray(value) || value.length !== DEFAULT_QUICK_HOURS.length) {
+    return {
+      ok: false,
+      code: 'quick_hours_count',
+      error: 'Escribe las tres horas de acceso.',
+    };
+  }
+  const hours = [];
+  for (const raw of value) {
+    const hour = typeof raw === 'string' ? raw.trim() : '';
+    if (!isValidHour(hour)) {
+      return {
+        ok: false,
+        code: 'quick_hours_invalid',
+        error: 'Cada acceso debe ser una hora válida HH:mm, de 00:00 a 23:59.',
+      };
+    }
+    if (hours.includes(hour)) {
+      return {
+        ok: false,
+        code: 'quick_hours_duplicate',
+        error: 'Los tres accesos deben ser horas distintas.',
+      };
+    }
+    hours.push(hour);
+  }
+  return { ok: true, hours };
+}
+
+/** Mantiene la hora del widget si sigue entre los accesos; si no, usa la primera. */
+export function resolveDefaultHourAfterQuickHoursEdit(currentDefaultHour, nextHours) {
+  const check = validateQuickHours(nextHours);
+  if (!check.ok) return check;
+  const defaultHour = check.hours.includes(currentDefaultHour)
+    ? currentDefaultHour
+    : check.hours[0];
+  return {
+    ok: true,
+    quickHours: check.hours,
+    defaultHour,
+    defaultChanged: defaultHour !== currentDefaultHour,
+  };
+}
+
+export function normalizeDefaultHour(value, quickHours) {
+  const hours = normalizeQuickHours(quickHours);
+  return isValidHour(value) && hours.includes(value) ? value : hours[0];
 }
 
 function hasOwn(object, key) {
@@ -414,6 +488,8 @@ export function createProfileTemplate(profileId, options = {}) {
   return normalizeTemplate({
     message: options.message ?? definition.defaultMessage,
     hour: options.hour ?? DEFAULT_HOUR,
+    quickHours: options.quickHours ?? DEFAULT_QUICK_HOURS,
+    defaultHour: options.defaultHour,
     targetLabels: options.targetLabels ?? DEFAULT_TARGETS,
     overlay: options.overlay ?? DEFAULT_OVERLAY,
     imageKey: options.imageKey ?? null,
@@ -435,11 +511,14 @@ export function normalizeTemplate(raw, profileId, options = {}) {
   const imageKey = isValidVaultKey(source.imageKey) ? source.imageKey : null;
   const width = Number(source.imageWidth);
   const height = Number(source.imageHeight);
+  const quickHours = normalizeQuickHours(source.quickHours);
   return {
     message: message.length >= 1 && textLength(message) <= MN1_LIMITS.MESSAGE_MAX_LENGTH
       ? message
       : definition.defaultMessage,
     hour: isValidHour(source.hour) ? source.hour : DEFAULT_HOUR,
+    quickHours,
+    defaultHour: normalizeDefaultHour(source.defaultHour, quickHours),
     targetLabels: labels ?? [...DEFAULT_TARGETS],
     overlay: normalizeOverlay(source.overlay),
     imageKey,
@@ -494,8 +573,10 @@ export function normalizeWorkspaceState(raw) {
 export function cloneTemplate(template) {
   return {
     ...template,
-    targetLabels: [...template.targetLabels],
-    overlay: { ...template.overlay },
+    quickHours: normalizeQuickHours(template?.quickHours),
+    defaultHour: normalizeDefaultHour(template?.defaultHour, template?.quickHours),
+    targetLabels: [...(template?.targetLabels ?? DEFAULT_TARGETS)],
+    overlay: { ...(template?.overlay ?? DEFAULT_OVERLAY) },
   };
 }
 

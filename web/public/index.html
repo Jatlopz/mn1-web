@@ -6,15 +6,15 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0a0d10">
   <meta name="referrer" content="no-referrer">
-  <meta name="description" content="MN1 · Avisos de planta. Cuatro equipos con plantilla propia, foto original, hora y PNG para compartir. La confirmación final es en tu teléfono.">
+  <meta name="description" content="Batiseñal · Avisos de planta. Cuatro equipos con plantilla propia, foto original, hora y PNG para compartir. La confirmación final es en tu teléfono.">
   <!--
     CSP de respaldo para servidores que no envían cabeceras. En producción la cabecera
     Content-Security-Policy es la autoridad. No se usan scripts, estilos ni conexiones externas.
     Las fotos y PNG llegan como data:image/png;base64.
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <title>MN1 · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.4.3">
+  <title>Batiseñal · Avisos de planta</title>
+  <link rel="stylesheet" href="./styles.css?v=0.4.4">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -28,7 +28,7 @@
           <p class="brand-sub">Avisos de planta</p>
         </div>
       </div>
-      <button class="about-button" id="open-about" type="button" aria-haspopup="dialog" aria-label="Acerca de MN1">ⓘ</button>
+      <button class="about-button" id="open-about" type="button" aria-haspopup="dialog" aria-label="Acerca de Batiseñal">ⓘ</button>
     </header>
 
 
@@ -59,7 +59,7 @@
             <h1 id="workspace-title">Los Indestructibles</h1>
           </div>
         </div>
-        <button class="about-button" id="editor-about" type="button" aria-haspopup="dialog" aria-label="Acerca de MN1">ⓘ</button>
+        <button class="about-button" id="editor-about" type="button" aria-haspopup="dialog" aria-label="Acerca de Batiseñal">ⓘ</button>
       </header>
 
       <section class="workspace-panel preview-panel hero-panel" id="hero-panel" aria-labelledby="hero-title">
@@ -69,6 +69,11 @@
         </div>
 
         <div class="image-frame" id="image-frame">
+          <button class="lock-toggle" id="lock-overlay" type="button" aria-pressed="false"
+            aria-label="Bloquear la posición de la hora" title="Bloquear la posición de la hora" hidden>
+            <svg class="lock-icon lock-icon--open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 6.5-1.9"/></svg>
+            <svg class="lock-icon lock-icon--closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"/></svg>
+          </button>
           <canvas id="canvas-preview" class="preview-image preview-canvas" aria-label="Vista previa de la foto con la hora" hidden>
             Vista previa de la foto con la hora.
           </canvas>
@@ -131,14 +136,26 @@
               <legend class="control-legend">Hora de la convocatoria</legend>
               <div class="hour-options">
                 <label class="hour-option">
-                  <input type="radio" name="hour" value="08:00" id="hour-08" data-hour-option>
-                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>08:00</span>
+                  <input type="radio" name="hour" value="08:00" id="hour-08" data-hour-option data-hour-slot="0">
+                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span><span data-hour-label>08:00</span><span class="hour-default-star" data-hour-default-star aria-hidden="true" hidden>★</span></span>
                 </label>
                 <label class="hour-option">
-                  <input type="radio" name="hour" value="09:00" id="hour-09" data-hour-option>
-                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>09:00</span>
+                  <input type="radio" name="hour" value="09:00" id="hour-09" data-hour-option data-hour-slot="1">
+                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span><span data-hour-label>09:00</span><span class="hour-default-star" data-hour-default-star aria-hidden="true" hidden>★</span></span>
+                </label>
+                <label class="hour-option">
+                  <input type="radio" name="hour" value="10:00" id="hour-third" data-hour-option data-hour-slot="2">
+                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span><span data-hour-label>10:00</span><span class="hour-default-star" data-hour-default-star aria-hidden="true" hidden>★</span></span>
                 </label>
               </div>
+              <div class="hour-preset-actions">
+                <span class="hour-widget-default" id="widget-default-label">Widget: 08:00</span>
+                <button class="button button-ghost button-small" id="use-default-hour" type="button" hidden>Usar para widget</button>
+              </div>
+              <button class="custom-hour quick-hours-edit" id="quick-hours-edit" type="button" aria-haspopup="dialog">
+                <span>Editar accesos</span>
+                <span class="custom-hour-edit" aria-hidden="true">3 horas</span>
+              </button>
               <button class="custom-hour" id="custom-hour" type="button" aria-haspopup="dialog">
                 <span id="custom-hour-label">Elegir otra hora</span>
                 <span class="custom-hour-edit" aria-hidden="true">Editar</span>
@@ -269,14 +286,17 @@
   </div>
 
   <dialog class="dialog about-dialog" id="about-dialog" aria-labelledby="about-title">
-    <div class="dialog-head"><h2 id="about-title">Acerca de MN1</h2><button class="dialog-close" id="close-about" type="button" aria-label="Cerrar Acerca de">×</button></div>
+    <div class="dialog-head"><h2 id="about-title">Acerca de Batiseñal</h2><button class="dialog-close" id="close-about" type="button" aria-label="Cerrar Acerca de">×</button></div>
     <p>Tu estudio de anuncios para los equipos de Sacos.</p>
+    <p class="developer-credit">Desarrollador: <strong>Joel Triminio</strong></p>
+    <p class="developer-credit">Empresa desarrolladora: <strong>Tecnify HN S. de R. L.</strong></p>
     <div class="about-meta"><span class="mode-badge" id="mode-badge" data-mode="checking">Cargando…</span>
-        <span class="version-badge" id="version-badge" title="Versión web MN1">v—</span></div>
+        <span class="version-badge" id="version-badge" title="Versión web Batiseñal">v—</span></div>
     <p>Aplicación: <span id="native-version">Sin versión nativa</span></p>
     <details><summary>Detalles de conexión</summary><p id="capability-text">Comprobando…</p>    <p class="preview-note" id="preview-note" role="note" hidden></p><p>Equipo: <span id="profiles-status">Conectando…</span></p></details>
-    <p class="hint">Las mejoras web llegan al abrir MN1 con internet. Las versiones de Android se gestionan desde Actualizaciones, en la franja superior de la app.</p>
+    <p class="hint">Las mejoras web llegan al abrir Batiseñal con internet. Las versiones de Android se gestionan desde Actualizaciones.</p>
     <button class="button button-secondary" id="refresh-state" type="button">Releer datos</button>
+    <p class="hint copyright-note">© 2026 Tecnify HN S. de R. L. Todos los derechos reservados.</p>
   </dialog>
 
   <dialog class="dialog add-team-dialog" id="add-team-dialog" aria-labelledby="add-team-title" aria-describedby="add-team-help add-team-error">
@@ -323,10 +343,38 @@
     </div>
   </dialog>
 
+  <dialog class="dialog quick-hours-dialog" id="quick-hours-dialog" aria-labelledby="quick-hours-title" aria-describedby="quick-hours-help quick-hours-default-note quick-hours-error">
+    <div class="dialog-head">
+      <h2 id="quick-hours-title">Editar accesos de hora</h2>
+      <button class="dialog-close" id="quick-hours-close" type="button" aria-label="Cerrar edición de accesos">×</button>
+    </div>
+    <p class="hint" id="quick-hours-help">Tres horas HH:mm distintas. La hora del widget se elige aparte y no cambia al editar los accesos.</p>
+    <div class="quick-hours-fields">
+      <label class="field" for="quick-hour-0">
+        <span class="field-label">Acceso 1</span>
+        <input class="input quick-hour-input" id="quick-hour-0" type="time" step="60" data-quick-hour-input aria-describedby="quick-hours-error">
+      </label>
+      <label class="field" for="quick-hour-1">
+        <span class="field-label">Acceso 2</span>
+        <input class="input quick-hour-input" id="quick-hour-1" type="time" step="60" data-quick-hour-input aria-describedby="quick-hours-error">
+      </label>
+      <label class="field" for="quick-hour-2">
+        <span class="field-label">Acceso 3</span>
+        <input class="input quick-hour-input" id="quick-hour-2" type="time" step="60" data-quick-hour-input aria-describedby="quick-hours-error">
+      </label>
+    </div>
+    <p class="hour-preview" id="quick-hours-default-note">Hora del widget: 08:00.</p>
+    <p class="field-error" id="quick-hours-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="button button-secondary" id="quick-hours-cancel" type="button">Cancelar</button>
+      <button class="button button-primary" id="quick-hours-save" type="button">Guardar accesos</button>
+    </div>
+  </dialog>
+
   <noscript>
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.4.3"></script>
+  <script type="module" src="./app.js?v=0.4.4"></script>
 </body>
 </html>
