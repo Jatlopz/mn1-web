@@ -1,6 +1,6 @@
 {
-  "version": "0.4.10",
+  "version": "0.4.11",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Reporte compartido sin nombres de grupos; selección del destinatario y confirmación en WhatsApp."
+  "notes": "Colores de marco editables y acceso de foto del widget para el equipo seleccionado."
 }

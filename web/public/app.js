@@ -86,7 +86,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.10';
+export const APP_VERSION = '0.4.11';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -4364,6 +4364,26 @@ function wireWidgetLaunch(dom, app) {
   };
 }
 
+export const REPORT_WIDGET_HASH = '#report-widget';
+export async function openWidgetReport(options={}) {
+  if(options.isBusy||options.isListening||!options.activeProfileId)return false;
+  if(!await options.flushSave())return false;
+  const opened=await options.openReport({fromWidget:true});
+  if(opened===false)return false;
+  options.consumeHash?.();return true;
+}
+function wireReportWidgetLaunch(dom,app) {
+  const queue=createWidgetOpenQueue();
+  const cold=window.location?.hash===REPORT_WIDGET_HASH;if(cold)queue.enqueue('cold');
+  const open=async()=>{
+    if(app.reportWidgetOpening||!app.reportStudio)return false;
+    app.reportWidgetOpening=true;
+    try{return await openWidgetReport({isBusy:app.busy||app.switching,isListening:app.listening,activeProfileId:app.workspace?.activeProfileId,flushSave:()=>flushDraftBeforeLeaving(dom,app),openReport:options=>app.reportStudio.open(options),consumeHash:()=>{if(window.location.hash===REPORT_WIDGET_HASH)window.history?.replaceState?.(null,'','#equipos');}});}catch(error){showError(dom,'No se pudo abrir el reporte del widget. '+(error.message||''),app);return false;}finally{app.reportWidgetOpening=false;}
+  };
+  window.addEventListener('mn1:report-open',()=>{if(!queue.enqueue('warm'))void open();});
+  return async()=>{const pending=queue.markHydrated();if(pending.length)await open();};
+}
+
 async function boot() {
   const dom = collectDom();
   if (!dom.main || !dom.messageInput || !dom.previewMessage) return;
@@ -4424,6 +4444,7 @@ async function boot() {
   };
 
   const processWidgetLaunch = wireWidgetLaunch(dom, app);
+  const processReportWidgetLaunch = wireReportWidgetLaunch(dom, app);
   window.addEventListener('resize', syncEditorViewport);
   window.visualViewport?.addEventListener('resize', syncEditorViewport);
   window.requestAnimationFrame(syncEditorViewport);
@@ -4436,9 +4457,10 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
-  createMeetingReport(() => ({mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
+  app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
   await processWidgetLaunch();
+  await processReportWidgetLaunch();
 }
 
 if (typeof document !== 'undefined') {

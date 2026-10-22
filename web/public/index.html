@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.4.10">
+  <link rel="stylesheet" href="./styles.css?v=0.4.11">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -296,6 +296,7 @@
     <div class="report-options">
       <label class="field">Equipo<select class="select" id="report-team"></select></label>
       <label class="field">Marco<select class="select" id="report-frame"><option value="signal">Señal</option><option value="clean">Limpio</option><option value="gold">Dorado</option></select></label>
+      <fieldset class="report-frame-colors report-wide"><legend>Color del marco</legend><div class="report-color-palette"><button class="report-color-swatch report-color-lime" data-report-color="#c8f751" type="button" aria-label="Verde lima" title="Verde lima" aria-pressed="false"></button><button class="report-color-swatch report-color-cyan" data-report-color="#35e3c8" type="button" aria-label="Turquesa" title="Turquesa" aria-pressed="false"></button><button class="report-color-swatch report-color-blue" data-report-color="#58a6ff" type="button" aria-label="Azul" title="Azul" aria-pressed="false"></button><button class="report-color-swatch report-color-gold" data-report-color="#f5c542" type="button" aria-label="Dorado" title="Dorado" aria-pressed="false"></button><button class="report-color-swatch report-color-red" data-report-color="#ff6b6b" type="button" aria-label="Rojo" title="Rojo" aria-pressed="false"></button><button class="report-color-swatch report-color-white" data-report-color="#ffffff" type="button" aria-label="Blanco" title="Blanco" aria-pressed="false"></button></div><div class="report-color-custom"><button class="button button-secondary" id="report-color-auto" type="button" aria-pressed="true">Automático</button><label for="report-frame-color">Otro color <input id="report-frame-color" type="color" value="#c8f751"></label></div></fieldset>
       <label class="field report-wide">Membrete<input class="input" id="report-heading" maxlength="60" value="Reunión realizada"></label>
       <label class="report-wide"><input type="checkbox" id="report-date" checked> Incluir fecha</label>
     </div>
@@ -415,6 +416,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.4.10"></script>
+  <script type="module" src="./app.js?v=0.4.11"></script>
 </body>
 </html>

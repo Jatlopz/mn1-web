@@ -27,6 +27,7 @@ export function normalizeReportPreferences(value = {}, catalog = []) {
   const first = catalog[0]?.id || 'indestructibles';
   return { teamId:catalog.some(t=>t.id===value.teamId)?value.teamId:first,
     frame:REPORT_FRAMES.includes(value.frame)?value.frame:'signal',
+    frameColor:typeof value.frameColor==='string'&&/^#[a-f0-9]{6}$/i.test(value.frameColor)?value.frameColor.toLowerCase():null,
     heading:typeof value.heading==='string'?value.heading.replace(/[\x00-\x1f\x7f]/g,'').trim().slice(0,60)||'Reunión realizada':'Reunión realizada',
     showDate:value.showDate!==false,
     watermark:value.watermark===true,
@@ -44,10 +45,14 @@ export function reportDimensions(width,height,maxSide=1600) {
 }
 function fitText(ctx,text,width,size,min=2) { while(size>min){ctx.font='900 '+size+'px system-ui,sans-serif';if(ctx.measureText(text).width<=width)break;size-=1;}ctx.font='900 '+size+'px system-ui,sans-serif';return size; }
 /** La foto completa ocupa su propia zona; el membrete se añade debajo, sin recortarla. */
+export function resolveReportFrameColor(prefs,team={}) {
+  if(typeof prefs.frameColor==='string'&&/^#[a-f0-9]{6}$/i.test(prefs.frameColor))return prefs.frameColor.toLowerCase();
+  return prefs.frame==='gold'?'#f5c542':/^#[a-f0-9]{6}$/i.test(team.color||'')?team.color:'#c8f751';
+}
 export function drawReport(canvas,image,prefs,team,date=new Date(),logo=null) {
   const size=reportDimensions(image.naturalWidth||image.width,image.naturalHeight||image.height);
   canvas.width=size.width;canvas.height=size.height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas no disponible.');
-  const w=size.width,h=size.height,p=size.photoHeight;const accent=prefs.frame==='gold'?'#f5c542':/^#[a-f0-9]{6}$/i.test(team.color||'')?team.color:'#c8f751';
+  const w=size.width,h=size.height,p=size.photoHeight;const accent=resolveReportFrameColor(prefs,team);
   ctx.fillStyle='#0a1711';ctx.fillRect(0,0,w,h);ctx.drawImage(image,0,0,w,p);
   if(prefs.watermark&&logo){
     const lw=logo.naturalWidth||logo.width,lh=logo.naturalHeight||logo.height;
@@ -73,12 +78,12 @@ export function reportShareMessage(preferences,team,hour) {
 }
 export function createMeetingReport(getServices) {
   const $=id=>document.getElementById(id),root=$('report-studio'),canvas=$('report-canvas');
-  let photo=null,capture=null,logoKeys={},logoCache=new Map(),logoToken=0,prefs=null,busy=false,dirty=false,loadToken=0,priorTitle='';
+  let photo=null,capture=null,frameColor=null,logoKeys={},logoCache=new Map(),logoToken=0,prefs=null,busy=false,dirty=false,loadToken=0,priorTitle='';
   const services=()=>getServices();
   const message=(text,error=false)=>{const el=$('report-status');el.textContent=text;el.dataset.tone=error?'error':'info';};
   const lock=value=>{busy=value;root.setAttribute('aria-busy',String(value));for(const e of root.querySelectorAll('button,input,select'))e.disabled=value;$('report-share').disabled=value||!photo;$('report-preview').classList.toggle('is-loading',value);};
-  const values=()=>normalizeReportPreferences({watermark:$('report-watermark').checked,watermarkOpacity:Number($('report-watermark-opacity').value)/100,watermarkPosition:$('report-watermark-position').value,logoKeys,teamId:$('report-team').value,frame:$('report-frame').value,heading:$('report-heading').value,showDate:$('report-date').checked},services().catalog);
-  const render=()=>{if(!photo)return;const v=values(),team=services().catalog.find(t=>t.id===v.teamId)||{};drawReport(canvas,photo,v,team,capture?.capturedAt?new Date(capture.capturedAt):new Date(),logoCache.get(v.logoKeys[v.teamId])||null);$('report-capture-info').textContent=capture?.capturedAt?'Saludo del reporte: '+greetingForHour(capture.localHour):'Hora original no disponible; saludo según la hora actual.';canvas.hidden=false;$('report-placeholder').hidden=true;};
+  const values=()=>normalizeReportPreferences({frameColor,watermark:$('report-watermark').checked,watermarkOpacity:Number($('report-watermark-opacity').value)/100,watermarkPosition:$('report-watermark-position').value,logoKeys,teamId:$('report-team').value,frame:$('report-frame').value,heading:$('report-heading').value,showDate:$('report-date').checked},services().catalog);
+  const render=()=>{const selected=values(),selectedTeam=services().catalog.find(t=>t.id===selected.teamId)||{};$('report-frame-color').value=resolveReportFrameColor(selected,selectedTeam);$('report-color-auto').setAttribute('aria-pressed',String(frameColor===null));for(const b of root.querySelectorAll('[data-report-color]'))b.setAttribute('aria-pressed',String(b.dataset.reportColor===frameColor));if(!photo)return;const v=values(),team=services().catalog.find(t=>t.id===v.teamId)||{};drawReport(canvas,photo,v,team,capture?.capturedAt?new Date(capture.capturedAt):new Date(),logoCache.get(v.logoKeys[v.teamId])||null);$('report-capture-info').textContent=capture?.capturedAt?'Saludo del reporte: '+greetingForHour(capture.localHour):'Hora original no disponible; saludo según la hora actual.';canvas.hidden=false;$('report-placeholder').hidden=true;};
   const persist=async()=>{const {storage}=services();if(!storage)throw Error('No hay almacenamiento disponible.');const next=values();await storage.putText(REPORT_PREFS_KEY,JSON.stringify(next));prefs=next;dirty=false;};
   async function acceptPhoto(dataUrl) {
     if(!isPngDataUrl(dataUrl))throw Error('La cámara no devolvió una imagen válida.');
@@ -92,18 +97,23 @@ export function createMeetingReport(getServices) {
     lock(true);message(camera?'Abriendo cámara…':'Abriendo fotos…');
     try {const result=await s.bridge.request(camera?'CAPTURE_PHOTO':'IMPORT_IMAGE',{}, {timeoutMs:300000});if(!result.ok)throw Error(result.message);await acceptPhoto(result.data?.imageDataUrl);}catch(e){message(e.message||'Captura cancelada. Tu foto anterior sigue disponible.',true);}finally{lock(false);}
   }
-  async function open() {
-    const s=services();if(s.blocked){message('Espera a que termine la operación actual.',true);return;}
+  async function open(options = {}) {
+    if(busy)return false;
+    if(!root.hidden&&dirty){try{await persist();}catch(e){message(e.message,true);return false;}}
+    const s=services();if(s.blocked){message('Espera a que termine la operación actual.',true);return false;}
     priorTitle=document.title;document.title='Reporte de reunión · Batiseñal';$('app').hidden=true;root.hidden=false;lock(true);message('Preparando estudio…');
     const token=++loadToken;
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
+      if(options.fromWidget&&s.catalog.some(t=>t.id===s.activeProfileId))prefs.teamId=s.activeProfileId;
+      frameColor=prefs.frameColor;
       const select=$('report-team');select.replaceChildren();for(const team of s.catalog){const option=document.createElement('option');option.value=team.id;option.textContent=team.name;select.append(option);}
       select.value=prefs.teamId;$('report-frame').value=prefs.frame;$('report-heading').value=prefs.heading;$('report-date').checked=prefs.showDate;dirty=false;logoKeys={...prefs.logoKeys};$('report-watermark').checked=prefs.watermark;$('report-watermark-opacity').value=String(Math.round(prefs.watermarkOpacity*100));$('report-watermark-position').value=prefs.watermarkPosition;
       if(!photo&&s.storage){const stored=await s.storage.getText(REPORT_PHOTO_KEY);if(stored){const savedPhoto=parseCaptureRecord(stored);if(savedPhoto){const url=pngDataUrlFromBase64(savedPhoto.imageBase64);photo=await loadImageElement(url);capture=savedPhoto;}}}
       if(token!==loadToken)return;await loadLogo();render();message(photo?'Tu último reporte está listo para editar.':'Toma una foto para crear el reporte.');
     }catch(e){message('No se pudieron leer los datos del reporte: '+e.message,true);}finally{lock(false);}
     await pick(true);
+    return true;
   }
   async function loadLogo(){
     const token=++logoToken,v=values(),key=v.logoKeys[v.teamId];$('report-logo-status').textContent=key?'Logo guardado para este equipo':'Este equipo aún no tiene logo de reporte.';
@@ -116,8 +126,11 @@ export function createMeetingReport(getServices) {
   }
   $('report-logo-pick').addEventListener('click',async()=>{if(busy)return;const s=services();if(s.mode!=='native'){$('report-logo-input').value='';$('report-logo-input').click();return;}lock(true);try{const r=await s.bridge.request('IMPORT_IMAGE',{}, {timeoutMs:300000});if(!r.ok)throw Error(r.message);await acceptLogo(r.data?.imageDataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
   $('report-logo-input').addEventListener('change',async()=>{const file=$('report-logo-input').files?.[0];if(!file||busy)return;lock(true);try{const prepared=await prepareImageFile(file);await acceptLogo(prepared.dataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
-  async function close(){if(busy)return;lock(true);try{if(dirty)await persist();root.hidden=true;$('app').hidden=false;document.title=priorTitle;$('open-report').focus();}catch(e){message('No se guardaron los ajustes: '+e.message,true);}finally{lock(false);}}
+  async function close(){if(busy)return;lock(true);try{if(dirty)await persist();root.hidden=true;$('app').hidden=false;document.title=priorTitle;services().onClose?.();$('open-report').focus();}catch(e){message('No se guardaron los ajustes: '+e.message,true);}finally{lock(false);}}
   $('open-report').addEventListener('click',()=>void open());$('report-back').addEventListener('click',()=>void close());
+  for(const button of root.querySelectorAll('[data-report-color]'))button.addEventListener('click',()=>{if(busy)return;frameColor=button.dataset.reportColor;dirty=true;render();});
+  $('report-frame-color').addEventListener('input',()=>{if(busy)return;frameColor=$('report-frame-color').value;dirty=true;render();});
+  $('report-color-auto').addEventListener('click',()=>{if(busy)return;frameColor=null;dirty=true;render();});
   $('report-take').addEventListener('click',()=>void pick(true));$('report-pick').addEventListener('click',()=>void pick(false));
   for(const id of ['report-team','report-frame','report-heading','report-date','report-watermark','report-watermark-opacity','report-watermark-position'])$(id).addEventListener('input',()=>{dirty=true;render();if(id==='report-team')void loadLogo();});
   for(const id of ['report-camera-input','report-file-input'])$(id).addEventListener('change',async()=>{const file=$(id).files?.[0];if(!file||busy)return;lock(true);try{const prepared=await prepareImageFile(file);await acceptPhoto(prepared.dataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
