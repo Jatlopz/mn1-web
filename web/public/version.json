@@ -1,6 +1,6 @@
 {
-  "version": "0.4.6",
+  "version": "0.4.7",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Plantillas iniciales sin hora para Indestructibles y Super Guerreros, conservando fotos personales de cada equipo."
+  "notes": "Proyector de luz y portadas editables por equipo con imagen local, desenfoque y sombra; anuncio intacto."
 }

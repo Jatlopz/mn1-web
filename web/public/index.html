@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.4.6">
+  <link rel="stylesheet" href="./styles.css?v=0.4.7">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -22,7 +22,7 @@
   <div class="app" id="app">
     <header class="app-header" id="app-header">
       <div class="brand" aria-label="Batiseñal Avisos de planta">
-        <span class="brand-mark" aria-hidden="true"><span class="brand-signal"></span></span>
+        <span class="brand-projector" aria-hidden="true"><svg viewBox="0 0 64 56" fill="none"><path class="projector-beam" d="M39 18 61 3v36L39 29Z" fill="currentColor" opacity=".2"/><path d="m9 21 24-7 9 18-24 8Z" fill="currentColor"/><path d="m34 14 6-3 10 19-7 3Z" fill="currentColor" opacity=".8"/><path d="m9 22-4 3 8 15 5-1M25 39v10M15 51h23M20 38l9 6 9-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="m15 24 13-4" stroke="#0c1400" stroke-width="3" stroke-linecap="round"/></svg></span>
         <div class="brand-copy">
           <p class="brand-name">Batiseñal</p>
           <p class="brand-sub">Avisos de planta</p>
@@ -285,6 +285,26 @@
     <footer class="app-footer" id="app-footer" hidden></footer>
   </div>
 
+  <dialog class="dialog cover-dialog" id="cover-dialog" aria-labelledby="cover-title" aria-describedby="cover-help">
+    <div class="dialog-head"><h2 id="cover-title">Portada del equipo</h2><button class="dialog-close" id="cover-close" type="button" aria-label="Cerrar portada">×</button></div>
+    <div class="cover-preview" id="cover-preview" aria-label="Vista previa de la portada"></div>
+    <p class="hint" id="cover-help">Sólo cambia la tarjeta del equipo. Tu anuncio queda igual.</p>
+    <div class="cover-sources" role="group" aria-label="Imagen de portada">
+      <button type="button" id="cover-use-announcement" aria-pressed="true">Foto del anuncio</button>
+      <button type="button" id="cover-pick-image" aria-pressed="false">Otra imagen</button>
+      <button type="button" id="cover-no-image" aria-pressed="false">Sin imagen</button>
+    </div>
+    <div class="cover-effects" role="group" aria-label="Efecto de la portada">
+      <button type="button" data-cover-blur="0" aria-pressed="false">Clara</button>
+      <button type="button" data-cover-blur="6" aria-pressed="true">Suave</button>
+      <button type="button" data-cover-blur="12" aria-pressed="false">Vidrio</button>
+    </div>
+    <label class="cover-shade-label" for="cover-shade"><span>Oscurecer</span><input id="cover-shade" type="range" min="35" max="80" step="5" value="55"></label>
+    <input id="cover-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+    <p class="field-error" id="cover-error" role="alert" hidden></p>
+    <div class="dialog-actions"><button class="button button-secondary" id="cover-cancel" type="button">Cancelar</button><button class="button button-primary" id="cover-save" type="button">Guardar portada</button></div>
+  </dialog>
+
   <dialog class="dialog about-dialog" id="about-dialog" aria-labelledby="about-title">
     <div class="dialog-head"><h2 id="about-title">Acerca de Batiseñal</h2><button class="dialog-close" id="close-about" type="button" aria-label="Cerrar Acerca de">×</button></div>
     <p>Tu estudio de anuncios para los equipos de Sacos.</p>
@@ -375,6 +395,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.4.6"></script>
+  <script type="module" src="./app.js?v=0.4.7"></script>
 </body>
 </html>

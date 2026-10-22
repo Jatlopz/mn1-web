@@ -7,6 +7,7 @@ import {
   VaultClient,
   VaultError,
   WORKSPACE_KEYS,
+  coverKeyForProfile,
   createBrowserVault,
   imageKeyForProfile,
   validateVaultWrite,
@@ -36,6 +37,34 @@ test('dos importaciones del mismo equipo generan dos claves alfanuméricas disti
     assert.match(key, VAULT_KEY_PATTERN);
     assert.doesNotMatch(key, /[^A-Za-z0-9._:-]/);
   }
+});
+
+test('las claves de un UUID personalizado conservan el UUID completo y caben en 64', () => {
+  const firstUuid = '12345678-1234-4123-8123-123456789abc';
+  const secondUuid = '12345678-1234-4123-8123-123456789abd';
+  const first = `custom-${firstUuid}`;
+  const second = `custom-${secondUuid}`;
+  const longStamp = 'lote-2026-10-22T12:34:56.789Z-muy-largo';
+
+  for (const profileId of [first, second]) {
+    const imageKey = imageKeyForProfile(profileId, longStamp);
+    const coverKey = coverKeyForProfile(profileId, longStamp);
+    assert.ok(imageKey.length <= 64, imageKey);
+    assert.ok(coverKey.length <= 64, coverKey);
+    assert.match(imageKey, VAULT_KEY_PATTERN);
+    assert.match(coverKey, VAULT_KEY_PATTERN);
+    assert.ok(imageKey.startsWith(WORKSPACE_KEYS.imagePrefix));
+    assert.ok(coverKey.startsWith(WORKSPACE_KEYS.coverPrefix));
+  }
+
+  const firstImage = imageKeyForProfile(first, longStamp);
+  const secondImage = imageKeyForProfile(second, longStamp);
+  const firstCover = coverKeyForProfile(first, longStamp);
+  const secondCover = coverKeyForProfile(second, longStamp);
+  assert.notEqual(firstImage, secondImage);
+  assert.notEqual(firstCover, secondCover);
+  assert.match(firstImage, /12345678123441238123123456789abc/);
+  assert.match(secondImage, /12345678123441238123123456789abd/);
 });
 
 test('valida clave, texto, tamaño por valor, cuotas y reemplazo', () => {

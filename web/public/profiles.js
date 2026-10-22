@@ -12,6 +12,7 @@ import {
   isValidVaultKey,
   textLength,
 } from './bridge.js';
+import { WORKSPACE_KEYS } from './storage.js';
 
 export const DEFAULT_HOUR = '08:00';
 export const DEFAULT_QUICK_HOURS = Object.freeze(['08:00', '09:00', '10:00']);
@@ -97,6 +98,162 @@ export const DEFAULT_OVERLAY = Object.freeze({
   twelveHour: false,
   locked: false,
 });
+
+export const CARD_COVER_MODES = Object.freeze(['announcement', 'custom', 'none']);
+export const CARD_COVER_BLURS = Object.freeze([0, 6, 12]);
+export const CARD_COVER_SHADE_MIN = 0.35;
+export const CARD_COVER_SHADE_MAX = 0.8;
+export const CARD_COVER_SHADE_DEFAULT = 0.55;
+export const CARD_COVER_BLUR_DEFAULT = 6;
+export const CARD_COVER_THUMBNAIL_MAX_SIDE = 384;
+export const CARD_COVER_CACHE_LIMIT = 24;
+
+export const DEFAULT_CARD_APPEARANCE = Object.freeze({
+  mode: 'announcement',
+  imageKey: null,
+  blur: CARD_COVER_BLUR_DEFAULT,
+  shade: CARD_COVER_SHADE_DEFAULT,
+});
+
+export function isCardCoverKey(value) {
+  return typeof value === 'string'
+    && value.startsWith(WORKSPACE_KEYS.coverPrefix)
+    && isValidVaultKey(value);
+}
+
+function normalizeCoverBlur(value) {
+  if (typeof value === 'number' && CARD_COVER_BLURS.includes(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (CARD_COVER_BLURS.includes(parsed)) return parsed;
+  }
+  return CARD_COVER_BLUR_DEFAULT;
+}
+
+function normalizeCoverShade(value) {
+  if (value === null || value === '' || typeof value === 'boolean') {
+    return CARD_COVER_SHADE_DEFAULT;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) return CARD_COVER_SHADE_DEFAULT;
+  const clamped = Math.min(CARD_COVER_SHADE_MAX, Math.max(CARD_COVER_SHADE_MIN, number));
+  return Math.round(clamped * 100) / 100;
+}
+
+/**
+ * Apariencia estricta de la tarjeta. Un modo desconocido vuelve a "announcement",
+ * el desenfoque sólo admite 0/6/12 y la sombra se limita a 0.35–0.8. "custom"
+ * sin una clave de portada válida se degrada a "none" para no inventar ni
+ * reutilizar la foto del anuncio.
+ */
+export function normalizeCardAppearance(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ...DEFAULT_CARD_APPEARANCE };
+  }
+  const mode = CARD_COVER_MODES.includes(value.mode)
+    ? value.mode
+    : DEFAULT_CARD_APPEARANCE.mode;
+  const blur = normalizeCoverBlur(value.blur);
+  const shade = normalizeCoverShade(value.shade);
+  if (mode === 'custom') {
+    return isCardCoverKey(value.imageKey)
+      ? { mode, imageKey: value.imageKey, blur, shade }
+      : { mode: 'none', imageKey: null, blur, shade };
+  }
+  return { mode, imageKey: null, blur, shade };
+}
+
+export function cardCoverCssVars(appearance) {
+  const normalized = normalizeCardAppearance(appearance);
+  return {
+    '--cover-blur': `${normalized.blur}px`,
+    '--cover-shade': String(normalized.shade),
+  };
+}
+
+export function resolveCardCoverSource(template) {
+  if (!template || typeof template !== 'object') return null;
+  const appearance = normalizeCardAppearance(template.cardAppearance);
+  if (appearance.mode === 'custom') return appearance.imageKey;
+  if (appearance.mode === 'none') return null;
+  return isValidVaultKey(template.imageKey) ? template.imageKey : null;
+}
+
+/** Borrador aislado del diálogo; conserva la última portada propia elegida. */
+export function createCardCoverDraft(appearance) {
+  const normalized = normalizeCardAppearance(appearance);
+  return {
+    mode: normalized.mode,
+    imageKey: normalized.imageKey,
+    customImageKey: normalized.imageKey,
+    blur: normalized.blur,
+    shade: normalized.shade,
+    pendingImage: null,
+    newKey: null,
+  };
+}
+
+/**
+ * Seam puro de Guardar. No escribe ni muta el borrador; devuelve la apariencia
+ * normalizada o un error que la UI muestra conservando el diálogo abierto.
+ */
+export function resolveCoverSave(draft, options = {}) {
+  if (!draft || typeof draft !== 'object') {
+    return {
+      ok: false,
+      code: 'missing_draft',
+      error: 'No hay una portada abierta para guardar.',
+    };
+  }
+  const mode = CARD_COVER_MODES.includes(draft.mode)
+    ? draft.mode
+    : DEFAULT_CARD_APPEARANCE.mode;
+  if (mode === 'custom') {
+    const key = options.newImageKey ?? draft.imageKey;
+    if (!isCardCoverKey(key)) {
+      return {
+        ok: false,
+        code: 'missing_cover_image',
+        error: 'Elige una imagen para la portada antes de guardar.',
+      };
+    }
+    return {
+      ok: true,
+      appearance: normalizeCardAppearance({
+        mode,
+        imageKey: key,
+        blur: draft.blur,
+        shade: draft.shade,
+      }),
+    };
+  }
+  return {
+    ok: true,
+    appearance: normalizeCardAppearance({
+      mode,
+      imageKey: null,
+      blur: draft.blur,
+      shade: draft.shade,
+    }),
+  };
+}
+
+export function thumbnailDimensions(
+  width,
+  height,
+  maxSide = CARD_COVER_THUMBNAIL_MAX_SIDE,
+) {
+  const sourceWidth = Math.max(1, Math.round(Number(width) || 1));
+  const sourceHeight = Math.max(1, Math.round(Number(height) || 1));
+  const limit = Math.max(1, Math.round(Number(maxSide) || CARD_COVER_THUMBNAIL_MAX_SIDE));
+  const largest = Math.max(sourceWidth, sourceHeight);
+  const scale = largest <= limit ? 1 : limit / largest;
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+    scale,
+  };
+}
 
 function clamp(value, min, max, fallback) {
   const number = Number(value);
@@ -495,6 +652,7 @@ export function createProfileTemplate(profileId, options = {}) {
     imageKey: options.imageKey ?? null,
     imageWidth: options.imageWidth ?? null,
     imageHeight: options.imageHeight ?? null,
+    cardAppearance: options.cardAppearance ?? DEFAULT_CARD_APPEARANCE,
     starterImageInitialized: options.starterImageInitialized ?? false,
     updatedAt: options.updatedAt ?? '',
   }, profileId, { definitions });
@@ -529,6 +687,7 @@ export function normalizeTemplate(raw, profileId, options = {}) {
     imageHeight: Number.isInteger(height) && height > 0 && height <= MN1_LIMITS.PNG_MAX_DIMENSION
       ? height
       : null,
+    cardAppearance: normalizeCardAppearance(source.cardAppearance),
     // Una foto ya guardada cuenta como inicializada aunque venga de una versión
     // anterior. Después de true, borrar o reemplazar la foto nunca la restaura.
     starterImageInitialized: source.starterImageInitialized === true || Boolean(imageKey),
@@ -581,6 +740,7 @@ export function cloneTemplate(template) {
     defaultHour: normalizeDefaultHour(template?.defaultHour, template?.quickHours),
     targetLabels: [...(template?.targetLabels ?? DEFAULT_TARGETS)],
     overlay: { ...(template?.overlay ?? DEFAULT_OVERLAY) },
+    cardAppearance: { ...normalizeCardAppearance(template?.cardAppearance) },
   };
 }
 

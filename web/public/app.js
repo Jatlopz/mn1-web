@@ -25,19 +25,26 @@ import {
   textLength,
 } from './bridge.js';
 import {
+  CARD_COVER_CACHE_LIMIT,
+  CARD_COVER_SHADE_MAX,
+  CARD_COVER_SHADE_MIN,
+  CARD_COVER_THUMBNAIL_MAX_SIDE,
   DEFAULT_PROFILE_ID,
   DEFAULT_TARGETS,
   HOUR_PRESETS,
   OVERLAY_FONTS,
   OVERLAY_LIMITS,
   PROFILE_CATALOG,
+  cardCoverCssVars,
   cloneTemplate,
+  createCardCoverDraft,
   createCustomTeam,
   createDefaultWorkspace,
   createProfileTemplate,
   getProfileDefinition,
   isProfileId,
   migrateLegacyWorkspace,
+  normalizeCardAppearance,
   normalizeDefaultHour,
   normalizeOverlay,
   normalizeQuickHours,
@@ -45,7 +52,10 @@ import {
   normalizeTemplate,
   normalizeWorkspaceState,
   profileCatalogForWorkspace,
+  resolveCardCoverSource,
+  resolveCoverSave,
   resolveDefaultHourAfterQuickHoursEdit,
+  thumbnailDimensions,
   updateProfile,
   validateCustomTeamName,
   validateDraft as validateProfileDraft,
@@ -56,6 +66,7 @@ import {
   MemoryVault,
   VaultClient,
   WORKSPACE_KEYS,
+  coverKeyForProfile,
   createBrowserVault,
   imageKeyForProfile,
 } from './storage.js';
@@ -73,7 +84,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.6';
+export const APP_VERSION = '0.4.7';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -444,6 +455,146 @@ export function describeBridgeError(error) {
 }
 
 /* ------------------------------------------------------------------------- */
+/* Miniaturas de tarjetas                                                    */
+/* ------------------------------------------------------------------------- */
+
+function defaultThumbnailCanvas() {
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return null;
+  }
+  return document.createElement('canvas');
+}
+
+async function buildCardThumbnail(options = {}) {
+  const { sourceKey, storage, loadImage, createCanvas, maxSide } = options;
+  if (!storage || typeof storage.getText !== 'function') return null;
+  const base64 = await storage.getText(sourceKey);
+  if (typeof base64 !== 'string' || base64.length === 0) return null;
+  const dataUrl = pngDataUrlFromBase64(base64);
+  if (!dataUrl) return null;
+  const image = await loadImage(dataUrl);
+  const width = Number(image?.naturalWidth ?? image?.width);
+  const height = Number(image?.naturalHeight ?? image?.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+    return null;
+  }
+  const size = thumbnailDimensions(width, height, maxSide);
+  const canvas = createCanvas();
+  if (!canvas || typeof canvas.getContext !== 'function') return null;
+  canvas.width = size.width;
+  canvas.height = size.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, size.width, size.height);
+  // La miniatura contiene sólo la foto: nunca se dibuja la hora ni un rótulo.
+  ctx.drawImage(image, 0, 0, size.width, size.height);
+  let thumbnail;
+  try {
+    thumbnail = canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+  return typeof thumbnail === 'string' && thumbnail.startsWith('data:image/png;base64,')
+    ? thumbnail
+    : null;
+}
+
+/**
+ * Caché LRU de miniaturas indexada por clave privada. Comparte cargas pendientes
+ * y las invalida por versión para que una promesa vieja no pinte la tarjeta de
+ * otra clave u otro equipo. Nunca usa app.imageDataUrl ni la foto activa.
+ */
+export class CardThumbnailCache {
+  constructor(options = {}) {
+    this.storage = options.storage ?? null;
+    this.loadImage = options.loadImage ?? loadImageElement;
+    this.createCanvas = options.createCanvas ?? defaultThumbnailCanvas;
+    this.maxSide = options.maxSide ?? CARD_COVER_THUMBNAIL_MAX_SIDE;
+    this.maxEntries = options.maxEntries ?? CARD_COVER_CACHE_LIMIT;
+    this.entries = new Map();
+    this.pending = new Map();
+    this.versions = new Map();
+    this.profileSources = new Map();
+  }
+
+  get(sourceKey) {
+    if (!sourceKey || !this.entries.has(sourceKey)) return null;
+    const value = this.entries.get(sourceKey);
+    this.entries.delete(sourceKey);
+    this.entries.set(sourceKey, value);
+    return value;
+  }
+
+  versionOf(sourceKey) {
+    return this.versions.get(sourceKey) ?? 0;
+  }
+
+  invalidate(sourceKey) {
+    if (!sourceKey) return;
+    this.versions.set(sourceKey, this.versionOf(sourceKey) + 1);
+    this.entries.delete(sourceKey);
+    this.pending.delete(sourceKey);
+  }
+
+  trackProfile(profileId, sourceKey) {
+    if (typeof profileId !== 'string') return;
+    const previous = this.profileSources.get(profileId) ?? null;
+    if (sourceKey) this.profileSources.set(profileId, sourceKey);
+    else this.profileSources.delete(profileId);
+    if (!previous || previous === sourceKey) return;
+    const stillReferenced = [...this.profileSources.entries()]
+      .some(([id, key]) => id !== profileId && key === previous);
+    if (!stillReferenced) this.invalidate(previous);
+  }
+
+  async loadProfile(profileId, sourceKey) {
+    this.trackProfile(profileId, sourceKey);
+    return this.load(sourceKey);
+  }
+
+  async load(sourceKey) {
+    if (!sourceKey) return null;
+    const cached = this.get(sourceKey);
+    if (cached !== null) return cached;
+    if (this.pending.has(sourceKey)) return this.pending.get(sourceKey);
+    const version = this.versionOf(sourceKey);
+    const promise = (async () => {
+      try {
+        return await buildCardThumbnail({
+          sourceKey,
+          storage: this.storage,
+          loadImage: this.loadImage,
+          createCanvas: this.createCanvas,
+          maxSide: this.maxSide,
+        });
+      } catch {
+        return null;
+      }
+    })();
+    this.pending.set(sourceKey, promise);
+    try {
+      const thumbnail = await promise;
+      if (thumbnail && this.versionOf(sourceKey) === version) {
+        this.remember(sourceKey, thumbnail);
+      }
+      return thumbnail;
+    } finally {
+      if (this.pending.get(sourceKey) === promise) this.pending.delete(sourceKey);
+    }
+  }
+
+  remember(sourceKey, dataUrl) {
+    if (!sourceKey || typeof dataUrl !== 'string') return;
+    this.entries.delete(sourceKey);
+    this.entries.set(sourceKey, dataUrl);
+    while (this.entries.size > this.maxEntries) {
+      const oldest = this.entries.keys().next().value;
+      this.entries.delete(oldest);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------------- */
 /* DOM y estado                                                              */
 /* ------------------------------------------------------------------------- */
 
@@ -582,6 +733,7 @@ function cloneDraftFromProfile(profile) {
     imageKey: profile.imageKey,
     imageWidth: profile.imageWidth,
     imageHeight: profile.imageHeight,
+    cardAppearance: { ...normalizeCardAppearance(profile.cardAppearance) },
     starterImageInitialized: profile.starterImageInitialized === true,
   };
 }
@@ -703,6 +855,21 @@ function renderMode(dom, app) {
   if (note) dom.previewNote.textContent = note;
 }
 
+function cardThumbnailCacheFor(app) {
+  if (!app.cardThumbnailCache) {
+    app.cardThumbnailCache = new CardThumbnailCache({ storage: app.storage });
+  } else {
+    app.cardThumbnailCache.storage = app.storage ?? null;
+  }
+  return app.cardThumbnailCache;
+}
+
+function applyCoverMedia(image, dataUrl, sourceKey) {
+  if (!image || image.dataset.coverSource !== sourceKey) return;
+  image.src = dataUrl;
+  image.hidden = false;
+}
+
 function renderProfiles(dom, app) {
   if (dom.addTeam) {
     dom.addTeam.hidden = !isWorkspace(app);
@@ -714,8 +881,24 @@ function renderProfiles(dom, app) {
     ?? (app.uiMode === 'legacy' ? DEFAULT_PROFILE_ID : '');
   const activeDefinition = getProfileDefinition(activeId, { catalog: app.catalog });
   const selectable = isWorkspace(app) || app.uiMode === 'legacy';
+  const thumbnailCache = isWorkspace(app) && app.storage
+    ? cardThumbnailCacheFor(app)
+    : null;
   for (const definition of app.catalog) {
     const template = app.workspace?.profiles?.[definition.id];
+    const appearance = normalizeCardAppearance(template?.cardAppearance);
+    const coverSourceKey = isWorkspace(app) ? resolveCardCoverSource(template) : null;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'profile-card-wrap';
+    wrap.dataset.coverMode = appearance.mode;
+    wrap.dataset.hasCover = coverSourceKey ? 'true' : 'false';
+    for (const [property, value] of Object.entries(cardCoverCssVars(appearance))) {
+      if (typeof wrap.style?.setProperty === 'function') {
+        wrap.style.setProperty(property, value);
+      }
+    }
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `profile-card profile-card--${definition.id}`;
@@ -731,6 +914,18 @@ function renderProfiles(dom, app) {
       ? 'APK3 · abrir la plantilla única conservada'
       : `Abrir la plantilla de ${definition.name}`;
 
+    const media = document.createElement('img');
+    media.className = 'profile-card-media';
+    media.alt = '';
+    media.setAttribute('aria-hidden', 'true');
+    media.decoding = 'async';
+    media.hidden = true;
+    if (coverSourceKey) media.dataset.coverSource = coverSourceKey;
+
+    const shade = document.createElement('span');
+    shade.className = 'profile-card-shade';
+    shade.setAttribute('aria-hidden', 'true');
+
     const name = document.createElement('span');
     name.className = 'profile-name';
     name.textContent = definition.name;
@@ -745,8 +940,40 @@ function renderProfiles(dom, app) {
       meta.textContent = `${hour ?? '--:--'}${hasImage ? ' · con foto' : ''}`;
     }
 
-    button.append(name, meta);
-    dom.profileList.append(button);
+    button.append(media, shade, name, meta);
+
+    const coverButton = document.createElement('button');
+    coverButton.type = 'button';
+    coverButton.className = 'profile-cover-edit';
+    coverButton.dataset.editCover = definition.id;
+    const pencil = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    pencil.setAttribute('viewBox', '0 0 24 24');
+    pencil.setAttribute('aria-hidden', 'true');
+    const pencilPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pencilPath.setAttribute('d', 'm15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z');
+    pencilPath.setAttribute('fill', 'none');
+    pencilPath.setAttribute('stroke', 'currentColor');
+    pencilPath.setAttribute('stroke-width', '1.8');
+    pencilPath.setAttribute('stroke-linejoin', 'round');
+    pencil.append(pencilPath);
+    coverButton.append(pencil);
+    coverButton.setAttribute('aria-label', `Editar portada de ${definition.name}`);
+    coverButton.disabled = app.busy || !isWorkspace(app);
+
+    wrap.append(button, coverButton);
+    dom.profileList.append(wrap);
+
+    if (thumbnailCache) thumbnailCache.trackProfile(definition.id, coverSourceKey);
+    if (coverSourceKey && thumbnailCache) {
+      const cached = thumbnailCache.get(coverSourceKey);
+      if (cached) {
+        applyCoverMedia(media, cached, coverSourceKey);
+      } else {
+        void thumbnailCache.loadProfile(definition.id, coverSourceKey).then((thumbnail) => {
+          if (thumbnail) applyCoverMedia(media, thumbnail, coverSourceKey);
+        }).catch(() => {});
+      }
+    }
   }
 
   if (dom.profilesStatus) {
@@ -1486,6 +1713,7 @@ function commitDraft(app) {
     imageKey: app.draft.imageKey,
     imageWidth: app.draft.imageWidth,
     imageHeight: app.draft.imageHeight,
+    cardAppearance: normalizeCardAppearance(app.draft.cardAppearance ?? profile.cardAppearance),
     updatedAt: new Date().toISOString(),
   });
   if (!updated) return null;
@@ -1500,13 +1728,16 @@ function commitDraft(app) {
   app.draft.imageKey = normalized.imageKey;
   app.draft.imageWidth = normalized.imageWidth;
   app.draft.imageHeight = normalized.imageHeight;
+  app.draft.cardAppearance = { ...normalizeCardAppearance(normalized.cardAppearance) };
   return normalized;
 }
 
 function imageKeyIsReferenced(app, key) {
   if (app.draft?.imageKey === key) return true;
+  if (app.draft?.cardAppearance?.imageKey === key) return true;
   return Object.values(app.workspace?.profiles ?? {})
-    .some((profile) => profile.imageKey === key);
+    .some((profile) => profile.imageKey === key
+      || profile.cardAppearance?.imageKey === key);
 }
 
 async function removeReplacedImages(dom, app) {
@@ -2416,6 +2647,441 @@ async function handleCreateTeam(dom, app) {
 }
 
 /* ------------------------------------------------------------------------- */
+/* Portada de equipo                                                         */
+/* ------------------------------------------------------------------------- */
+
+function coverProfileOf(app, draft) {
+  if (!draft || !app.workspace?.profiles) return null;
+  return app.workspace.profiles[draft.profileId] ?? null;
+}
+
+function setCoverError(dom, text) {
+  if (!dom.coverError) return;
+  dom.coverError.hidden = !text;
+  dom.coverError.textContent = text || '';
+}
+
+function coverDraftSourceKey(profile, draft) {
+  if (!draft) return null;
+  if (draft.mode === 'custom') return draft.imageKey;
+  if (draft.mode === 'announcement') {
+    return profile && isValidVaultKey(profile.imageKey) ? profile.imageKey : null;
+  }
+  return null;
+}
+
+function coverPreviewEmpty(dom, text) {
+  if (!dom.coverPreview) return;
+  const empty = document.createElement('span');
+  empty.className = 'cover-preview-empty';
+  empty.textContent = text;
+  dom.coverPreview.replaceChildren(empty);
+}
+
+function renderCoverPreview(dom, app) {
+  const draft = app.coverDraft;
+  if (!draft || !dom.coverPreview) return;
+  const token = (draft.previewToken ?? 0) + 1;
+  draft.previewToken = token;
+  const profile = coverProfileOf(app, draft);
+  const appearance = {
+    mode: draft.mode,
+    imageKey: draft.mode === 'custom' ? draft.imageKey : null,
+    blur: draft.blur,
+    shade: draft.shade,
+  };
+  for (const [property, value] of Object.entries(cardCoverCssVars(appearance))) {
+    if (typeof dom.coverPreview.style?.setProperty === 'function') {
+      dom.coverPreview.style.setProperty(property, value);
+    }
+  }
+  dom.coverPreview.dataset.coverMode = draft.mode;
+
+  const showImage = (src) => {
+    if (app.coverDraft !== draft || draft.previewToken !== token) return;
+    if (typeof src !== 'string' || src.length === 0) return;
+    const image = document.createElement('img');
+    image.className = 'cover-preview-image';
+    image.alt = '';
+    image.src = src;
+    dom.coverPreview.replaceChildren(image);
+  };
+
+  if (draft.mode === 'custom' && draft.pendingImage?.dataUrl) {
+    showImage(draft.pendingImage.dataUrl);
+    return;
+  }
+  const sourceKey = coverDraftSourceKey(profile, draft);
+  if (!sourceKey || !app.storage) {
+    coverPreviewEmpty(dom, 'Sin imagen');
+    return;
+  }
+  const cache = cardThumbnailCacheFor(app);
+  const cached = cache.get(sourceKey);
+  if (cached) {
+    showImage(cached);
+    return;
+  }
+  coverPreviewEmpty(dom, 'Cargando…');
+  void cache.load(sourceKey).then((thumbnail) => {
+    if (app.coverDraft !== draft || draft.previewToken !== token) return;
+    if (thumbnail) showImage(thumbnail);
+    else coverPreviewEmpty(dom, 'Sin imagen');
+  }).catch(() => {
+    if (app.coverDraft === draft && draft.previewToken === token) {
+      coverPreviewEmpty(dom, 'Sin imagen');
+    }
+  });
+}
+
+function renderCoverDialog(dom, app) {
+  const draft = app.coverDraft;
+  if (!draft || !dom.coverDialog) return;
+  const profile = coverProfileOf(app, draft);
+  const definition = getProfileDefinition(draft.profileId, { catalog: app.catalog });
+  if (dom.coverTitle) {
+    dom.coverTitle.textContent = `Portada de ${definition?.name ?? profile?.name ?? 'equipo'}`;
+  }
+  const disabled = app.busy === true || draft.saving === true;
+  for (const button of dom.coverBlurButtons ?? []) {
+    const blur = Number(button?.dataset?.coverBlur);
+    const selected = blur === draft.blur;
+    button.setAttribute?.('aria-pressed', selected ? 'true' : 'false');
+    if (button.classList && typeof button.classList.toggle === 'function') {
+      button.classList.toggle('is-active', selected);
+    }
+    button.disabled = disabled;
+  }
+  if (dom.coverUseAnnouncement) {
+    const selected = draft.mode === 'announcement';
+    dom.coverUseAnnouncement.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    if (dom.coverUseAnnouncement.classList?.toggle) {
+      dom.coverUseAnnouncement.classList.toggle('is-active', selected);
+    }
+    dom.coverUseAnnouncement.disabled = disabled;
+  }
+  if (dom.coverNoImage) {
+    const selected = draft.mode === 'none';
+    dom.coverNoImage.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    if (dom.coverNoImage.classList?.toggle) {
+      dom.coverNoImage.classList.toggle('is-active', selected);
+    }
+    dom.coverNoImage.disabled = disabled;
+  }
+  if (dom.coverPickImage) {
+    dom.coverPickImage.setAttribute('aria-pressed', draft.mode === 'custom' ? 'true' : 'false');
+    dom.coverPickImage.disabled = disabled;
+  }
+  if (dom.coverShade) {
+    dom.coverShade.value = String(Math.round(draft.shade * 100));
+    dom.coverShade.disabled = disabled;
+  }
+  if (dom.coverSave) dom.coverSave.disabled = disabled;
+  if (dom.coverCancel) dom.coverCancel.disabled = draft.saving === true;
+  if (dom.coverClose) dom.coverClose.disabled = draft.saving === true;
+  renderCoverPreview(dom, app);
+}
+
+function openCoverDialog(dom, app, profileId) {
+  if (!isWorkspace(app) || !app.workspace) {
+    showStatus(dom, 'Las portadas necesitan el workspace y su almacén.', 'warning');
+    return false;
+  }
+  if (app.busy || app.switching) {
+    showStatus(dom, 'Espera a que termine la acción actual antes de editar la portada.', 'warning');
+    return false;
+  }
+  const profile = app.workspace.profiles?.[profileId];
+  if (!profile || !dom.coverDialog) return false;
+  const saved = normalizeCardAppearance(profile.cardAppearance);
+  app.coverDraft = {
+    profileId,
+    ...createCardCoverDraft(saved),
+    previewToken: 0,
+    saving: false,
+  };
+  setCoverError(dom, '');
+  renderCoverDialog(dom, app);
+  if (typeof dom.coverDialog.showModal === 'function') {
+    if (!dom.coverDialog.open) dom.coverDialog.showModal();
+  } else {
+    dom.coverDialog.setAttribute('open', '');
+  }
+  dom.coverUseAnnouncement?.focus?.();
+  return true;
+}
+
+function closeCoverDialog(dom, app, options = {}) {
+  const draft = app.coverDraft;
+  if (!draft) return false;
+  if (draft.saving && options.force !== true) return false;
+  app.coverDraft = null;
+  setCoverError(dom, '');
+  if (dom.coverPreview) dom.coverPreview.replaceChildren();
+  if (dom.coverDialog) {
+    if (typeof dom.coverDialog.close === 'function' && dom.coverDialog.open) {
+      dom.coverDialog.close();
+    } else {
+      dom.coverDialog.removeAttribute('open');
+    }
+  }
+  return true;
+}
+
+function chooseCoverMode(dom, app, mode) {
+  const draft = app.coverDraft;
+  if (!draft || draft.saving || !['announcement', 'custom', 'none'].includes(mode)) return;
+  draft.mode = mode;
+  if (mode === 'custom') {
+    draft.imageKey = draft.newKey ?? draft.customImageKey ?? null;
+  }
+  renderCoverDialog(dom, app);
+}
+
+function setCoverBlur(dom, app, value) {
+  const draft = app.coverDraft;
+  const blur = Number(value);
+  if (!draft || draft.saving || ![0, 6, 12].includes(blur)) return;
+  draft.blur = blur;
+  renderCoverDialog(dom, app);
+}
+
+function setCoverShade(dom, app, value) {
+  const draft = app.coverDraft;
+  const number = Number(value);
+  if (!draft || draft.saving || !Number.isFinite(number)) return;
+  draft.shade = Math.min(
+    CARD_COVER_SHADE_MAX,
+    Math.max(CARD_COVER_SHADE_MIN, number / 100),
+  );
+  renderCoverDialog(dom, app);
+}
+
+function applyPendingCoverImage(dom, app, draft, dataUrl, width, height) {
+  if (!draft || app.coverDraft !== draft) return false;
+  if (!isPngDataUrl(dataUrl)) {
+    setCoverError(dom, 'La imagen elegida no es un PNG válido. No se agregó a la portada.');
+    return false;
+  }
+  const profileId = draft.profileId;
+  const key = coverKeyForProfile(
+    profileId,
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+  );
+  draft.pendingImage = { dataUrl, width, height };
+  draft.newKey = key;
+  draft.imageKey = key;
+  draft.customImageKey = key;
+  draft.mode = 'custom';
+  setCoverError(dom, '');
+  renderCoverDialog(dom, app);
+  return true;
+}
+
+async function handleCoverPickFile(dom, app, file) {
+  const draft = app.coverDraft;
+  if (!draft || draft.saving || app.busy) return;
+  if (!file || typeof file !== 'object') return;
+  const type = String(file.type ?? '').toLowerCase();
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(type)) {
+    setCoverError(dom, 'Elige una imagen PNG, JPEG o WebP para la portada.');
+    return;
+  }
+  setBusy(dom, app, true, 'Preparando la portada…');
+  try {
+    const prepared = await prepareImageFile(file);
+    applyPendingCoverImage(dom, app, draft, prepared.dataUrl, prepared.width, prepared.height);
+  } catch (error) {
+    if (app.coverDraft === draft) {
+      setCoverError(dom, `No se pudo preparar la portada: ${error.message || 'error'}.`);
+    }
+  } finally {
+    setBusy(dom, app, false);
+    renderCoverDialog(dom, app);
+  }
+}
+
+async function handleCoverPickImage(dom, app) {
+  const draft = app.coverDraft;
+  if (!draft || draft.saving || app.busy) return;
+  setCoverError(dom, '');
+  if (app.uiMode === 'browser') {
+    if (!dom.coverImageInput) {
+      setCoverError(dom, 'Este navegador no ofrece el selector de imagen.');
+      return;
+    }
+    dom.coverImageInput.value = '';
+    dom.coverImageInput.click();
+    return;
+  }
+  if (!ensureNative(dom, app)) {
+    setCoverError(dom, 'La portada propia necesita la app Android conectada.');
+    return;
+  }
+  if (!capability(app, CAPABILITIES.RAW_IMAGE)) {
+    setCoverError(dom, 'Esta app no anunció raw-image-v1. Actualiza a la BASE para elegir la portada.');
+    return;
+  }
+  setBusy(dom, app, true, 'Abriendo el selector de portada…');
+  try {
+    const result = await requestNative(dom, app, 'IMPORT_IMAGE', {}, {
+      timeoutMs: MN1_LIMITS.IMPORT_IMAGE_TIMEOUT_MS,
+      silent: true,
+    });
+    if (app.coverDraft !== draft) return;
+    if (!result?.ok) {
+      setCoverError(dom, result?.message || 'No se eligió ninguna portada. No se asumió una imagen.');
+      return;
+    }
+    const data = result.data ?? {};
+    if (!isPngDataUrl(data.imageDataUrl)) {
+      setCoverError(dom, 'La app no devolvió un PNG válido para la portada.');
+      return;
+    }
+    let width = Number(data.width);
+    let height = Number(data.height);
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+      try {
+        const size = await imageDimensions(data.imageDataUrl);
+        width = size.width;
+        height = size.height;
+      } catch {
+        setCoverError(dom, 'No se pudieron leer las dimensiones de la portada.');
+        return;
+      }
+    }
+    applyPendingCoverImage(dom, app, draft, data.imageDataUrl, width, height);
+  } catch (error) {
+    if (app.coverDraft === draft) {
+      setCoverError(dom, `No se pudo elegir la portada: ${error.message || 'error'}.`);
+    }
+  } finally {
+    setBusy(dom, app, false);
+    renderCoverDialog(dom, app);
+  }
+}
+
+async function handleCoverSave(dom, app) {
+  const draft = app.coverDraft;
+  if (!draft || draft.saving || app.busy) return;
+  if (!isWorkspace(app) || !app.workspace || !app.storage) {
+    setCoverError(dom, 'No hay un almacén disponible para guardar la portada.');
+    return;
+  }
+  const pendingKey = draft.pendingImage?.dataUrl
+    ? (draft.newKey ?? coverKeyForProfile(draft.profileId, Date.now()))
+    : null;
+  const resolved = resolveCoverSave(
+    { ...draft, imageKey: draft.imageKey },
+    { newImageKey: pendingKey },
+  );
+  if (!resolved.ok) {
+    setCoverError(dom, resolved.error);
+    return;
+  }
+  const usesPendingImage = resolved.appearance.mode === 'custom'
+    && Boolean(draft.pendingImage?.dataUrl);
+  const newImageKey = usesPendingImage ? pendingKey : null;
+  let base64 = null;
+  if (usesPendingImage) {
+    base64 = pngBase64FromDataUrl(draft.pendingImage.dataUrl);
+    if (!base64) {
+      setCoverError(dom, 'La imagen de la portada no es un PNG válido.');
+      return;
+    }
+  }
+
+  // Se espera la cadena existente y se cancela el guardado diferido para que
+  // ninguna instantánea anterior pueda pisar la portada recién guardada.
+  draft.saving = true;
+  setCoverError(dom, '');
+  renderCoverDialog(dom, app);
+  cancelScheduledSave(app);
+  try {
+    await app.saveChain;
+  } catch {
+    // El error real se evalúa en la tarea encadenada de abajo.
+  }
+  if (!isWorkspace(app) || !app.workspace || !app.storage) {
+    draft.saving = false;
+    renderCoverDialog(dom, app);
+    return;
+  }
+  setBusy(dom, app, true, 'Guardando la portada…');
+  renderCoverDialog(dom, app);
+  let oldCoverKey = null;
+  try {
+    let nextProfile = null;
+    let nextWorkspace = null;
+    await enqueueStorageTask(app, async () => {
+      if (app.saveFailed) throw new Error('previous_save_failed');
+      const profile = app.workspace?.profiles?.[draft.profileId];
+      if (!profile) throw new Error('missing_profile');
+      const previous = normalizeCardAppearance(profile.cardAppearance);
+      if (previous.mode === 'custom' && previous.imageKey !== resolved.appearance.imageKey) {
+        oldCoverKey = previous.imageKey;
+      }
+      nextProfile = normalizeTemplate({
+        ...profile,
+        cardAppearance: resolved.appearance,
+      }, draft.profileId, { customProfiles: app.workspace.customProfiles });
+      nextWorkspace = {
+        ...app.workspace,
+        profiles: {
+          ...app.workspace.profiles,
+          [draft.profileId]: nextProfile,
+        },
+      };
+      let wroteKey = null;
+      try {
+        if (base64 && newImageKey) {
+          await app.storage.putText(newImageKey, base64);
+          wroteKey = newImageKey;
+        }
+        await app.storage.putText(WORKSPACE_KEYS.state, JSON.stringify(nextWorkspace));
+      } catch (error) {
+        if (wroteKey) {
+          try {
+            await app.storage.removeText(wroteKey);
+          } catch {
+            // La portada tampoco quedó referenciada por el estado.
+          }
+        }
+        throw error;
+      }
+    });
+    app.workspace = nextWorkspace;
+    app.catalog = profileCatalogForWorkspace(app.workspace);
+    if (app.draft && draft.profileId === app.workspace.activeProfileId) {
+      app.draft.cardAppearance = { ...normalizeCardAppearance(nextProfile.cardAppearance) };
+    }
+    app.storageBlocked = false;
+    app.persistent = app.storage.persistent !== false;
+    app.lastSavedAt = new Date().toISOString();
+    if (oldCoverKey && oldCoverKey !== nextProfile.cardAppearance.imageKey
+        && !imageKeyIsReferenced(app, oldCoverKey)
+        && !app.pendingImageRemovals.includes(oldCoverKey)) {
+      app.pendingImageRemovals.push(oldCoverKey);
+    }
+    draft.saving = false;
+    closeCoverDialog(dom, app, { force: true });
+    renderProfiles(dom, app);
+    showStatus(dom, 'Portada guardada.', 'success');
+    await removeReplacedImages(dom, app);
+  } catch (error) {
+    draft.saving = false;
+    const message = error?.message === 'previous_save_failed'
+      ? 'No se guardó la portada: el guardado anterior no se completó.'
+      : `No se pudo guardar la portada: ${error.message || 'error'}.`;
+    setCoverError(dom, `${message} La portada sigue en este diálogo.`);
+  } finally {
+    setBusy(dom, app, false);
+    if (app.coverDraft) renderCoverDialog(dom, app);
+    if (app.dirty) scheduleSave(dom, app);
+  }
+}
+
+/* ------------------------------------------------------------------------- */
 /* Acciones workspace                                                        */
 /* ------------------------------------------------------------------------- */
 
@@ -2973,6 +3639,19 @@ function collectDom() {
     addTeamCreate: byId('add-team-create'),
     addTeamCancel: byId('add-team-cancel'),
     addTeamClose: byId('add-team-close'),
+    coverDialog: byId('cover-dialog'),
+    coverTitle: byId('cover-title'),
+    coverPreview: byId('cover-preview'),
+    coverUseAnnouncement: byId('cover-use-announcement'),
+    coverPickImage: byId('cover-pick-image'),
+    coverNoImage: byId('cover-no-image'),
+    coverShade: byId('cover-shade'),
+    coverSave: byId('cover-save'),
+    coverCancel: byId('cover-cancel'),
+    coverClose: byId('cover-close'),
+    coverError: byId('cover-error'),
+    coverImageInput: byId('cover-image-input'),
+    coverBlurButtons: Array.from(document.querySelectorAll('[data-cover-blur]')),
     importImage: byId('import-image'),
     pickImage: byId('pick-image'),
     openEditor: byId('open-editor'),
@@ -3303,7 +3982,14 @@ function wireUiEvents(dom, app) {
   });
 
   dom.profileList.addEventListener('click', (event) => {
-    const card = event.target.closest('[data-profile-id]');
+    const coverButton = event.target.closest('[data-edit-cover]');
+    if (coverButton) {
+      if (coverButton.disabled) return;
+      event.preventDefault();
+      openCoverDialog(dom, app, coverButton.dataset.editCover);
+      return;
+    }
+    const card = event.target.closest('.profile-card[data-profile-id]');
     if (!card || card.disabled) return;
     void handleSelectProfile(dom, app, card.dataset.profileId);
   });
@@ -3342,6 +4028,54 @@ function wireUiEvents(dom, app) {
     dom.addTeamDialog.addEventListener('close', () => {
       app.addTeamSubmitted = false;
       setAddTeamError(dom, '');
+    });
+  }
+
+  if (dom.coverUseAnnouncement) {
+    dom.coverUseAnnouncement.addEventListener('click', () => chooseCoverMode(dom, app, 'announcement'));
+  }
+  if (dom.coverNoImage) {
+    dom.coverNoImage.addEventListener('click', () => chooseCoverMode(dom, app, 'none'));
+  }
+  if (dom.coverPickImage) {
+    dom.coverPickImage.addEventListener('click', () => void handleCoverPickImage(dom, app));
+  }
+  for (const button of dom.coverBlurButtons ?? []) {
+    button.addEventListener('click', () => setCoverBlur(dom, app, button.dataset.coverBlur));
+  }
+  if (dom.coverShade) {
+    dom.coverShade.addEventListener('input', () => setCoverShade(dom, app, dom.coverShade.value));
+  }
+  if (dom.coverSave) {
+    dom.coverSave.addEventListener('click', () => void handleCoverSave(dom, app));
+  }
+  if (dom.coverCancel) {
+    dom.coverCancel.addEventListener('click', () => closeCoverDialog(dom, app));
+  }
+  if (dom.coverClose) {
+    dom.coverClose.addEventListener('click', () => closeCoverDialog(dom, app));
+  }
+  if (dom.coverImageInput) {
+    dom.coverImageInput.addEventListener('change', () => {
+      const file = dom.coverImageInput.files?.[0] ?? null;
+      dom.coverImageInput.value = '';
+      if (file) void handleCoverPickFile(dom, app, file);
+    });
+  }
+  if (dom.coverDialog) {
+    dom.coverDialog.addEventListener('click', (event) => {
+      if (event.target === dom.coverDialog) closeCoverDialog(dom, app);
+    });
+    dom.coverDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeCoverDialog(dom, app);
+    });
+    dom.coverDialog.addEventListener('close', () => {
+      if (!app.coverDraft?.saving) {
+        app.coverDraft = null;
+        setCoverError(dom, '');
+        if (dom.coverPreview) dom.coverPreview.replaceChildren();
+      }
     });
   }
 
@@ -3684,6 +4418,8 @@ async function boot() {
     widgetQueue: null,
     starterSeedState: 'idle',
     starterSeedResult: null,
+    coverDraft: null,
+    cardThumbnailCache: null,
   };
 
   const processWidgetLaunch = wireWidgetLaunch(dom, app);

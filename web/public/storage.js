@@ -23,7 +23,52 @@ export const WORKSPACE_KEYS = Object.freeze({
   state: 'mn1.workspace.state',
   migrated: 'mn1.workspace.migrated',
   imagePrefix: 'mn1.workspace.image.',
+  coverPrefix: 'mn1.workspace.cover.',
 });
+
+const CUSTOM_PROFILE_KEY_PATTERN =
+  /^custom-([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i;
+const VAULT_KEY_MAX_LENGTH = 64;
+
+function compactCustomProfileId(profileId) {
+  const match = CUSTOM_PROFILE_KEY_PATTERN.exec(String(profileId ?? ''));
+  if (!match) return null;
+  return `custom-${match.slice(1).join('').toLowerCase()}`;
+}
+
+function stampSuffix(stamp, limit = 16) {
+  const raw = typeof stamp === 'string'
+    ? stamp.replace(/[^A-Za-z0-9]/g, '')
+    : Number(stamp).toString(36).replace(/[^a-z0-9]/gi, '');
+  const max = Math.max(0, Math.floor(Number(limit) || 0));
+  if (max <= 0) return '';
+  return raw.slice(-max) || '0';
+}
+
+function profileVaultKey(prefix, profileId, stamp) {
+  const compact = compactCustomProfileId(profileId);
+  if (compact === null) {
+    // Las claves de los equipos integrados conservan su formato histórico.
+    return `${prefix}${profileId}.${stampSuffix(stamp, 16)}`;
+  }
+  const fixedLength = prefix.length + compact.length + 1;
+  const suffixLimit = Math.max(1, VAULT_KEY_MAX_LENGTH - fixedLength);
+  return `${prefix}${compact}.${stampSuffix(stamp, suffixLimit)}`;
+}
+
+/**
+ * Clave versionada por equipo. Los identificadores personalizados conservan el
+ * UUID completo compactado (32 hex) y el sufijo se recorta para no superar los
+ * 64 caracteres del contrato; los equipos integrados mantienen su formato.
+ */
+export function imageKeyForProfile(profileId, stamp = Date.now()) {
+  return profileVaultKey(WORKSPACE_KEYS.imagePrefix, profileId, stamp);
+}
+
+/** Clave privada e independiente para la portada personalizada de un equipo. */
+export function coverKeyForProfile(profileId, stamp = Date.now()) {
+  return profileVaultKey(WORKSPACE_KEYS.coverPrefix, profileId, stamp);
+}
 
 export class VaultError extends Error {
   constructor(code, message, details = undefined) {
@@ -32,19 +77,6 @@ export class VaultError extends Error {
     this.code = String(code || 'vault_error');
     this.details = details;
   }
-}
-
-/**
- * Clave versionada por equipo. La imagen anterior se retira con VAULT_REMOVE sólo
- * después de guardar el estado que apunta a la nueva, para no perder la copia previa
- * si falla el guardado.
- */
-export function imageKeyForProfile(profileId, stamp = Date.now()) {
-  const raw = typeof stamp === 'string'
-    ? stamp.replace(/[^A-Za-z0-9]/g, '')
-    : Number(stamp).toString(36).replace(/[^a-z0-9]/gi, '');
-  const suffix = raw.slice(-16) || '0';
-  return `${WORKSPACE_KEYS.imagePrefix}${profileId}.${suffix}`;
 }
 
 export function validateVaultWrite(key, value, options = {}) {
