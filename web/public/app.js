@@ -18,7 +18,7 @@ import {
   isValidHour,
 } from './bridge.js';
 
-export const APP_VERSION = '0.1.2';
+export const APP_VERSION = '0.1.3';
 export const HOUR_PRESETS = Object.freeze(['08:00', '09:00']);
 export const DEFAULT_MESSAGE =
   'Batiseñal MN1 {hora}. Convocatoria del equipo Los Indestructibles de Sacos. ' +
@@ -744,7 +744,7 @@ function handleResume(dom, app) {
 }
 
 function readVersion(dom, app) {
-  dom.versionBadge.textContent = `v${APP_VERSION}`;
+  dom.versionBadge.textContent = `Web ${APP_VERSION}`;
   if (typeof fetch !== 'function') return;
   fetch('./version.json', { cache: 'no-store', headers: { Accept: 'application/json' } })
     .then((response) => {
@@ -761,7 +761,7 @@ function readVersion(dom, app) {
       }
     })
     .catch(() => {
-      dom.versionBadge.textContent = `v${APP_VERSION}`;
+      dom.versionBadge.textContent = `Web ${APP_VERSION}`;
       dom.versionBadge.title = 'No se pudo leer version.json; se muestra la versión local.';
     });
 }

@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
   "protocol": 1,
   "updated": "2026-10-21",
   "notes": "Interfaz publicada por HTTPS con GitHub Pages. PNG y hora se preparan en Android."
