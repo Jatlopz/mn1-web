@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "applicationId": "com.mn1.avisos",
+  "versionCode": 5,
+  "versionName": "0.5.0-updates",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-5-4f19aad6d96332ab.apk",
+  "sha256": "4f19aad6d96332ab9adc0ab593c1f4ba1d0cd92260d39eff6bdb48a7e2cccf6d",
+  "sizeBytes": 13803123,
+  "notes": "Actualizador dentro de MN1: buscar, descargar, verificar y abrir la confirmación de Android. Incluye los cuatro equipos y el editor de hora."
+}

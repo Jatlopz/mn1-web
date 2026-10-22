@@ -2,7 +2,7 @@ name: Verify and publish MN1 web
 on:
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/deploy-web.yml']
+    paths: ['web/**', 'releases/**', '.github/workflows/deploy-web.yml']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -22,6 +22,7 @@ jobs:
       - run: npm --prefix web test
       - run: npm --prefix web run check
       - run: node web/tools/build-site.mjs
+      - run: node web/tools/include-android-release.mjs
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request'
         with:
