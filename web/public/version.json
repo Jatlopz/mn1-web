@@ -1,6 +1,6 @@
 {
-  "version": "0.4.9",
+  "version": "0.4.10",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Reportes con saludo según hora de captura y logo de marca de agua independiente por equipo."
+  "notes": "Reporte compartido sin nombres de grupos; selección del destinatario y confirmación en WhatsApp."
 }

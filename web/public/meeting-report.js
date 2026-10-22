@@ -33,7 +33,6 @@ export function normalizeReportPreferences(value = {}, catalog = []) {
     watermarkOpacity:Number.isFinite(Number(value.watermarkOpacity))?Math.min(.65,Math.max(.15,Number(value.watermarkOpacity))):.28,
     watermarkPosition:['top-left','top-right','bottom-left','bottom-right'].includes(value.watermarkPosition)?value.watermarkPosition:'bottom-right',
     logoKeys:Object.fromEntries(catalog.filter(t=>typeof value.logoKeys?.[t.id]==='string'&&value.logoKeys[t.id].startsWith('mn1.report.logo.')&&isValidVaultKey(value.logoKeys[t.id])).map(t=>[t.id,value.logoKeys[t.id]])),
-    destinations:[0,1].map(i=>typeof value.destinations?.[i]==='string'?value.destinations[i].replace(/[\x00-\x1f\x7f]/g,'').trim().slice(0,40):''),
   };
 }
 export function reportDimensions(width,height,maxSide=1600) {
@@ -68,13 +67,17 @@ export function drawReport(canvas,image,prefs,team,date=new Date(),logo=null) {
   if(prefs.showDate){ctx.fillStyle='#c1d0c5';ctx.font='500 '+Math.max(11,w*.024)+'px system-ui,sans-serif';ctx.fillText(date.toLocaleDateString('es-HN',{year:'numeric',month:'long',day:'numeric'}),pad,p+size.footer*.86);}
   return size;
 }
+export function reportShareMessage(preferences,team,hour) {
+  const clean=normalizeReportPreferences(preferences,team?[team]:[]);
+  return greetingForHour(hour)+'. '+clean.heading+' · '+(team?.name||'Equipo')+'.';
+}
 export function createMeetingReport(getServices) {
   const $=id=>document.getElementById(id),root=$('report-studio'),canvas=$('report-canvas');
   let photo=null,capture=null,logoKeys={},logoCache=new Map(),logoToken=0,prefs=null,busy=false,dirty=false,loadToken=0,priorTitle='';
   const services=()=>getServices();
   const message=(text,error=false)=>{const el=$('report-status');el.textContent=text;el.dataset.tone=error?'error':'info';};
   const lock=value=>{busy=value;root.setAttribute('aria-busy',String(value));for(const e of root.querySelectorAll('button,input,select'))e.disabled=value;$('report-share').disabled=value||!photo;$('report-preview').classList.toggle('is-loading',value);};
-  const values=()=>normalizeReportPreferences({watermark:$('report-watermark').checked,watermarkOpacity:Number($('report-watermark-opacity').value)/100,watermarkPosition:$('report-watermark-position').value,logoKeys,teamId:$('report-team').value,frame:$('report-frame').value,heading:$('report-heading').value,showDate:$('report-date').checked,destinations:[$('report-target-1').value,$('report-target-2').value]},services().catalog);
+  const values=()=>normalizeReportPreferences({watermark:$('report-watermark').checked,watermarkOpacity:Number($('report-watermark-opacity').value)/100,watermarkPosition:$('report-watermark-position').value,logoKeys,teamId:$('report-team').value,frame:$('report-frame').value,heading:$('report-heading').value,showDate:$('report-date').checked},services().catalog);
   const render=()=>{if(!photo)return;const v=values(),team=services().catalog.find(t=>t.id===v.teamId)||{};drawReport(canvas,photo,v,team,capture?.capturedAt?new Date(capture.capturedAt):new Date(),logoCache.get(v.logoKeys[v.teamId])||null);$('report-capture-info').textContent=capture?.capturedAt?'Saludo del reporte: '+greetingForHour(capture.localHour):'Hora original no disponible; saludo según la hora actual.';canvas.hidden=false;$('report-placeholder').hidden=true;};
   const persist=async()=>{const {storage}=services();if(!storage)throw Error('No hay almacenamiento disponible.');const next=values();await storage.putText(REPORT_PREFS_KEY,JSON.stringify(next));prefs=next;dirty=false;};
   async function acceptPhoto(dataUrl) {
@@ -96,7 +99,7 @@ export function createMeetingReport(getServices) {
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
       const select=$('report-team');select.replaceChildren();for(const team of s.catalog){const option=document.createElement('option');option.value=team.id;option.textContent=team.name;select.append(option);}
-      select.value=prefs.teamId;$('report-frame').value=prefs.frame;$('report-heading').value=prefs.heading;$('report-date').checked=prefs.showDate;$('report-target-1').value=prefs.destinations[0];$('report-target-2').value=prefs.destinations[1];dirty=false;logoKeys={...prefs.logoKeys};$('report-watermark').checked=prefs.watermark;$('report-watermark-opacity').value=String(Math.round(prefs.watermarkOpacity*100));$('report-watermark-position').value=prefs.watermarkPosition;
+      select.value=prefs.teamId;$('report-frame').value=prefs.frame;$('report-heading').value=prefs.heading;$('report-date').checked=prefs.showDate;dirty=false;logoKeys={...prefs.logoKeys};$('report-watermark').checked=prefs.watermark;$('report-watermark-opacity').value=String(Math.round(prefs.watermarkOpacity*100));$('report-watermark-position').value=prefs.watermarkPosition;
       if(!photo&&s.storage){const stored=await s.storage.getText(REPORT_PHOTO_KEY);if(stored){const savedPhoto=parseCaptureRecord(stored);if(savedPhoto){const url=pngDataUrlFromBase64(savedPhoto.imageBase64);photo=await loadImageElement(url);capture=savedPhoto;}}}
       if(token!==loadToken)return;await loadLogo();render();message(photo?'Tu último reporte está listo para editar.':'Toma una foto para crear el reporte.');
     }catch(e){message('No se pudieron leer los datos del reporte: '+e.message,true);}finally{lock(false);}
@@ -116,17 +119,16 @@ export function createMeetingReport(getServices) {
   async function close(){if(busy)return;lock(true);try{if(dirty)await persist();root.hidden=true;$('app').hidden=false;document.title=priorTitle;$('open-report').focus();}catch(e){message('No se guardaron los ajustes: '+e.message,true);}finally{lock(false);}}
   $('open-report').addEventListener('click',()=>void open());$('report-back').addEventListener('click',()=>void close());
   $('report-take').addEventListener('click',()=>void pick(true));$('report-pick').addEventListener('click',()=>void pick(false));
-  for(const id of ['report-team','report-frame','report-heading','report-date','report-target-1','report-target-2','report-watermark','report-watermark-opacity','report-watermark-position'])$(id).addEventListener('input',()=>{dirty=true;render();if(id==='report-team')void loadLogo();});
+  for(const id of ['report-team','report-frame','report-heading','report-date','report-watermark','report-watermark-opacity','report-watermark-position'])$(id).addEventListener('input',()=>{dirty=true;render();if(id==='report-team')void loadLogo();});
   for(const id of ['report-camera-input','report-file-input'])$(id).addEventListener('change',async()=>{const file=$(id).files?.[0];if(!file||busy)return;lock(true);try{const prepared=await prepareImageFile(file);await acceptPhoto(prepared.dataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
   $('report-save').addEventListener('click',async()=>{if(busy)return;lock(true);try{await persist();message('Ajustes guardados en este teléfono.');}catch(e){message(e.message,true);}finally{lock(false);}});
   $('report-share').addEventListener('click',async()=>{
     if(busy||!photo)return;lock(true);try{
-      const v=values();if(v.destinations.some(x=>!x)){throw Error('Escribe los nombres de los dos grupos de reporte.');}
-      if(v.destinations[0].toLocaleLowerCase()===v.destinations[1].toLocaleLowerCase())throw Error('Los dos grupos deben tener nombres distintos.');
+      const v=values();
       await loadLogo();if(v.watermark&&!logoCache.get(v.logoKeys[v.teamId]))throw Error('Elige el logo de este equipo para usar la marca de agua.');await persist();render();let dataUrl=canvas.toDataURL('image/png');let out=canvas;
       for(let attempt=0;dataUrl.length>8*1024*1024&&attempt<8;attempt++){const small=document.createElement('canvas');small.width=Math.round(out.width*.8);small.height=Math.round(out.height*.8);small.getContext('2d').drawImage(out,0,0,small.width,small.height);out=small;dataUrl=out.toDataURL('image/png');}
       if(!isPngDataUrl(dataUrl))throw Error('La imagen supera el tamaño permitido.');
-      const s=services(),team=s.catalog.find(t=>t.id===v.teamId);const text=greetingForHour(capture?.localHour??new Date().getHours())+'. '+v.heading+' · '+team.name+'. Grupos de reporte: '+v.destinations.join(' y ')+'.';
+      const s=services(),team=s.catalog.find(t=>t.id===v.teamId);const text=reportShareMessage(v,team,capture?.localHour??new Date().getHours());
       if(s.mode!=='native'){if(typeof navigator.share!=='function'||typeof File!=='function')throw Error('Comparte desde Batiseñal Android.');const bytes=Uint8Array.from(atob(pngBase64FromDataUrl(dataUrl)),c=>c.charCodeAt(0));const file=new File([bytes],'reporte-reunion.png',{type:'image/png'});if(!navigator.canShare?.({files:[file]}))throw Error('Este navegador no comparte imágenes.');await navigator.share({files:[file],text});message('Se cerró el selector; la entrega se confirma en WhatsApp.');}
       else {const result=await s.bridge.request('SHARE_PNG',{imageDataUrl:dataUrl,message:text},{timeoutMs:300000});if(!result.ok)throw Error(result.message);message(result.message+' Elige y confirma los grupos en WhatsApp.');}
     }catch(e){message(e.message||'No se compartió.',true);}finally{lock(false);}
