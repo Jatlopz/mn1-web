@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 9,
-  "versionName": "0.5.4-photo-widget",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-9-5c4123ce41bf8cb5.apk",
-  "sha256": "5c4123ce41bf8cb5b82b36c16d9d02b0abd28a57a197dc311cdd305be37e2727",
-  "sizeBytes": 17968457,
-  "notes": "Widget con Convocar y Foto: abre la cámara y el reporte del equipo seleccionado. Colores de marco editables. Conserva datos; compartir requiere confirmación."
+  "versionCode": 10,
+  "versionName": "0.5.5-photo-widget",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-10-44f230010953ae0c.apk",
+  "sha256": "44f230010953ae0c264422c27fbd830d178908f9f93df232e82f0659102909dc",
+  "sizeBytes": 17921733,
+  "notes": "Widget con Aviso y Foto: cámara y reporte del equipo activo. Botones compactos legibles, marco con colores editables. Conserva datos y compartir con confirmación."
 }
