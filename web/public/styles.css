@@ -1936,3 +1936,8 @@ body{background:radial-gradient(ellipse at 80% 0,rgba(143,206,82,.09),transparen
 /* Reportar al pie de los equipos, sin cubrir las tarjetas. */
 .profile-card-wrap .profile-card {min-height:138px;}
 .teams-screen>.report-entry {margin:.85rem 0 0;}
+
+/* Canvas acotado: su tamaño intrínseco nunca tapa los controles del estudio. */
+.report-preview{overflow:hidden;}
+.report-preview canvas{position:absolute;inset:.5rem;display:block;width:calc(100% - 1rem);height:calc(100% - 1rem);min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:contain;}
+.report-header{flex-wrap:wrap;}
