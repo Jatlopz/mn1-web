@@ -1139,7 +1139,7 @@ fieldset.control-block {
 }
 
 .profile-name {
-  padding-right: 3.1rem;
+  padding-right: 0;
   font-size: 0.94rem;
   font-weight: 850;
   line-height: 1.2;
@@ -1398,4 +1398,11 @@ fieldset.control-block {
   .panel-head {
     align-items: flex-start;
   }
+}
+
+/* Small phones: preserve complete team names and keep the active label out of their line. */
+@media (max-width: 440px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .profile-card.is-active::after { position: static; justify-self: start; color: var(--text); }
+  .profile-name { overflow-wrap: normal; }
 }
