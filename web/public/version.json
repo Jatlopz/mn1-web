@@ -1,6 +1,6 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Workspace web v1: cuatro equipos, foto original, editor Canvas, dictado y PNG para compartir."
+  "notes": "Equipos con plantilla independiente y editor por pestañas, conservando imágenes y borradores."
 }

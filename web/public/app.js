@@ -64,8 +64,113 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.3.1';
+export const APP_VERSION = '0.4.0';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
+
+export const WORKSPACE_TABS = Object.freeze(['preview', 'design', 'message', 'voice']);
+export const WORKSPACE_VIEW_TEAMS = 'teams';
+export const WORKSPACE_VIEW_OPEN = 'workspace';
+
+export function isWorkspaceTab(value) {
+  return typeof value === 'string' && WORKSPACE_TABS.includes(value);
+}
+
+export function resolveWorkspaceTab(value) {
+  return isWorkspaceTab(value) ? value : 'preview';
+}
+
+export function workspaceRouteFor(profileId, options = {}) {
+  if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return '#equipos';
+  return isProfileId(profileId) ? `#equipo/${profileId}` : '#equipos';
+}
+
+export function workspaceDocumentTitle(profileId, options = {}) {
+  if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return 'MN1 · Equipos';
+  if (options.legacy === true) return 'MN1 · Plantilla única (APK3)';
+  const definition = getProfileDefinition(profileId);
+  return definition ? `MN1 · ${definition.name}` : 'MN1 · Equipo';
+}
+
+/**
+ * Decide la apertura de una tarjeta de equipo. La tarjeta activa abre sin guardar;
+ * un equipo distinto sólo abre si `switchProfile` confirma que guardó/cargó.
+ * Es pura respecto al DOM para poder probar el orden y los bloqueos.
+ */
+export async function navigateToProfile(options = {}) {
+  const {
+    profileId,
+    activeProfileId = '',
+    isBusy = false,
+    isListening = false,
+    switchProfile,
+    openProfile,
+    reportBlocked = () => {},
+  } = options;
+  if (!isProfileId(profileId)) {
+    reportBlocked('invalid_profile');
+    return false;
+  }
+  if (isBusy) {
+    reportBlocked('busy');
+    return false;
+  }
+  if (isListening) {
+    reportBlocked('listening');
+    return false;
+  }
+  if (profileId === activeProfileId) {
+    openProfile?.(profileId, { switched: false });
+    return true;
+  }
+  let switched = false;
+  try {
+    switched = await switchProfile?.(profileId);
+  } catch {
+    reportBlocked('switch_failed');
+    return false;
+  }
+  if (switched !== true) {
+    reportBlocked('switch_failed');
+    return false;
+  }
+  openProfile?.(profileId, { switched: true });
+  return true;
+}
+
+/**
+ * Salida ordenada del espacio de trabajo: primero detiene la escucha vigente y
+ * después espera/guarda el borrador pendiente. Nunca borra ni reemplaza el draft.
+ * Sólo al final muestra la pantalla de equipos, haya terminado bien o mal el guardado.
+ */
+export async function leaveWorkspaceToTeams(options = {}) {
+  const {
+    isListening = false,
+    cancelListening,
+    flushSave,
+    showTeams,
+    onError = () => {},
+  } = options;
+  let ok = true;
+  if (isListening && typeof cancelListening === 'function') {
+    try {
+      await cancelListening();
+    } catch (error) {
+      ok = false;
+      onError(error);
+    }
+  }
+  if (typeof flushSave === 'function') {
+    try {
+      const saved = await flushSave();
+      if (saved === false) ok = false;
+    } catch (error) {
+      ok = false;
+      onError(error);
+    }
+  }
+  showTeams?.();
+  return ok;
+}
 
 export {
   DEFAULT_TARGETS,
@@ -181,6 +286,97 @@ function byId(id) {
   return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
+function panelTabOf(panel) {
+  if (!panel) return '';
+  if (typeof panel.tab === 'string') return panel.tab;
+  return panel.element?.dataset?.workspacePanel ?? '';
+}
+
+function collectWorkspacePanels() {
+  if (typeof document === 'undefined') return [];
+  const panels = Array.from(document.querySelectorAll('[data-workspace-panel]'))
+    .map((element) => ({
+      tab: element.dataset?.workspacePanel ?? '',
+      element,
+    }));
+  if (panels.length > 0) return panels;
+  // Compatibilidad transitoria con el marcado anterior a las pestañas.
+  const templateTitle = byId('panel-title');
+  const templatePanel = templateTitle?.closest?.('section') ?? null;
+  return [
+    { tab: 'preview', element: byId('hero-panel') ?? document.querySelector('.hero') },
+    { tab: 'design', element: byId('editor-panel') },
+    { tab: 'message', element: byId('template-panel') ?? templatePanel },
+    { tab: 'voice', element: byId('voice-panel') },
+  ].filter((panel) => Boolean(panel.element));
+}
+
+function syncWorkspaceRoute(app, open, profileId, legacy) {
+  if (typeof window === 'undefined') return;
+  const view = open ? WORKSPACE_VIEW_OPEN : WORKSPACE_VIEW_TEAMS;
+  const hash = workspaceRouteFor(profileId, { view });
+  try {
+    if (typeof window.history?.replaceState === 'function'
+        && window.location
+        && window.location.hash !== hash) {
+      window.history.replaceState(null, '', hash);
+    }
+  } catch {
+    // La navegación interna sigue funcionando aunque el WebView restrinja history.
+  }
+  if (typeof document !== 'undefined') {
+    document.title = workspaceDocumentTitle(profileId, { view, legacy });
+  }
+}
+
+/**
+ * Única autoridad de visibilidad de teams-screen, main y paneles. Ningún render
+ * de panel debe volver a mostrar otra pestaña: sólo esta función cambia hidden.
+ */
+export function applyWorkspaceNavigation(dom, app) {
+  const open = app.workspaceView === WORKSPACE_VIEW_OPEN;
+  if (dom.teamsScreen) dom.teamsScreen.hidden = open;
+  if (dom.main) dom.main.hidden = !open;
+
+  const activeTab = resolveWorkspaceTab(app.workspaceTab);
+  app.workspaceTab = activeTab;
+  const tabs = Array.isArray(dom.workspaceTabs) ? dom.workspaceTabs : [];
+  const hasTabs = tabs.length > 0;
+  for (const button of tabs) {
+    const tab = button?.dataset?.workspaceTab ?? '';
+    const selected = open && tab === activeTab;
+    button?.setAttribute?.('aria-selected', selected ? 'true' : 'false');
+    button?.setAttribute?.('tabindex', selected ? '0' : '-1');
+    if (button?.classList && typeof button.classList.toggle === 'function') {
+      button.classList.toggle('is-active', selected);
+    }
+  }
+
+  const panels = Array.isArray(dom.workspacePanels) ? dom.workspacePanels : [];
+  if (hasTabs) {
+    for (const panel of panels) {
+      const element = panel?.element;
+      if (!element) continue;
+      element.hidden = !(open && panelTabOf(panel) === activeTab);
+    }
+  }
+
+  const mediaHost = activeTab === 'design' ? dom.designMedia : dom.previewMedia;
+  if (mediaHost && dom.imageFrame && dom.imageFrame.parentElement !== mediaHost) {
+    mediaHost.append(dom.imageFrame);
+    if (dom.imageMeta) mediaHost.append(dom.imageMeta);
+  }
+
+  const profileId = app.workspace?.activeProfileId ?? '';
+  const legacy = app.uiMode === 'legacy';
+  if (dom.workspaceTitle) {
+    dom.workspaceTitle.textContent = legacy
+      ? 'Plantilla única (APK3)'
+      : (getProfileDefinition(profileId)?.name ?? 'Equipo');
+  }
+  syncWorkspaceRoute(app, open, profileId, legacy);
+}
+
 function createDefaultDraft() {
   return cloneDraftFromProfile(createProfileTemplate(DEFAULT_PROFILE_ID));
 }
@@ -229,16 +425,28 @@ function showStatus(dom, text, tone = 'info') {
   dom.status.textContent = text;
 }
 
-function showError(dom, text) {
-  if (!dom.error) return;
-  dom.error.hidden = false;
-  dom.error.textContent = text;
+function showError(dom, text, app = null) {
+  if (app) app.navigationError = text;
+  if (dom.error) {
+    dom.error.hidden = false;
+    dom.error.textContent = text;
+  }
+  // Con main oculto, el error también debe verse en la selección de equipos.
+  if (app && app.workspaceView !== WORKSPACE_VIEW_OPEN && dom.profilesNotice) {
+    const notice = profilesNoticeText(app);
+    dom.profilesNotice.hidden = notice.length === 0;
+    dom.profilesNotice.textContent = notice;
+    dom.profilesNotice.dataset.tone = 'error';
+  }
 }
 
-function clearError(dom) {
-  if (!dom.error) return;
-  dom.error.hidden = true;
-  dom.error.textContent = '';
+function clearError(dom, app = null) {
+  if (app) app.navigationError = '';
+  if (dom.error) {
+    dom.error.hidden = true;
+    dom.error.textContent = '';
+  }
+  if (app && app.workspaceView !== WORKSPACE_VIEW_OPEN) renderProfiles(dom, app);
 }
 
 function setFieldError(element, text) {
@@ -276,6 +484,7 @@ function profilesNoticeText(app) {
     notices.push('No se pudo leer el estado guardado. No se sobrescribirá hasta que pulses «Guardar».');
   }
   if (app.migrationNotice) notices.push(app.migrationNotice);
+  if (app.navigationError) notices.push(app.navigationError);
   return notices.join(' ');
 }
 
@@ -310,8 +519,10 @@ function renderMode(dom, app) {
 function renderProfiles(dom, app) {
   if (!dom.profileList) return;
   dom.profileList.replaceChildren();
-  const activeId = app.workspace?.activeProfileId ?? '';
+  const activeId = app.workspace?.activeProfileId
+    ?? (app.uiMode === 'legacy' ? DEFAULT_PROFILE_ID : '');
   const activeDefinition = getProfileDefinition(activeId);
+  const selectable = isWorkspace(app) || app.uiMode === 'legacy';
   for (const definition of app.catalog) {
     const template = app.workspace?.profiles?.[definition.id];
     const button = document.createElement('button');
@@ -320,11 +531,11 @@ function renderProfiles(dom, app) {
     button.dataset.profileId = definition.id;
     button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(definition.id === activeId));
-    button.disabled = app.busy || app.listening || app.uiMode === 'legacy' || !isWorkspace(app);
+    button.disabled = app.busy || !selectable;
     if (definition.id === activeId) button.classList.add('is-active');
     button.title = app.uiMode === 'legacy'
-      ? 'Los perfiles guardados necesitan la APK BASE'
-      : `Elegir ${definition.name}`;
+      ? 'APK3 · abrir la plantilla única conservada'
+      : `Abrir la plantilla de ${definition.name}`;
 
     const name = document.createElement('span');
     name.className = 'profile-name';
@@ -333,7 +544,7 @@ function renderProfiles(dom, app) {
     const meta = document.createElement('span');
     meta.className = 'profile-meta';
     if (app.uiMode === 'legacy') {
-      meta.textContent = 'Requiere APK BASE';
+      meta.textContent = 'Plantilla única (APK3)';
     } else {
       const hour = isWorkspace(app) ? template?.hour : app.draft.hour;
       const hasImage = isWorkspace(app) && Boolean(template?.imageKey);
@@ -345,7 +556,7 @@ function renderProfiles(dom, app) {
   }
 
   if (dom.profilesStatus) {
-    if (app.uiMode === 'legacy') dom.profilesStatus.textContent = 'APK3 · sin perfiles guardados';
+    if (app.uiMode === 'legacy') dom.profilesStatus.textContent = 'APK3 · plantilla única';
     else if (activeDefinition) dom.profilesStatus.textContent = activeDefinition.name;
     else dom.profilesStatus.textContent = 'Conectando…';
   }
@@ -353,6 +564,7 @@ function renderProfiles(dom, app) {
     const text = profilesNoticeText(app);
     dom.profilesNotice.hidden = text.length === 0;
     dom.profilesNotice.textContent = text;
+    dom.profilesNotice.dataset.tone = app.navigationError ? 'error' : 'info';
   }
 }
 
@@ -533,7 +745,11 @@ function renderOverlayControls(dom, app) {
   ]) {
     if (control) control.disabled = disabled;
   }
-  dom.editorPanel.hidden = !isWorkspace(app);
+  // Con pestañas, la visibilidad la decide applyWorkspaceNavigation.
+  // El fallback mantiene usable el marcado anterior durante la integración.
+  if (!dom.workspaceTabs?.length && dom.editorPanel) {
+    dom.editorPanel.hidden = !isWorkspace(app);
+  }
 }
 
 function renderValidation(dom, app) {
@@ -557,21 +773,31 @@ function renderValidation(dom, app) {
 }
 
 function renderVoice(dom, app) {
-  dom.voicePanel.hidden = !isWorkspace(app);
-  if (!isWorkspace(app)) return;
-  const supported = canUseNative(app) && capability(app, CAPABILITIES.SPEECH);
-  dom.speakToggle.disabled = app.busy || !supported;
-  dom.speakToggle.textContent = app.listening ? 'Parar' : 'Hablar';
-  if (app.uiMode === 'browser') {
-    dom.speechStatus.textContent = 'El dictado usa RECOGNIZE_SPEECH de la app BASE. En el navegador no se simula el micrófono.';
-  } else if (!capability(app, CAPABILITIES.SPEECH)) {
-    dom.speechStatus.textContent = 'Esta app no anunció speech-input-v1. Actualiza a la BASE para dictar.';
-  } else if (app.listening) {
-    dom.speechStatus.textContent = 'Escuchando una sola frase… Pulsa «Parar» para descartar la transcripción.';
-  } else {
-    dom.speechStatus.textContent = `Una sesión por toque. Ejemplo: «${SPEECH_EXAMPLE}».`;
+  const workspace = isWorkspace(app);
+  const supported = workspace && canUseNative(app) && capability(app, CAPABILITIES.SPEECH);
+  if (dom.speakToggle) {
+    dom.speakToggle.disabled = app.busy || !supported;
+    dom.speakToggle.textContent = app.listening ? 'Parar' : 'Hablar';
+  }
+  if (dom.speechStatus) {
+    if (app.uiMode === 'legacy') {
+      dom.speechStatus.textContent = 'APK3 no anuncia dictado web. La plantilla única sigue disponible; no se pide una APK nueva.';
+    } else if (app.uiMode === 'browser') {
+      dom.speechStatus.textContent = 'El dictado usa RECOGNIZE_SPEECH de la app BASE. En el navegador no se simula el micrófono.';
+    } else if (!workspace) {
+      dom.speechStatus.textContent = 'Abre un equipo para usar el dictado. No se simula el micrófono.';
+    } else if (!capability(app, CAPABILITIES.SPEECH)) {
+      dom.speechStatus.textContent = 'Esta app no anunció speech-input-v1. Actualiza a la BASE para dictar.';
+    } else if (app.listening) {
+      dom.speechStatus.textContent = 'Escuchando una sola frase… Pulsa «Parar» para descartar la transcripción.';
+    } else {
+      dom.speechStatus.textContent = `Una sesión por toque. Ejemplo: «${SPEECH_EXAMPLE}».`;
+    }
   }
   renderProposal(dom, app);
+  if (!dom.workspaceTabs?.length && dom.voicePanel) {
+    dom.voicePanel.hidden = !workspace;
+  }
 }
 
 function gapLabel(kind, type) {
@@ -681,6 +907,7 @@ function renderAll(dom, app, { syncFields = true } = {}) {
   renderValidation(dom, app);
   renderActions(dom, app);
   renderCapabilities(dom, app);
+  applyWorkspaceNavigation(dom, app);
 }
 
 function setBusy(dom, app, busy, label = '') {
@@ -715,6 +942,7 @@ function setBusy(dom, app, busy, label = '') {
     renderVoice(dom, app);
     renderActions(dom, app);
     updateHourDialog(dom, app);
+    applyWorkspaceNavigation(dom, app);
   }
 }
 
@@ -1170,6 +1398,115 @@ async function initNativeWorkspace(dom, app, legacyState) {
   }
 }
 
+function openWorkspaceFor(dom, app, profileId, options = {}) {
+  if (isWorkspace(app) && app.workspace && isProfileId(profileId)
+      && app.workspace.activeProfileId !== profileId) {
+    return false;
+  }
+  if (isWorkspaceTab(options.tab)) app.workspaceTab = options.tab;
+  else app.workspaceTab = resolveWorkspaceTab(app.workspaceTab);
+  clearError(dom, app);
+  app.workspaceView = WORKSPACE_VIEW_OPEN;
+  renderAll(dom, app, { syncFields: true });
+  return true;
+}
+
+function showTeamsView(dom, app) {
+  cancelScheduledSave(app);
+  app.workspaceView = WORKSPACE_VIEW_TEAMS;
+  applyWorkspaceNavigation(dom, app);
+  renderProfiles(dom, app);
+  const activeId = app.workspace?.activeProfileId;
+  const activeCard = activeId && dom.profileList?.querySelector
+    ? dom.profileList.querySelector(`[data-profile-id="${activeId}"]`)
+    : null;
+  if (activeCard && typeof activeCard.focus === 'function') activeCard.focus();
+}
+
+async function flushDraftBeforeLeaving(dom, app) {
+  cancelScheduledSave(app);
+  try {
+    await app.saveChain;
+  } catch {
+    // El resultado real se evalúa con saveFailed y con el guardado explícito.
+  }
+  let saved = true;
+  if (isWorkspace(app) && app.storage) {
+    if (app.dirty) {
+      const validation = activeValidation(app);
+      if (validation.ok) {
+        saved = await persistDraft(dom, app, { quiet: true });
+      } else {
+        app.validationShown = true;
+        renderValidation(dom, app);
+        showError(
+          dom,
+          'El borrador se conserva sin guardar porque el mensaje, la hora o los destinos tienen errores. Corrígelo al volver a abrir el equipo.',
+          app,
+        );
+        saved = false;
+      }
+    }
+  }
+  if (app.saveFailed) saved = false;
+  return saved;
+}
+
+async function handleBackToTeams(dom, app) {
+  if (app.switching) return;
+  const result = await leaveWorkspaceToTeams({
+    isListening: app.listening,
+    cancelListening: () => cancelSpeech(dom, app, { quiet: true }),
+    flushSave: () => flushDraftBeforeLeaving(dom, app),
+    showTeams: () => showTeamsView(dom, app),
+    onError: (error) => showError(
+      dom,
+      `No se pudo completar la salida: ${error?.message || 'error'}. El borrador se conserva.`,
+      app,
+    ),
+  });
+  if (result === false && !app.navigationError) {
+    showError(
+      dom,
+      'No se pudo confirmar el guardado, pero el borrador se conserva en esta sesión. No se envió nada.',
+      app,
+    );
+  }
+}
+
+function selectWorkspaceTab(dom, app, tab, options = {}) {
+  app.workspaceTab = resolveWorkspaceTab(tab);
+  app.workspaceView = WORKSPACE_VIEW_OPEN;
+  applyWorkspaceNavigation(dom, app);
+  switch (app.workspaceTab) {
+    case 'preview':
+      renderPreview(dom, app);
+      renderImage(dom, app);
+      break;
+    case 'design':
+      renderImage(dom, app);
+      renderOverlayControls(dom, app);
+      break;
+    case 'message':
+      if (dom.messageInput) dom.messageInput.value = app.draft.message;
+      renderTargetsEditor(dom, app);
+      renderCounts(dom, app);
+      renderValidation(dom, app);
+      break;
+    case 'voice':
+      renderVoice(dom, app);
+      break;
+    default:
+      break;
+  }
+  if (options.focus) {
+    const button = (dom.workspaceTabs ?? []).find(
+      (item) => item?.dataset?.workspaceTab === app.workspaceTab,
+    );
+    if (button && typeof button.focus === 'function') button.focus();
+  }
+}
+
 async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   if (!isWorkspace(app)) return false;
   if (!isProfileId(profileId)) {
@@ -1184,7 +1521,7 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   if (!validation.ok) {
     app.validationShown = true;
     renderValidation(dom, app);
-    showError(dom, 'Corrige el mensaje, la hora y los destinos antes de cambiar de equipo. No se perdió nada.');
+    showError(dom, 'Corrige el mensaje, la hora y los destinos antes de cambiar de equipo. No se perdió nada.', app);
     return false;
   }
 
@@ -1193,7 +1530,7 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   app.draft.targetLabels = [...validation.normalized.targetLabels];
   const committed = commitDraft(app);
   if (!committed) {
-    showError(dom, 'No se pudo preparar el equipo actual para guardarlo.');
+    showError(dom, 'No se pudo preparar el equipo actual para guardarlo.', app);
     return false;
   }
   const committedRevision = app.draftRevision;
@@ -1235,9 +1572,9 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
   } catch (error) {
     markUnsaved(app);
     if (error?.message === 'previous_save_failed') {
-      showError(dom, 'No se cambió de equipo: el guardado anterior no se completó. Guarda el borrador actual y vuelve a intentarlo.');
+      showError(dom, 'No se cambió de equipo: el guardado anterior no se completó. Guarda el borrador actual y vuelve a intentarlo.', app);
     } else {
-      showError(dom, `No se pudo cambiar de equipo: ${error.message || 'error'}. Se conserva el equipo actual.`);
+      showError(dom, `No se pudo cambiar de equipo: ${error.message || 'error'}. Se conserva el equipo actual.`, app);
     }
     return false;
   } finally {
@@ -1674,17 +2011,45 @@ async function handleDownloadPng(dom, app) {
 }
 
 async function handleSelectProfile(dom, app, profileId) {
-  if (app.listening) {
-    showStatus(dom, 'Detén la escucha antes de cambiar de equipo. No se cambió nada.', 'warning');
+  if (app.uiMode === 'legacy') {
+    if (app.busy) return;
+    clearError(dom, app);
+    // APK3 conserva una única plantilla accesible; no se simulan cuatro equipos.
+    openWorkspaceFor(dom, app, isProfileId(profileId) ? profileId : DEFAULT_PROFILE_ID);
+    showStatus(
+      dom,
+      'APK3: se abre la plantilla única conservada. Los cuatro equipos guardados necesitan una BASE, pero no se pide ni se instala nada desde aquí.',
+      'warning',
+    );
     return;
   }
   if (!isWorkspace(app)) {
-    showStatus(dom, 'Los perfiles guardados necesitan la APK BASE. La plantilla única sigue disponible.', 'warning');
+    showError(
+      dom,
+      'El workspace todavía no está disponible. No se abrió ningún equipo ni se asumió un guardado.',
+      app,
+    );
     return;
   }
-  if (app.busy || profileId === app.workspace.activeProfileId) return;
-  clearError(dom);
-  await switchWorkspaceProfile(dom, app, profileId);
+  clearError(dom, app);
+  await navigateToProfile({
+    profileId,
+    activeProfileId: app.workspace?.activeProfileId ?? '',
+    isBusy: app.busy || app.switching,
+    isListening: app.listening,
+    switchProfile: (id) => switchWorkspaceProfile(dom, app, id),
+    openProfile: (id) => openWorkspaceFor(dom, app, id),
+    reportBlocked: (reason) => {
+      if (reason === 'listening') {
+        showError(dom, 'Detén la escucha antes de cambiar de equipo. No se cambió nada.', app);
+      } else if (reason === 'busy') {
+        showError(dom, 'Espera a que termine la acción actual. No se cambió nada.', app);
+      } else if (reason === 'invalid_profile') {
+        showError(dom, 'El equipo solicitado no está en el catálogo. No se abrió nada.', app);
+      }
+      // switch_failed ya dejó su error específico desde switchWorkspaceProfile.
+    },
+  });
 }
 
 async function handleRefresh(dom, app) {
@@ -1888,12 +2253,21 @@ async function handleApplyProposal(dom, app) {
 function collectDom() {
   const dom = {
     app: byId('app'),
+    teamsScreen: byId('teams-screen') ?? document.querySelector('.profiles-panel'),
     main: byId('contenido'),
+    workspaceTitle: byId('workspace-title'),
+    workspaceTabs: Array.from(document.querySelectorAll('[data-workspace-tab]')),
+    workspacePanels: collectWorkspacePanels(),
+    backToTeams: byId('back-to-teams'),
+    editDesign: byId('edit-design'),
     modeBadge: byId('mode-badge'),
     versionBadge: byId('version-badge'),
     previewNote: byId('preview-note'),
     heroHour: byId('hero-hour'),
     canvasPreview: byId('canvas-preview'),
+    imageFrame: byId('image-frame'),
+    previewMedia: byId('preview-media'),
+    designMedia: byId('design-media'),
     previewImage: byId('preview-image'),
     imagePlaceholder: byId('image-placeholder'),
     placeholderTitle: byId('image-placeholder-title'),
@@ -2201,6 +2575,37 @@ function wireUiEvents(dom, app) {
     void handleSelectProfile(dom, app, card.dataset.profileId);
   });
 
+  if (dom.backToTeams) {
+    dom.backToTeams.addEventListener('click', () => void handleBackToTeams(dom, app));
+  }
+  if (dom.editDesign) {
+    dom.editDesign.addEventListener('click', () => {
+      selectWorkspaceTab(dom, app, 'design', { focus: true });
+    });
+  }
+  for (const button of dom.workspaceTabs ?? []) {
+    button.addEventListener('click', () => {
+      selectWorkspaceTab(dom, app, button.dataset.workspaceTab);
+    });
+    button.addEventListener('keydown', (event) => {
+      const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+      if (!keys.includes(event.key)) return;
+      const tabs = (dom.workspaceTabs ?? []).filter((item) => isWorkspaceTab(item.dataset?.workspaceTab));
+      if (tabs.length === 0) return;
+      event.preventDefault();
+      const current = tabs.indexOf(event.currentTarget);
+      let index = current < 0 ? 0 : current;
+      if (event.key === 'Home') index = 0;
+      else if (event.key === 'End') index = tabs.length - 1;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        index = (index - 1 + tabs.length) % tabs.length;
+      } else {
+        index = (index + 1) % tabs.length;
+      }
+      selectWorkspaceTab(dom, app, tabs[index].dataset.workspaceTab, { focus: true });
+    });
+  }
+
   dom.importImage.addEventListener('click', () => void handleImportImage(dom, app));
   dom.pickImage.addEventListener('click', () => void handleLegacyPickImage(dom, app));
   dom.openEditor.addEventListener('click', () => void handleLegacyOpenEditor(dom, app));
@@ -2332,6 +2737,9 @@ async function boot() {
     mode: bridge.mode,
     connection: bridge.mode === 'native' ? 'checking' : 'preview',
     uiMode: 'loading',
+    workspaceView: WORKSPACE_VIEW_TEAMS,
+    workspaceTab: 'preview',
+    navigationError: '',
     catalog: PROFILE_CATALOG,
     capabilitySet: new Set(),
     workspace: null,

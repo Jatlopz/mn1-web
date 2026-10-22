@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#0a0d10">
   <meta name="referrer" content="no-referrer">
-  <meta name="description" content="MN1 · Avisos de planta. Prepara cuatro equipos, la foto original, la hora y el PNG para compartir. La confirmación final es en tu teléfono.">
+  <meta name="description" content="MN1 · Avisos de planta. Cuatro equipos con plantilla propia, foto original, hora y PNG para compartir. La confirmación final es en tu teléfono.">
   <!--
     CSP de respaldo para servidores que no envían cabeceras. En producción la cabecera
     Content-Security-Policy es la autoridad. No se usan scripts, estilos ni conexiones externas.
@@ -14,10 +14,10 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>MN1 · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.3.1">
+  <link rel="stylesheet" href="./styles.css?v=0.4.0">
 </head>
 <body>
-  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
 
   <div class="app" id="app">
     <header class="app-header">
@@ -36,61 +36,123 @@
 
     <p class="preview-note" id="preview-note" role="note" hidden></p>
 
-    <section class="profiles-panel" aria-labelledby="profiles-title">
-      <div class="panel-head">
-        <div>
-          <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>WORKSPACE</p>
-          <h2 id="profiles-title">Equipo</h2>
-        </div>
-        <span class="profiles-status" id="profiles-status">Conectando…</span>
+    <section class="teams-screen" id="teams-screen" aria-labelledby="profiles-title" tabindex="-1">
+      <div class="teams-intro">
+        <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>WORKSPACE</p>
+        <h1 id="profiles-title">Elige un equipo</h1>
+        <p class="teams-copy">Cuatro equipos, cuatro plantillas independientes. Toca una tarjeta para abrir su espacio de trabajo.</p>
       </div>
+
+      <div class="teams-toolbar">
+        <span class="profiles-status" id="profiles-status">Conectando…</span>
+        <span class="teams-hint">Cada equipo conserva su mensaje, hora, imagen y destinos.</span>
+      </div>
+
       <div class="profile-grid" id="profile-list" role="radiogroup" aria-label="Elegir equipo"></div>
       <p class="profiles-notice" id="profiles-notice" role="note" hidden></p>
     </section>
 
-    <main id="contenido" class="layout" aria-busy="false">
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-head">
-          <p class="kicker" id="hero-title"><span class="kicker-dot" aria-hidden="true"></span>ANUNCIO</p>
-          <p class="hero-hour" id="hero-hour">08:00</p>
-        </div>
-
-        <div class="image-frame" id="image-frame">
-          <canvas id="canvas-preview" class="preview-image preview-canvas" aria-label="Vista previa de la foto con la hora" hidden>
-            Vista previa de la foto con la hora.
-          </canvas>
-          <img id="preview-image" class="preview-image" alt="" hidden>
-          <div class="image-placeholder" id="image-placeholder">
-            <span class="image-glyph" aria-hidden="true"></span>
-            <p class="image-placeholder-title" id="image-placeholder-title">Vista previa de la imagen</p>
-            <p class="image-placeholder-copy" id="image-placeholder-copy">Elige una foto original. La hora se dibuja sólo en la vista y en el PNG para compartir.</p>
+    <main id="contenido" class="workspace" aria-labelledby="workspace-title" aria-busy="false" hidden>
+      <header class="workspace-header">
+        <div class="workspace-heading">
+          <button class="back-button" id="back-to-teams" type="button">
+            <span class="back-icon" aria-hidden="true">←</span>
+            <span>Equipos</span>
+          </button>
+          <div class="workspace-title-wrap">
+            <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>EQUIPO ACTIVO</p>
+            <h1 id="workspace-title">Los Indestructibles</h1>
           </div>
         </div>
-        <p class="image-meta" id="image-meta">La foto original no se modifica.</p>
+        <button class="button button-ghost button-small workspace-refresh" id="refresh-state" type="button" aria-label="Actualizar vista">
+          <span class="refresh-glyph" aria-hidden="true">↻</span>
+          <span class="button-label">Actualizar</span>
+        </button>
+      </header>
 
-        <p class="announcement" id="preview-message" aria-live="off"></p>
+      <nav class="workspace-tabs" id="workspace-tabs" role="tablist" aria-label="Secciones del equipo">
+        <button class="workspace-tab" id="tab-preview" type="button" role="tab"
+          data-workspace-tab="preview" aria-selected="true" aria-controls="hero-panel">Vista previa</button>
+        <button class="workspace-tab" id="tab-design" type="button" role="tab"
+          data-workspace-tab="design" aria-selected="false" aria-controls="editor-panel">Imagen y hora</button>
+        <button class="workspace-tab" id="tab-message" type="button" role="tab"
+          data-workspace-tab="message" aria-selected="false" aria-controls="template-panel">Mensaje</button>
+        <button class="workspace-tab" id="tab-voice" type="button" role="tab"
+          data-workspace-tab="voice" aria-selected="false" aria-controls="voice-panel">Voz</button>
+      </nav>
 
-        <div class="hero-controls">
-          <fieldset class="control-block" id="hour-fieldset">
-            <legend class="control-legend">Hora de la convocatoria</legend>
-            <div class="hour-options">
-              <label class="hour-option">
-                <input type="radio" name="hour" value="08:00" id="hour-08" data-hour-option>
-                <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>08:00</span>
-              </label>
-              <label class="hour-option">
-                <input type="radio" name="hour" value="09:00" id="hour-09" data-hour-option>
-                <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>09:00</span>
-              </label>
+      <div class="workspace-body">
+        <section class="workspace-panel preview-panel" id="hero-panel" role="tabpanel"
+          data-workspace-panel="preview" aria-labelledby="tab-preview">
+          <div class="hero-head">
+            <p class="kicker" id="hero-title"><span class="kicker-dot" aria-hidden="true"></span>ANUNCIO</p>
+            <p class="hero-hour" id="hero-hour">08:00</p>
+          </div>
+
+          <div id="preview-media">
+            <div class="image-frame" id="image-frame">
+              <canvas id="canvas-preview" class="preview-image preview-canvas" aria-label="Vista previa de la foto con la hora" hidden>
+                Vista previa de la foto con la hora.
+              </canvas>
+              <img id="preview-image" class="preview-image" alt="" hidden>
+              <div class="image-placeholder" id="image-placeholder">
+                <span class="image-glyph" aria-hidden="true"></span>
+                <p class="image-placeholder-title" id="image-placeholder-title">Vista previa de la imagen</p>
+                <p class="image-placeholder-copy" id="image-placeholder-copy">Elige una foto original. La hora se dibuja sólo en la vista y en el PNG para compartir.</p>
+              </div>
             </div>
-            <button class="custom-hour" id="custom-hour" type="button" aria-haspopup="dialog">
-              <span id="custom-hour-label">Elegir otra hora</span>
-              <span class="custom-hour-edit" aria-hidden="true">Editar</span>
-            </button>
-          </fieldset>
+            <p class="image-meta" id="image-meta">La foto original no se modifica.</p>
+          </div>
 
-          <div class="control-block">
-            <p class="control-legend">Imagen</p>
+          <div class="preview-toolbar">
+            <button class="button button-secondary preview-edit" id="edit-design" type="button" aria-controls="editor-panel">
+              <span class="preview-edit-glyph" aria-hidden="true">◈</span>
+              Editar imagen y hora
+            </button>
+          </div>
+
+          <p class="announcement" id="preview-message" aria-live="off"></p>
+
+          <div class="hero-targets">
+            <span class="targets-label">Para</span>
+            <div class="targets-summary" id="targets-summary" aria-label="Destinos orientativos"></div>
+          </div>
+        </section>
+
+        <section class="workspace-panel design-panel" id="editor-panel" role="tabpanel"
+          data-workspace-panel="design" aria-labelledby="tab-design" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>DISEÑO</p>
+              <h2 id="editor-title">Imagen y hora</h2>
+            </div>
+            <button class="button button-ghost button-small" id="reset-overlay" type="button">Restaurar</button>
+          </div>
+          <p class="hint">Ajusta la hora, la foto original y el texto sobre la imagen. La foto guardada no se altera.</p>
+          <div id="design-media" aria-label="Imagen que estás editando"></div>
+
+          <div class="design-block">
+            <fieldset class="control-block hour-control" id="hour-fieldset">
+              <legend class="control-legend">Hora de la convocatoria</legend>
+              <div class="hour-options">
+                <label class="hour-option">
+                  <input type="radio" name="hour" value="08:00" id="hour-08" data-hour-option>
+                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>08:00</span>
+                </label>
+                <label class="hour-option">
+                  <input type="radio" name="hour" value="09:00" id="hour-09" data-hour-option>
+                  <span class="hour-pill"><span class="check" aria-hidden="true">✓</span>09:00</span>
+                </label>
+              </div>
+              <button class="custom-hour" id="custom-hour" type="button" aria-haspopup="dialog">
+                <span id="custom-hour-label">Elegir otra hora</span>
+                <span class="custom-hour-edit" aria-hidden="true">Editar</span>
+              </button>
+            </fieldset>
+          </div>
+
+          <div class="design-block">
+            <h3 class="block-title">Foto original</h3>
             <div class="inline-actions">
               <button class="button button-secondary" id="import-image" type="button">Elegir foto original</button>
               <button class="button button-secondary" id="pick-image" type="button" hidden>Elegir imagen (APK3)</button>
@@ -99,124 +161,121 @@
             <input id="browser-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
             <p class="hint">Se guarda la foto ORIGINAL sin hora. El PNG para compartir se compone aparte, sin modificar la copia guardada.</p>
           </div>
-        </div>
 
-        <div class="hero-targets">
-          <span class="targets-label">Para</span>
-          <div class="targets-summary" id="targets-summary" aria-label="Destinos orientativos"></div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="panel-title">
-        <div class="panel-head">
-          <h2 id="panel-title">Plantilla</h2>
-          <button class="button button-ghost button-small" id="refresh-state" type="button">Actualizar vista</button>
-        </div>
-
-        <div class="field">
-          <div class="field-head">
-            <label class="field-label" for="message-input">Mensaje de la convocatoria</label>
-            <span class="meta" id="message-count">0 / 2000</span>
+          <div class="design-block">
+            <h3 class="block-title">Texto sobre la foto</h3>
+            <p class="hint">Arrastra sobre la vista previa para mover la hora. También puedes ajustar los controles.</p>
+            <div class="overlay-grid">
+              <label class="field" for="overlay-x">
+                <span class="field-label">Posición horizontal</span>
+                <input class="range" id="overlay-x" type="range" min="0" max="100" step="1" value="50">
+              </label>
+              <label class="field" for="overlay-y">
+                <span class="field-label">Posición vertical</span>
+                <input class="range" id="overlay-y" type="range" min="0" max="100" step="1" value="78">
+              </label>
+              <label class="field" for="overlay-size">
+                <span class="field-label">Tamaño</span>
+                <input class="range" id="overlay-size" type="range" min="2.5" max="18" step="0.5" value="7.5">
+              </label>
+              <label class="field" for="overlay-font">
+                <span class="field-label">Fuente</span>
+                <select class="input" id="overlay-font">
+                  <option value="bold">Negrita</option>
+                  <option value="sans">Sans</option>
+                  <option value="serif">Serif</option>
+                  <option value="mono">Mono</option>
+                </select>
+              </label>
+              <label class="field" for="overlay-color">
+                <span class="field-label">Color</span>
+                <input class="color-input" id="overlay-color" type="color" value="#ffffff">
+              </label>
+              <div class="field">
+                <label class="check-line" for="overlay-show-date">
+                  <input id="overlay-show-date" type="checkbox">
+                  <span>Mostrar fecha</span>
+                </label>
+              </div>
+              <label class="field" id="overlay-date-field" for="overlay-date" hidden>
+                <span class="field-label">Fecha</span>
+                <input class="input" id="overlay-date" type="date">
+              </label>
+            </div>
           </div>
-          <textarea id="message-input" class="textarea" rows="5" maxlength="2000" spellcheck="true" aria-describedby="message-help message-error"></textarea>
-          <p class="hint" id="message-help">Escribe <code>{hora}</code> y se sustituirá por la hora elegida en la vista y en el PNG para compartir.</p>
-          <p class="field-error" id="message-error" role="alert" hidden></p>
-        </div>
+        </section>
 
-        <div class="field">
-          <div class="field-head">
-            <span class="field-label" id="targets-label">Destinos</span>
-            <span class="meta" id="targets-count">2 / 10</span>
+        <section class="workspace-panel message-panel" id="template-panel" role="tabpanel"
+          data-workspace-panel="message" aria-labelledby="tab-message" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>MENSAJE</p>
+              <h2 id="panel-title">Mensaje y destinos</h2>
+            </div>
           </div>
-          <p class="hint" id="targets-help">Son etiquetas orientativas; no identifican ni envían a ningún grupo.</p>
-          <div class="targets-editor" id="targets-list" role="list" aria-labelledby="targets-label" aria-describedby="targets-help targets-error"></div>
-          <button class="button button-ghost button-small" id="add-target" type="button">Añadir destino</button>
-          <p class="field-error" id="targets-error" role="alert" hidden></p>
-        </div>
 
-        <div class="panel-note">
-          <p><strong>WEB conserva el borrador y el PNG.</strong> Guardar no envía. Compartir pide la confirmación nativa y después abre el selector; la web no afirma entrega.</p>
-        </div>
+          <div class="field">
+            <div class="field-head">
+              <label class="field-label" for="message-input">Mensaje de la convocatoria</label>
+              <span class="meta" id="message-count">0 / 2000</span>
+            </div>
+            <textarea id="message-input" class="textarea" rows="5" maxlength="2000" spellcheck="true" aria-describedby="message-help message-error"></textarea>
+            <p class="hint" id="message-help">Escribe <code>{hora}</code> y se sustituirá por la hora elegida en la vista y en el PNG para compartir.</p>
+            <p class="field-error" id="message-error" role="alert" hidden></p>
+          </div>
 
-        <div class="actions">
-          <button class="button button-primary button-large" id="prepare-share" type="button">Preparar y compartir</button>
-          <button class="button button-secondary button-large" id="save-template" type="button">Guardar borrador</button>
-          <button class="button button-ghost button-large" id="download-png" type="button" hidden>Descargar PNG (navegador)</button>
-        </div>
+          <div class="field">
+            <div class="field-head">
+              <span class="field-label" id="targets-label">Destinos</span>
+              <span class="meta" id="targets-count">2 / 10</span>
+            </div>
+            <p class="hint" id="targets-help">Son etiquetas orientativas; no identifican ni envían a ningún grupo.</p>
+            <div class="targets-editor" id="targets-list" role="list" aria-labelledby="targets-label" aria-describedby="targets-help targets-error"></div>
+            <button class="button button-ghost button-small add-target" id="add-target" type="button">Añadir destino</button>
+            <p class="field-error" id="targets-error" role="alert" hidden></p>
+          </div>
+        </section>
 
+        <section class="workspace-panel voice-panel" id="voice-panel" role="tabpanel"
+          data-workspace-panel="voice" aria-labelledby="tab-voice" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>VOZ</p>
+              <h2 id="voice-title">Dictado en español</h2>
+            </div>
+            <button class="button button-primary" id="speak-toggle" type="button">Hablar</button>
+          </div>
+          <p class="hint" id="speech-status">Una sesión por toque. Revisa la propuesta antes de preparar.</p>
+          <div class="speech-result" id="speech-result" hidden>
+            <p class="speech-transcript" id="speech-transcript"></p>
+            <ul class="proposal-list" id="proposal-list"></ul>
+            <button class="button button-secondary" id="apply-proposal" type="button" disabled>Preparar propuesta</button>
+          </div>
+          <p class="hint">El dictado no envía mensajes. El parser sólo propone equipo, hora y destinos; si hay ambigüedad pide completar.</p>
+        </section>
+      </div>
+
+      <div class="workspace-global">
         <p class="status" id="status" role="status" aria-live="polite" data-tone="info">Cargando la vista…</p>
         <p class="status status-error" id="error" role="alert" hidden></p>
-      </section>
 
-      <section class="editor-panel" id="editor-panel" aria-labelledby="editor-title" hidden>
-        <div class="panel-head">
-          <div>
-            <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>CANVAS</p>
-            <h2 id="editor-title">Hora sobre la foto</h2>
-          </div>
-          <button class="button button-ghost button-small" id="reset-overlay" type="button">Restaurar</button>
+        <div class="action-bar" role="group" aria-label="Acciones del equipo">
+          <button class="button button-primary button-large" id="prepare-share" type="button">Preparar y compartir</button>
+          <button class="button button-secondary" id="save-template" type="button">Guardar borrador</button>
+          <button class="button button-ghost" id="download-png" type="button" hidden>Descargar PNG</button>
         </div>
-        <p class="hint">Arrastra sobre la vista previa para mover la hora. También puedes ajustar los controles. La foto guardada no se altera.</p>
-        <div class="overlay-grid">
-          <label class="field" for="overlay-x">
-            <span class="field-label">Posición horizontal</span>
-            <input class="range" id="overlay-x" type="range" min="0" max="100" step="1" value="50">
-          </label>
-          <label class="field" for="overlay-y">
-            <span class="field-label">Posición vertical</span>
-            <input class="range" id="overlay-y" type="range" min="0" max="100" step="1" value="78">
-          </label>
-          <label class="field" for="overlay-size">
-            <span class="field-label">Tamaño</span>
-            <input class="range" id="overlay-size" type="range" min="2.5" max="18" step="0.5" value="7.5">
-          </label>
-          <label class="field" for="overlay-font">
-            <span class="field-label">Fuente</span>
-            <select class="input" id="overlay-font">
-              <option value="bold">Negrita</option>
-              <option value="sans">Sans</option>
-              <option value="serif">Serif</option>
-              <option value="mono">Mono</option>
-            </select>
-          </label>
-          <label class="field" for="overlay-color">
-            <span class="field-label">Color</span>
-            <input class="color-input" id="overlay-color" type="color" value="#ffffff">
-          </label>
-          <div class="field">
-            <label class="check-line" for="overlay-show-date">
-              <input id="overlay-show-date" type="checkbox">
-              <span>Mostrar fecha</span>
-            </label>
-          </div>
-          <label class="field" id="overlay-date-field" for="overlay-date" hidden>
-            <span class="field-label">Fecha</span>
-            <input class="input" id="overlay-date" type="date">
-          </label>
-        </div>
-      </section>
-
-      <section class="voice-panel" id="voice-panel" aria-labelledby="voice-title" hidden>
-        <div class="panel-head">
-          <div>
-            <p class="kicker"><span class="kicker-dot" aria-hidden="true"></span>VOZ</p>
-            <h2 id="voice-title">Dictado en español</h2>
-          </div>
-          <button class="button button-primary" id="speak-toggle" type="button">Hablar</button>
-        </div>
-        <p class="hint" id="speech-status">Una sesión por toque. Revisa la propuesta antes de preparar.</p>
-        <div class="speech-result" id="speech-result" hidden>
-          <p class="speech-transcript" id="speech-transcript"></p>
-          <ul class="proposal-list" id="proposal-list"></ul>
-          <button class="button button-secondary" id="apply-proposal" type="button" disabled>Preparar propuesta</button>
-        </div>
-        <p class="hint">El dictado no envía mensajes. El parser sólo propone equipo, hora y destinos; si hay ambigüedad pide completar.</p>
-      </section>
+      </div>
     </main>
 
     <footer class="app-footer">
-      <p>MN1 · Avisos de planta. Los cuatro equipos y la foto original viven en el workspace web. La confirmación final es en tu teléfono.</p>
-      <p class="footer-meta">Contrato v1 · <span id="native-version">Sin versión nativa</span> · <span id="capability-text">sin capacidades nuevas</span></p>
+      <p class="footer-line">MN1 · Avisos de planta. Los cuatro equipos y la foto original viven en el workspace web. La confirmación final es en tu teléfono.</p>
+      <details class="technical-details">
+        <summary>Detalles técnicos</summary>
+        <div class="technical-body">
+          <p>Contrato v1 · <span id="native-version">Sin versión nativa</span> · <span id="capability-text">sin capacidades nuevas</span></p>
+          <p>La web no confirma la entrega. Guardar no envía; compartir pide la confirmación nativa y después abre el selector del teléfono.</p>
+        </div>
+      </details>
     </footer>
   </div>
 
@@ -249,6 +308,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.3.1"></script>
+  <script type="module" src="./app.js?v=0.4.0"></script>
 </body>
 </html>
