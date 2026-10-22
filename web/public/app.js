@@ -29,6 +29,7 @@ import {
   DEFAULT_TARGETS,
   HOUR_PRESETS,
   OVERLAY_FONTS,
+  OVERLAY_LIMITS,
   PROFILE_CATALOG,
   cloneTemplate,
   createDefaultWorkspace,
@@ -64,19 +65,43 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.4.1';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
-export const WORKSPACE_TABS = Object.freeze(['preview', 'design', 'message', 'voice']);
+/*
+ * Un único editor visual: el HERO permanece siempre visible y las herramientas
+ * se abren en un drawer inferior. `null` significa drawer cerrado; nunca hay
+ * dos formularios abiertos a la vez.
+ */
+export const EDITOR_TOOLS = Object.freeze(['hour', 'message', 'voice']);
 export const WORKSPACE_VIEW_TEAMS = 'teams';
 export const WORKSPACE_VIEW_OPEN = 'workspace';
 
-export function isWorkspaceTab(value) {
-  return typeof value === 'string' && WORKSPACE_TABS.includes(value);
+const EDITOR_TOOL_TITLES = Object.freeze({
+  hour: 'Hora y texto',
+  message: 'Mensaje y destinos',
+  voice: 'Dictado',
+});
+
+const EDITOR_TOOL_PANEL_IDS = Object.freeze({
+  hour: 'editor-panel',
+  message: 'template-panel',
+  voice: 'voice-panel',
+});
+
+export function isEditorTool(value) {
+  return typeof value === 'string' && EDITOR_TOOLS.includes(value);
 }
 
-export function resolveWorkspaceTab(value) {
-  return isWorkspaceTab(value) ? value : 'preview';
+export function resolveEditorTool(value) {
+  return isEditorTool(value) ? value : null;
+}
+
+/** Alternancia de un botón de herramienta: la misma herramienta cierra el drawer. */
+export function toggleEditorTool(current, requested) {
+  const tool = resolveEditorTool(requested);
+  if (!tool) return null;
+  return resolveEditorTool(current) === tool ? null : tool;
 }
 
 export function workspaceRouteFor(profileId, options = {}) {
@@ -217,6 +242,27 @@ export function hourDraftError(hourText, minuteText) {
   return null;
 }
 
+export const OVERLAY_SIZE_STEP = 0.005;
+
+/**
+ * Paso accesible del tamaño del rótulo. Mantiene los límites de normalizeOverlay
+ * y redondea a 4 decimales para que los botones no acumulen error flotante.
+ */
+export function stepOverlaySize(current, direction) {
+  const value = Number(current);
+  const base = Number.isFinite(value) ? value : OVERLAY_LIMITS.DEFAULT_SIZE;
+  const delta = direction === 'bigger'
+    ? OVERLAY_SIZE_STEP
+    : direction === 'smaller'
+      ? -OVERLAY_SIZE_STEP
+      : 0;
+  const next = Math.min(
+    OVERLAY_LIMITS.MAX_SIZE,
+    Math.max(OVERLAY_LIMITS.MIN_SIZE, base + delta),
+  );
+  return Number(next.toFixed(4));
+}
+
 export function splitMessage(message, hour) {
   const text = String(message ?? '');
   const parts = [];
@@ -286,29 +332,35 @@ function byId(id) {
   return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
-function panelTabOf(panel) {
-  if (!panel) return '';
-  if (typeof panel.tab === 'string') return panel.tab;
-  return panel.element?.dataset?.workspacePanel ?? '';
+function toolForPanel(panel) {
+  const explicit = resolveEditorTool(panel?.tool ?? panel?.element?.dataset?.editorTool);
+  if (explicit) return explicit;
+  const element = panel?.element ?? panel;
+  const id = element?.id ?? '';
+  return EDITOR_TOOLS.find((tool) => EDITOR_TOOL_PANEL_IDS[tool] === id) ?? null;
 }
 
-function collectWorkspacePanels() {
-  if (typeof document === 'undefined') return [];
-  const panels = Array.from(document.querySelectorAll('[data-workspace-panel]'))
-    .map((element) => ({
-      tab: element.dataset?.workspacePanel ?? '',
-      element,
-    }));
-  if (panels.length > 0) return panels;
-  // Compatibilidad transitoria con el marcado anterior a las pestañas.
-  const templateTitle = byId('panel-title');
-  const templatePanel = templateTitle?.closest?.('section') ?? null;
+function editorToolPanels(dom) {
+  if (Array.isArray(dom.toolPanels) && dom.toolPanels.length > 0) {
+    return dom.toolPanels
+      .map((panel) => ({
+        tool: toolForPanel(panel),
+        element: panel?.element ?? panel,
+      }))
+      .filter((panel) => panel.tool && panel.element);
+  }
   return [
-    { tab: 'preview', element: byId('hero-panel') ?? document.querySelector('.hero') },
-    { tab: 'design', element: byId('editor-panel') },
-    { tab: 'message', element: byId('template-panel') ?? templatePanel },
-    { tab: 'voice', element: byId('voice-panel') },
+    { tool: 'hour', element: dom.editorPanel },
+    { tool: 'message', element: dom.templatePanel },
+    { tool: 'voice', element: dom.voicePanel },
   ].filter((panel) => Boolean(panel.element));
+}
+
+function focusEditorTool(dom, tool) {
+  const button = (dom.editorTools ?? []).find(
+    (item) => item?.dataset?.editorTool === tool,
+  );
+  if (button && typeof button.focus === 'function') button.focus();
 }
 
 function syncWorkspaceRoute(app, open, profileId, legacy) {
@@ -330,41 +382,52 @@ function syncWorkspaceRoute(app, open, profileId, legacy) {
 }
 
 /**
- * Única autoridad de visibilidad de teams-screen, main y paneles. Ningún render
- * de panel debe volver a mostrar otra pestaña: sólo esta función cambia hidden.
+ * Única autoridad de visibilidad del editor: teams-screen, main, HERO y drawer.
+ * El HERO nunca depende de la herramienta; sólo esta función cambia `hidden` en
+ * los paneles, de modo que renderAll/renderOverlayControls/renderVoice no pueden
+ * volver a mostrar un formulario ajeno.
  */
 export function applyWorkspaceNavigation(dom, app) {
   const open = app.workspaceView === WORKSPACE_VIEW_OPEN;
+  const activeTool = resolveEditorTool(app.editorTool);
+  app.editorTool = activeTool;
+  const drawerOpen = open && activeTool !== null;
+
   if (dom.teamsScreen) dom.teamsScreen.hidden = open;
   if (dom.main) dom.main.hidden = !open;
 
-  const activeTab = resolveWorkspaceTab(app.workspaceTab);
-  app.workspaceTab = activeTab;
-  const tabs = Array.isArray(dom.workspaceTabs) ? dom.workspaceTabs : [];
-  const hasTabs = tabs.length > 0;
-  for (const button of tabs) {
-    const tab = button?.dataset?.workspaceTab ?? '';
-    const selected = open && tab === activeTab;
-    button?.setAttribute?.('aria-selected', selected ? 'true' : 'false');
-    button?.setAttribute?.('tabindex', selected ? '0' : '-1');
-    if (button?.classList && typeof button.classList.toggle === 'function') {
+  // El chrome global no se duplica dentro del editor.
+  if (dom.appHeader) dom.appHeader.hidden = open;
+  if (dom.appFooter) dom.appFooter.hidden = open;
+  if (dom.previewNote) dom.previewNote.hidden = open;
+
+  // El HERO es el único contenido permanente del editor.
+  if (dom.heroPanel) dom.heroPanel.hidden = !open;
+
+  if (dom.toolDrawer) dom.toolDrawer.hidden = !drawerOpen;
+  if (dom.closeTool) dom.closeTool.hidden = !drawerOpen;
+  if (dom.toolTitle) {
+    dom.toolTitle.textContent = activeTool ? EDITOR_TOOL_TITLES[activeTool] : 'Herramientas';
+  }
+
+  const tools = Array.isArray(dom.editorTools) ? dom.editorTools : [];
+  for (const button of tools) {
+    const tool = resolveEditorTool(button?.dataset?.editorTool);
+    if (!tool) continue;
+    const selected = open && tool === activeTool;
+    button.setAttribute?.('aria-expanded', selected ? 'true' : 'false');
+    const controls = button.getAttribute?.('aria-controls');
+    if (!controls) {
+      const panelId = EDITOR_TOOL_PANEL_IDS[tool];
+      if (panelId) button.setAttribute?.('aria-controls', panelId);
+    }
+    if (button.classList && typeof button.classList.toggle === 'function') {
       button.classList.toggle('is-active', selected);
     }
   }
 
-  const panels = Array.isArray(dom.workspacePanels) ? dom.workspacePanels : [];
-  if (hasTabs) {
-    for (const panel of panels) {
-      const element = panel?.element;
-      if (!element) continue;
-      element.hidden = !(open && panelTabOf(panel) === activeTab);
-    }
-  }
-
-  const mediaHost = activeTab === 'design' ? dom.designMedia : dom.previewMedia;
-  if (mediaHost && dom.imageFrame && dom.imageFrame.parentElement !== mediaHost) {
-    mediaHost.append(dom.imageFrame);
-    if (dom.imageMeta) mediaHost.append(dom.imageMeta);
+  for (const panel of editorToolPanels(dom)) {
+    panel.element.hidden = !(open && panel.tool === activeTool);
   }
 
   const profileId = app.workspace?.activeProfileId ?? '';
@@ -462,26 +525,19 @@ function storageLabel(app) {
 function profilesNoticeText(app) {
   const notices = [];
   if (app.uiMode === 'legacy') {
-    notices.push(
-      'Esta APK3 mantiene la plantilla única y el compartir anterior. ' +
-      'Los cuatro equipos, la foto original, el editor Canvas y el dictado necesitan ' +
-      'una actualización BASE de la app. No se finge guardar perfiles.',
-    );
+    notices.push('APK3: sólo plantilla única. Los equipos necesitan la app BASE.');
   }
   if (app.uiMode === 'offline') {
-    notices.push('La app no respondió. No se modificó ni se envió nada. Usa «Actualizar vista».');
+    notices.push('La app no respondió. No se modificó ni se envió nada.');
   }
   if (isWorkspace(app) && !app.persistent) {
     notices.push(
-      'No se pudo abrir el almacén duradero: este borrador vive en memoria temporal ' +
-      `y se perderá al recargar${app.storage?.reason ? ` (${app.storage.reason})` : ''}.`,
+      'Sin almacén duradero: este borrador se perderá al recargar' +
+      `${app.storage?.reason ? ` (${app.storage.reason})` : ''}.`,
     );
   }
-  if (app.uiMode === 'browser') {
-    notices.push('Navegador: los equipos se guardan sólo en este dispositivo. No hay envío nativo ni se simula.');
-  }
   if (app.storageBlocked) {
-    notices.push('No se pudo leer el estado guardado. No se sobrescribirá hasta que pulses «Guardar».');
+    notices.push('Estado guardado ilegible. Pulsa «Guardar» para reemplazarlo.');
   }
   if (app.migrationNotice) notices.push(app.migrationNotice);
   if (app.navigationError) notices.push(app.navigationError);
@@ -495,7 +551,6 @@ function renderMode(dom, app) {
   if (app.uiMode === 'browser') {
     label = 'Navegador · local';
     mode = 'preview';
-    note = 'Modo navegador: los equipos se guardan en este navegador. No hay envío nativo ni se simula.';
   } else if (app.uiMode === 'workspace') {
     label = app.connection === 'offline' ? 'App BASE sin respuesta' : 'App BASE conectada';
     mode = app.connection === 'offline' ? 'offline' : 'native';
@@ -512,7 +567,9 @@ function renderMode(dom, app) {
   dom.modeBadge.title = mode === 'native'
     ? 'La app prepara la confirmación nativa. La web no confirma la entrega.'
     : 'La web no simula acciones nativas.';
-  dom.previewNote.hidden = !note;
+  // La nota ordinaria no se duplica dentro del editor; el HERO y las acciones
+  // siguen visibles y los errores importantes usan #error/#status.
+  dom.previewNote.hidden = !note || app.workspaceView === WORKSPACE_VIEW_OPEN;
   if (note) dom.previewNote.textContent = note;
 }
 
@@ -586,10 +643,10 @@ function renderHour(dom, app) {
   dom.heroHour.textContent = hour || '--:--';
   dom.customHour.disabled = app.busy;
   if (custom) {
-    dom.customHourLabel.textContent = `Personalizada · ${hour} · Cambiar`;
+    dom.customHourLabel.textContent = `${hour}`;
     dom.customHour.setAttribute('aria-label', `Hora personalizada ${hour}. Cambiar hora`);
   } else {
-    dom.customHourLabel.textContent = 'Elegir otra hora';
+    dom.customHourLabel.textContent = 'Otra hora';
     dom.customHour.setAttribute('aria-label', 'Elegir una hora personalizada');
   }
 }
@@ -722,13 +779,19 @@ function renderTargetsEditor(dom, app) {
   });
 }
 
+function choiceValue(element, property, attribute) {
+  return String(element?.dataset?.[property] ?? element?.getAttribute?.(attribute) ?? '');
+}
+
 function renderOverlayControls(dom, app) {
   const overlay = app.draft.overlay;
   const disabled = app.busy || !isWorkspace(app);
+  const font = OVERLAY_FONTS.includes(overlay.font) ? overlay.font : 'bold';
+  const color = typeof overlay.color === 'string' ? overlay.color.toLowerCase() : '#ffffff';
   dom.overlayX.value = String(Math.round(overlay.x * 100));
   dom.overlayY.value = String(Math.round(overlay.y * 100));
   dom.overlaySize.value = String(Number((overlay.size * 100).toFixed(1)));
-  dom.overlayFont.value = OVERLAY_FONTS.includes(overlay.font) ? overlay.font : 'bold';
+  dom.overlayFont.value = font;
   dom.overlayColor.value = overlay.color;
   dom.overlayShowDate.checked = overlay.showDate;
   dom.overlayDate.value = overlay.date;
@@ -742,14 +805,28 @@ function renderOverlayControls(dom, app) {
     dom.overlayShowDate,
     dom.overlayDate,
     dom.resetOverlay,
+    dom.overlaySmaller,
+    dom.overlayBigger,
   ]) {
     if (control) control.disabled = disabled;
   }
-  // Con pestañas, la visibilidad la decide applyWorkspaceNavigation.
-  // El fallback mantiene usable el marcado anterior durante la integración.
-  if (!dom.workspaceTabs?.length && dom.editorPanel) {
-    dom.editorPanel.hidden = !isWorkspace(app);
+  for (const button of dom.fontChoices ?? []) {
+    const selected = choiceValue(button, 'fontChoice', 'data-font-choice') === font;
+    button.setAttribute?.('aria-pressed', selected ? 'true' : 'false');
+    if (button.classList && typeof button.classList.toggle === 'function') {
+      button.classList.toggle('is-active', selected);
+    }
+    button.disabled = disabled;
   }
+  for (const button of dom.colorChoices ?? []) {
+    const selected = choiceValue(button, 'colorChoice', 'data-color-choice').toLowerCase() === color;
+    button.setAttribute?.('aria-pressed', selected ? 'true' : 'false');
+    if (button.classList && typeof button.classList.toggle === 'function') {
+      button.classList.toggle('is-active', selected);
+    }
+    button.disabled = disabled;
+  }
+  // La visibilidad de los paneles la decide únicamente applyWorkspaceNavigation.
 }
 
 function renderValidation(dom, app) {
@@ -795,9 +872,7 @@ function renderVoice(dom, app) {
     }
   }
   renderProposal(dom, app);
-  if (!dom.workspaceTabs?.length && dom.voicePanel) {
-    dom.voicePanel.hidden = !workspace;
-  }
+  // La visibilidad de los paneles la decide únicamente applyWorkspaceNavigation.
 }
 
 function gapLabel(kind, type) {
@@ -866,7 +941,8 @@ function renderActions(dom, app) {
   dom.pickImage.hidden = !legacy;
   dom.openEditor.hidden = !legacy;
   dom.downloadPng.hidden = app.uiMode !== 'browser';
-  dom.saveTemplate.textContent = legacy ? 'Guardar plantilla' : 'Guardar borrador';
+  dom.saveTemplate.textContent = legacy ? 'Guardar plantilla' : 'Guardar';
+  dom.prepareShare.textContent = 'Compartir';
   dom.prepareShare.disabled = app.busy
     || app.uiMode === 'browser'
     || app.uiMode === 'offline'
@@ -910,9 +986,22 @@ function renderAll(dom, app, { syncFields = true } = {}) {
   applyWorkspaceNavigation(dom, app);
 }
 
+function renderBusy(dom, app, label = '') {
+  const busy = app.busy === true;
+  if (dom.busyOverlay) {
+    dom.busyOverlay.hidden = !busy;
+    dom.busyOverlay.setAttribute?.('aria-hidden', busy ? 'false' : 'true');
+  }
+  if (dom.busyLabel) dom.busyLabel.textContent = busy ? (label || 'Trabajando…') : '';
+  for (const element of [dom.app, dom.main]) {
+    if (element?.dataset) element.dataset.busy = busy ? 'true' : 'false';
+  }
+}
+
 function setBusy(dom, app, busy, label = '') {
   app.busy = busy;
   dom.main.setAttribute('aria-busy', busy ? 'true' : 'false');
+  renderBusy(dom, app, busy ? label : '');
   dom.messageInput.disabled = busy;
   for (const radio of dom.hourRadios) radio.disabled = busy;
   dom.customHour.disabled = busy;
@@ -1023,9 +1112,16 @@ async function drawCanvasPreview(dom, app) {
   }
 }
 
+export function fittedImageRect(rect, imageWidth, imageHeight) {
+  const aspect = Math.max(1, Number(imageWidth) || 1) / Math.max(1, Number(imageHeight) || 1);
+  const width = Math.min(Math.max(0, rect.width), Math.max(0, rect.height) * aspect);
+  const height = width / aspect;
+  return { left: rect.left + (rect.width - width) / 2, top: rect.top + (rect.height - height) / 2, width, height };
+}
+
 function updateOverlayFromPointer(dom, app, event) {
   if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
-  const rect = dom.canvasPreview.getBoundingClientRect();
+  const rect = fittedImageRect(dom.canvasPreview.getBoundingClientRect(), dom.canvasPreview.width, dom.canvasPreview.height);
   if (rect.width <= 0 || rect.height <= 0) return;
   const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
   const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
@@ -1182,8 +1278,8 @@ async function persistDraft(dom, app, options = {}) {
       showStatus(
         dom,
         app.persistent
-          ? `Borrador guardado en ${storageLabel(app)}. No se envió nada.`
-          : `Borrador guardado sólo en ${storageLabel(app)}; se perderá al recargar. No se envió nada.`,
+          ? 'Borrador guardado.'
+          : 'Borrador guardado sólo en esta sesión.',
         app.persistent ? 'success' : 'warning',
       );
     }
@@ -1403,8 +1499,7 @@ function openWorkspaceFor(dom, app, profileId, options = {}) {
       && app.workspace.activeProfileId !== profileId) {
     return false;
   }
-  if (isWorkspaceTab(options.tab)) app.workspaceTab = options.tab;
-  else app.workspaceTab = resolveWorkspaceTab(app.workspaceTab);
+  app.editorTool = isEditorTool(options.tool) ? options.tool : null;
   clearError(dom, app);
   app.workspaceView = WORKSPACE_VIEW_OPEN;
   renderAll(dom, app, { syncFields: true });
@@ -1414,6 +1509,7 @@ function openWorkspaceFor(dom, app, profileId, options = {}) {
 function showTeamsView(dom, app) {
   cancelScheduledSave(app);
   app.workspaceView = WORKSPACE_VIEW_TEAMS;
+  app.editorTool = null;
   applyWorkspaceNavigation(dom, app);
   renderProfiles(dom, app);
   const activeId = app.workspace?.activeProfileId;
@@ -1474,16 +1570,17 @@ async function handleBackToTeams(dom, app) {
   }
 }
 
-function selectWorkspaceTab(dom, app, tab, options = {}) {
-  app.workspaceTab = resolveWorkspaceTab(tab);
+/**
+ * Abre/cierra una herramienta del drawer. `null` cierra sin tocar el HERO ni el
+ * borrador. Sólo se sincroniza el formulario que se va a mostrar.
+ */
+export function selectEditorTool(dom, app, tool, options = {}) {
+  const next = resolveEditorTool(tool);
+  app.editorTool = next;
   app.workspaceView = WORKSPACE_VIEW_OPEN;
   applyWorkspaceNavigation(dom, app);
-  switch (app.workspaceTab) {
-    case 'preview':
-      renderPreview(dom, app);
-      renderImage(dom, app);
-      break;
-    case 'design':
+  switch (next) {
+    case 'hour':
       renderImage(dom, app);
       renderOverlayControls(dom, app);
       break;
@@ -1497,14 +1594,11 @@ function selectWorkspaceTab(dom, app, tab, options = {}) {
       renderVoice(dom, app);
       break;
     default:
+      // Drawer cerrado: el HERO sigue visible y el borrador no cambia.
       break;
   }
-  if (options.focus) {
-    const button = (dom.workspaceTabs ?? []).find(
-      (item) => item?.dataset?.workspaceTab === app.workspaceTab,
-    );
-    if (button && typeof button.focus === 'function') button.focus();
-  }
+  if (options.focus && next) focusEditorTool(dom, next);
+  return next;
 }
 
 async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
@@ -1567,7 +1661,7 @@ async function switchWorkspaceProfile(dom, app, profileId, options = {}) {
     renderProfiles(dom, app);
     await removeReplacedImages(dom, app);
     const definition = getProfileDefinition(profileId);
-    showStatus(dom, `Equipo activo: ${definition?.name ?? profileId}. Se guardó el borrador anterior. No se envió nada.`, 'success');
+    showStatus(dom, `Equipo activo: ${definition?.name ?? profileId}.`, 'success');
     return true;
   } catch (error) {
     markUnsaved(app);
@@ -1724,8 +1818,7 @@ async function handleLegacySave(dom, app) {
     }
     if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
     app.dirty = false;
-    const message = (result.message || 'Plantilla guardada.').trim();
-    showStatus(dom, `${message} No se ha enviado nada.`, 'success');
+    showStatus(dom, 'Plantilla guardada.', 'success');
   } finally {
     setBusy(dom, app, false);
   }
@@ -1747,8 +1840,7 @@ async function handleLegacyShare(dom, app) {
       return;
     }
     if (result.data) applyLegacyState(dom, app, result.data, { preserveDirty: false });
-    const message = (result.message || 'Listo para compartir. Confirma en tu teléfono.').trim();
-    showStatus(dom, `${message} La web no confirma la entrega.`, 'success');
+    showStatus(dom, 'Listo para compartir.', 'success');
   } finally {
     setBusy(dom, app, false);
   }
@@ -1821,11 +1913,13 @@ async function applyImportedImage(dom, app, dataUrl, width, height) {
     app.loadedImage = null;
     app.loadedImageUrl = '';
     app.drawToken += 1;
+    // Tras importar, el editor vuelve al HERO con la imagen ya visible.
+    selectEditorTool(dom, app, null);
     const valid = activeValidation(app).ok;
     if (valid) {
       const saved = await persistDraft(dom, app, { quiet: true });
       if (saved) {
-        showStatus(dom, `Foto original guardada en ${storageLabel(app)}. La hora se dibuja sólo en la vista y el PNG.`, 'success');
+        showStatus(dom, 'Foto original guardada.', 'success');
       } else {
         showStatus(dom, 'La foto se guardó en el almacén, pero el estado del equipo no se pudo persistir. Guarda explícitamente para asociarla.', 'warning');
       }
@@ -1850,6 +1944,8 @@ async function imageDimensions(dataUrl) {
 
 async function handleImportImage(dom, app) {
   if (app.busy) return;
+  // La imagen abre el selector directamente: no hay formulario intermedio.
+  selectEditorTool(dom, app, null);
   if (app.uiMode === 'browser') {
     dom.browserImageInput.value = '';
     dom.browserImageInput.click();
@@ -1960,8 +2056,7 @@ async function handleWorkspaceShare(dom, app) {
       showStatus(dom, result.message || 'No se abrió el selector. No se asumió ningún envío.', 'warning');
       return;
     }
-    const message = (result.message || 'Selector abierto. El envío no está confirmado.').trim();
-    showStatus(dom, `${message} La web no confirma la entrega.`, 'success');
+    showStatus(dom, 'Listo. Confirma en tu teléfono.', 'success');
   } finally {
     setBusy(dom, app, false);
   }
@@ -2002,7 +2097,7 @@ async function handleDownloadPng(dom, app) {
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
-    showStatus(dom, 'PNG descargado. No se compartió en ninguna app ni se envió nada.', 'success');
+    showStatus(dom, 'PNG descargado.', 'success');
   } catch (error) {
     showError(dom, `No se pudo generar el PNG: ${error.message || 'error'}.`);
   } finally {
@@ -2069,11 +2164,11 @@ async function handleRefresh(dom, app) {
         app.draft = cloneDraftFromProfile(activeProfileOf(app));
         await loadActiveImage(app);
         renderAll(dom, app, { syncFields: true });
-        showStatus(dom, 'Vista actualizada desde el almacén del navegador.', 'info');
+        showStatus(dom, 'Vista actualizada.', 'info');
       } else if (!loaded.state) {
-        showStatus(dom, 'No hay un workspace guardado que cargar. Se conserva el borrador actual.', 'warning');
+        showStatus(dom, 'No hay cambios guardados.', 'warning');
       } else {
-        showStatus(dom, 'Hay cambios sin guardar; no se sobrescribió el borrador.', 'warning');
+        showStatus(dom, 'Hay cambios sin guardar.', 'warning');
       }
     } catch (error) {
       showError(dom, `No se pudo leer el almacén del navegador: ${error.message || 'error'}. No se sobrescribió nada.`);
@@ -2089,7 +2184,7 @@ async function handleRefresh(dom, app) {
       await loadLegacyState(dom, app, {
         silent: false,
         preserveDirty: app.dirty,
-        successMessage: 'Vista actualizada desde la app. La web no confirma la entrega.',
+        successMessage: 'Vista actualizada.',
       });
     } finally {
       setBusy(dom, app, false);
@@ -2109,7 +2204,7 @@ async function handleRefresh(dom, app) {
     if (!capability(app, CAPABILITIES.WORKSPACE)) {
       showStatus(dom, 'La app dejó de anunciar web-workspace-v1. No se escribió nada; revisa la actualización BASE.', 'warning');
     } else {
-      showStatus(dom, 'Capacidades de la app actualizadas. El workspace sigue en el almacén privado.', 'info');
+      showStatus(dom, 'Vista actualizada.', 'info');
     }
     renderAll(dom, app, { syncFields: false });
   } finally {
@@ -2132,7 +2227,7 @@ async function cancelSpeech(dom, app, { quiet = false } = {}) {
   });
   if (quiet) return result;
   if (result?.ok && result.data?.cancelled === true) {
-    showStatus(dom, 'Escucha cancelada en la app. No se usará la transcripción ni se envió nada.', 'info');
+    showStatus(dom, 'Escucha cancelada.', 'info');
   } else if (result?.ok && result.data?.cancelled === false) {
     showStatus(dom, 'La app indicó que no había una escucha activa. No se usó ninguna transcripción.', 'warning');
   } else {
@@ -2191,7 +2286,7 @@ async function handleSpeak(dom, app) {
     showStatus(
       dom,
       proposal.ok
-        ? 'Propuesta lista. Revísala y pulsa «Preparar propuesta»; no se envió nada.'
+        ? 'Propuesta lista.'
         : proposal.cancelled
           ? 'La frase pide cancelar o no preparar. No se preparó ninguna propuesta.'
           : 'La propuesta está incompleta o es ambigua. Complétala antes de preparar; no se envió nada.',
@@ -2225,7 +2320,7 @@ async function handleApplyProposal(dom, app) {
       if (!saved) return;
       app.proposal = null;
       renderAll(dom, app, { syncFields: true });
-      showStatus(dom, `Propuesta preparada para ${proposal.profileName}. Revisa el mensaje antes de compartir; no se envió nada.`, 'success');
+      showStatus(dom, `Propuesta lista para ${proposal.profileName}.`, 'success');
     } finally {
       setBusy(dom, app, false);
     }
@@ -2242,7 +2337,54 @@ async function handleApplyProposal(dom, app) {
   if (switched) {
     app.proposal = null;
     renderProposal(dom, app);
-    showStatus(dom, `Propuesta preparada para ${proposal.profileName}. Revisa el mensaje antes de compartir; no se envió nada.`, 'success');
+    showStatus(dom, `Propuesta lista para ${proposal.profileName}.`, 'success');
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Acciones del drawer y Acerca de                                           */
+/* ------------------------------------------------------------------------- */
+
+function changeOverlay(dom, app, changes) {
+  if (app.busy || !isWorkspace(app)) return;
+  app.draft.overlay = normalizeOverlay({ ...app.draft.overlay, ...changes });
+  markDirty(app);
+  renderOverlayControls(dom, app);
+  renderImage(dom, app);
+  scheduleSave(dom, app);
+}
+
+function changeOverlaySize(dom, app, direction) {
+  changeOverlay(dom, app, {
+    size: stepOverlaySize(app.draft.overlay.size, direction),
+  });
+}
+
+function chooseOverlayFont(dom, app, font) {
+  if (!OVERLAY_FONTS.includes(font)) return;
+  changeOverlay(dom, app, { font });
+}
+
+function chooseOverlayColor(dom, app, color) {
+  changeOverlay(dom, app, { color });
+}
+
+function openAboutDialog(dom) {
+  if (!dom.aboutDialog) return;
+  if (typeof dom.aboutDialog.showModal === 'function') {
+    if (!dom.aboutDialog.open) dom.aboutDialog.showModal();
+  } else {
+    dom.aboutDialog.setAttribute('open', '');
+  }
+  if (dom.closeAbout && typeof dom.closeAbout.focus === 'function') dom.closeAbout.focus();
+}
+
+function closeAboutDialog(dom) {
+  if (!dom.aboutDialog) return;
+  if (typeof dom.aboutDialog.close === 'function' && dom.aboutDialog.open) {
+    dom.aboutDialog.close();
+  } else {
+    dom.aboutDialog.removeAttribute('open');
   }
 }
 
@@ -2253,21 +2395,23 @@ async function handleApplyProposal(dom, app) {
 function collectDom() {
   const dom = {
     app: byId('app'),
+    appHeader: byId('app-header'),
+    appFooter: byId('app-footer'),
     teamsScreen: byId('teams-screen') ?? document.querySelector('.profiles-panel'),
     main: byId('contenido'),
     workspaceTitle: byId('workspace-title'),
-    workspaceTabs: Array.from(document.querySelectorAll('[data-workspace-tab]')),
-    workspacePanels: collectWorkspacePanels(),
+    heroPanel: byId('hero-panel'),
+    toolDrawer: byId('tool-drawer'),
+    closeTool: byId('close-tool'),
+    toolTitle: byId('tool-title'),
+    editorTools: Array.from(document.querySelectorAll('[data-editor-tool]')),
     backToTeams: byId('back-to-teams'),
-    editDesign: byId('edit-design'),
     modeBadge: byId('mode-badge'),
     versionBadge: byId('version-badge'),
     previewNote: byId('preview-note'),
     heroHour: byId('hero-hour'),
     canvasPreview: byId('canvas-preview'),
     imageFrame: byId('image-frame'),
-    previewMedia: byId('preview-media'),
-    designMedia: byId('design-media'),
     previewImage: byId('preview-image'),
     imagePlaceholder: byId('image-placeholder'),
     placeholderTitle: byId('image-placeholder-title'),
@@ -2298,7 +2442,10 @@ function collectDom() {
     downloadPng: byId('download-png'),
     status: byId('status'),
     error: byId('error'),
+    busyOverlay: byId('busy-overlay'),
+    busyLabel: byId('busy-label'),
     editorPanel: byId('editor-panel'),
+    templatePanel: byId('template-panel'),
     overlayX: byId('overlay-x'),
     overlayY: byId('overlay-y'),
     overlaySize: byId('overlay-size'),
@@ -2308,6 +2455,10 @@ function collectDom() {
     overlayDateField: byId('overlay-date-field'),
     overlayDate: byId('overlay-date'),
     resetOverlay: byId('reset-overlay'),
+    overlaySmaller: byId('overlay-smaller'),
+    overlayBigger: byId('overlay-bigger'),
+    fontChoices: Array.from(document.querySelectorAll('[data-font-choice]')),
+    colorChoices: Array.from(document.querySelectorAll('[data-color-choice]')),
     voicePanel: byId('voice-panel'),
     speakToggle: byId('speak-toggle'),
     speechStatus: byId('speech-status'),
@@ -2323,6 +2474,10 @@ function collectDom() {
     hourConfirm: byId('hour-confirm'),
     hourCancel: byId('hour-cancel'),
     hourClose: byId('hour-close'),
+    aboutDialog: byId('about-dialog'),
+    openAbout: byId('open-about'),
+    editorAbout: byId('editor-about'),
+    closeAbout: byId('close-about'),
     nativeVersion: byId('native-version'),
     capabilityText: byId('capability-text'),
   };
@@ -2361,8 +2516,8 @@ async function hydrateNative(dom, app) {
     showStatus(
       dom,
       app.persistent
-        ? 'Conectado a la app BASE. Revisa el equipo y confirma el compartir en tu teléfono; la web no confirma la entrega.'
-        : 'Conectado, pero el almacén privado no está disponible: este borrador vive en memoria temporal. No se finge persistencia.',
+        ? 'Workspace listo.'
+        : 'Almacén no disponible: cambios sólo en memoria.',
       app.persistent ? 'info' : 'warning',
     );
   } else {
@@ -2371,11 +2526,7 @@ async function hydrateNative(dom, app) {
     applyLegacyState(dom, app, data, { preserveDirty: false });
     setBusy(dom, app, false);
     renderAll(dom, app, { syncFields: true });
-    showStatus(
-      dom,
-      'APK3 detectada. Se mantiene la plantilla única y el compartir anterior. Los perfiles, la foto original, el editor Canvas y el dictado requieren la APK BASE.',
-      'warning',
-    );
+    showStatus(dom, 'APK3: sólo plantilla única.', 'warning');
   }
 }
 
@@ -2402,9 +2553,9 @@ async function hydrateBrowser(dom, app) {
   setBusy(dom, app, false);
   renderAll(dom, app, { syncFields: true });
   if (app.persistent) {
-    showStatus(dom, 'Workspace local listo. Los equipos se guardan en este navegador; no hay envío nativo.', 'info');
+    showStatus(dom, 'Workspace local listo.', 'info');
   } else {
-    showStatus(dom, 'Workspace local en memoria temporal: no se afirma guardado duradero.', 'warning');
+    showStatus(dom, 'Sin almacén duradero: cambios sólo en memoria.', 'warning');
   }
 }
 
@@ -2578,31 +2729,51 @@ function wireUiEvents(dom, app) {
   if (dom.backToTeams) {
     dom.backToTeams.addEventListener('click', () => void handleBackToTeams(dom, app));
   }
-  if (dom.editDesign) {
-    dom.editDesign.addEventListener('click', () => {
-      selectWorkspaceTab(dom, app, 'design', { focus: true });
+  if (dom.openAbout) {
+    dom.openAbout.addEventListener('click', () => openAboutDialog(dom));
+  }
+  if (dom.editorAbout) {
+    dom.editorAbout.addEventListener('click', () => openAboutDialog(dom));
+  }
+  if (dom.closeAbout) {
+    dom.closeAbout.addEventListener('click', () => closeAboutDialog(dom));
+  }
+  if (dom.aboutDialog) {
+    dom.aboutDialog.addEventListener('click', (event) => {
+      if (event.target === dom.aboutDialog) closeAboutDialog(dom);
+    });
+    dom.aboutDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeAboutDialog(dom);
+    });
+    dom.aboutDialog.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeAboutDialog(dom);
     });
   }
-  for (const button of dom.workspaceTabs ?? []) {
+  for (const button of dom.editorTools ?? []) {
+    const tool = resolveEditorTool(button.dataset?.editorTool);
+    if (!tool) continue;
     button.addEventListener('click', () => {
-      selectWorkspaceTab(dom, app, button.dataset.workspaceTab);
+      const next = toggleEditorTool(app.editorTool, tool);
+      selectEditorTool(dom, app, next, { focus: next !== null });
     });
-    button.addEventListener('keydown', (event) => {
-      const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
-      if (!keys.includes(event.key)) return;
-      const tabs = (dom.workspaceTabs ?? []).filter((item) => isWorkspaceTab(item.dataset?.workspaceTab));
-      if (tabs.length === 0) return;
+  }
+  if (dom.closeTool) {
+    dom.closeTool.addEventListener('click', () => {
+      const previous = app.editorTool;
+      selectEditorTool(dom, app, null);
+      focusEditorTool(dom, previous);
+    });
+  }
+  if (dom.toolDrawer) {
+    dom.toolDrawer.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || app.editorTool === null) return;
       event.preventDefault();
-      const current = tabs.indexOf(event.currentTarget);
-      let index = current < 0 ? 0 : current;
-      if (event.key === 'Home') index = 0;
-      else if (event.key === 'End') index = tabs.length - 1;
-      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        index = (index - 1 + tabs.length) % tabs.length;
-      } else {
-        index = (index + 1) % tabs.length;
-      }
-      selectWorkspaceTab(dom, app, tabs[index].dataset.workspaceTab, { focus: true });
+      const previous = app.editorTool;
+      selectEditorTool(dom, app, null);
+      focusEditorTool(dom, previous);
     });
   }
 
@@ -2672,6 +2843,23 @@ function wireUiEvents(dom, app) {
     scheduleSave(dom, app);
   });
 
+  if (dom.overlaySmaller) {
+    dom.overlaySmaller.addEventListener('click', () => changeOverlaySize(dom, app, 'smaller'));
+  }
+  if (dom.overlayBigger) {
+    dom.overlayBigger.addEventListener('click', () => changeOverlaySize(dom, app, 'bigger'));
+  }
+  for (const button of dom.fontChoices ?? []) {
+    button.addEventListener('click', () => {
+      chooseOverlayFont(dom, app, choiceValue(button, 'fontChoice', 'data-font-choice'));
+    });
+  }
+  for (const button of dom.colorChoices ?? []) {
+    button.addEventListener('click', () => {
+      chooseOverlayColor(dom, app, choiceValue(button, 'colorChoice', 'data-color-choice'));
+    });
+  }
+
   dom.canvasPreview.addEventListener('pointerdown', (event) => {
     if (!isWorkspace(app) || app.busy || !isPngDataUrl(app.imageDataUrl)) return;
     app.dragging = true;
@@ -2738,7 +2926,7 @@ async function boot() {
     connection: bridge.mode === 'native' ? 'checking' : 'preview',
     uiMode: 'loading',
     workspaceView: WORKSPACE_VIEW_TEAMS,
-    workspaceTab: 'preview',
+    editorTool: null,
     navigationError: '',
     catalog: PROFILE_CATALOG,
     capabilitySet: new Set(),

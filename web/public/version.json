@@ -1,6 +1,6 @@
 {
-  "version": "0.4.0",
+  "version": "0.4.1",
   "protocol": 1,
   "updated": "2026-10-22",
-  "notes": "Equipos con plantilla independiente y editor por pestañas, conservando imágenes y borradores."
+  "notes": "Editor visual único: imagen siempre visible, herramientas directas, controles sencillos y Acerca de."
 }

@@ -1,10 +1,10 @@
 /*
- * Comportamiento de navegación de equipos (web 0.4.0).
+ * Comportamiento de navegación de equipos (web 0.4.1).
  *
- * Estos tests no levantan un navegador: construyen el mínimo DOM de navegación
- * que el contrato exige (#teams-screen, #contenido, pestañas y paneles) y
- * comprueban el orden real de guardar/abrir, la exclusividad de paneles y la
- * salida sin pérdida del borrador.
+ * Estos tests no levantan un navegador: construyen el mínimo DOM compartido del
+ * editor único (#teams-screen, #contenido, HERO y drawer de herramientas) y
+ * comprueban el orden real de guardar/abrir, el HERO siempre visible, la
+ * exclusividad de herramientas y la salida sin pérdida del borrador.
  */
 
 import test from 'node:test';
@@ -12,22 +12,29 @@ import assert from 'node:assert/strict';
 
 import {
   APP_VERSION,
-  WORKSPACE_TABS,
+  EDITOR_TOOLS,
   WORKSPACE_VIEW_OPEN,
   WORKSPACE_VIEW_TEAMS,
   applyWorkspaceNavigation,
-  isWorkspaceTab,
+  isEditorTool,
   leaveWorkspaceToTeams,
   navigateToProfile,
-  resolveWorkspaceTab,
+  resolveEditorTool,
   workspaceDocumentTitle,
   workspaceRouteFor,
 } from '../public/app.js';
 
+const TOOL_PANELS = {
+  hour: 'editor-panel',
+  message: 'template-panel',
+  voice: 'voice-panel',
+};
+
 function fakeElement(options = {}) {
-  const attributes = new Map();
+  const attributes = new Map(Object.entries(options.attributes ?? {}));
   return {
     hidden: options.hidden ?? false,
+    id: options.id ?? '',
     dataset: { ...(options.dataset ?? {}) },
     textContent: options.textContent ?? '',
     classList: {
@@ -44,17 +51,27 @@ function fakeElement(options = {}) {
 }
 
 function buildNavigationDom() {
-  const tabs = WORKSPACE_TABS.map((tab) => fakeElement({ dataset: { workspaceTab: tab } }));
-  const panels = WORKSPACE_TABS.map((tab) => ({
-    tab,
-    element: fakeElement({ dataset: { workspacePanel: tab } }),
+  const editorTools = EDITOR_TOOLS.map((tool) => fakeElement({
+    dataset: { editorTool: tool },
+    attributes: { 'aria-controls': TOOL_PANELS[tool] },
+  }));
+  const toolPanels = EDITOR_TOOLS.map((tool) => ({
+    tool,
+    element: fakeElement({ id: TOOL_PANELS[tool], hidden: true }),
   }));
   return {
+    appHeader: fakeElement({ hidden: false }),
+    appFooter: fakeElement({ hidden: false }),
     teamsScreen: fakeElement({ hidden: false }),
     main: fakeElement({ hidden: true }),
     workspaceTitle: fakeElement(),
-    workspaceTabs: tabs,
-    workspacePanels: panels,
+    previewNote: fakeElement({ hidden: false }),
+    heroPanel: fakeElement({ id: 'hero-panel', hidden: true }),
+    toolDrawer: fakeElement({ id: 'tool-drawer', hidden: true }),
+    closeTool: fakeElement({ id: 'close-tool', hidden: true }),
+    toolTitle: fakeElement({ id: 'tool-title' }),
+    editorTools,
+    toolPanels,
     profileList: null,
   };
 }
@@ -63,7 +80,7 @@ function baseApp(overrides = {}) {
   return {
     uiMode: 'browser',
     workspaceView: WORKSPACE_VIEW_TEAMS,
-    workspaceTab: 'preview',
+    editorTool: null,
     workspace: {
       activeProfileId: 'champions',
       profiles: {},
@@ -72,13 +89,21 @@ function baseApp(overrides = {}) {
   };
 }
 
-test('APP_VERSION es 0.4.0 y las cuatro pestañas del contrato son válidas', () => {
-  assert.equal(APP_VERSION, '0.4.0');
-  assert.deepEqual([...WORKSPACE_TABS], ['preview', 'design', 'message', 'voice']);
-  for (const tab of WORKSPACE_TABS) assert.equal(isWorkspaceTab(tab), true);
-  assert.equal(isWorkspaceTab('otra'), false);
-  assert.equal(resolveWorkspaceTab('otra'), 'preview');
-  assert.equal(resolveWorkspaceTab('voice'), 'voice');
+function visibleToolPanels(dom) {
+  return dom.toolPanels
+    .filter((panel) => panel.element.hidden === false)
+    .map((panel) => panel.tool);
+}
+
+test('APP_VERSION es 0.4.1 y las herramientas del editor son válidas', () => {
+  assert.equal(APP_VERSION, '0.4.1');
+  assert.deepEqual([...EDITOR_TOOLS], ['hour', 'message', 'voice']);
+  for (const tool of EDITOR_TOOLS) assert.equal(isEditorTool(tool), true);
+  assert.equal(isEditorTool('preview'), false);
+  assert.equal(isEditorTool('design'), false);
+  assert.equal(resolveEditorTool('otra'), null);
+  assert.equal(resolveEditorTool(undefined), null);
+  assert.equal(resolveEditorTool('voice'), 'voice');
 });
 
 test('la ruta y el título reflejan el equipo y la vista', () => {
@@ -96,33 +121,56 @@ test('la ruta y el título reflejan el equipo y la vista', () => {
   );
 });
 
-test('main empieza oculto y sólo una pestaña queda visible al abrir', () => {
+test('main empieza oculto y al abrir el HERO queda visible con un único formulario', () => {
   const dom = buildNavigationDom();
   const app = baseApp();
 
   applyWorkspaceNavigation(dom, app);
   assert.equal(dom.teamsScreen.hidden, false);
   assert.equal(dom.main.hidden, true);
-  for (const panel of dom.workspacePanels) assert.equal(panel.element.hidden, true);
+  assert.equal(dom.appHeader.hidden, false);
+  assert.equal(dom.appFooter.hidden, false);
+  assert.equal(dom.heroPanel.hidden, true);
+  for (const panel of dom.toolPanels) assert.equal(panel.element.hidden, true);
   assert.equal(dom.workspaceTitle.textContent, 'Los Champions');
 
   app.workspaceView = WORKSPACE_VIEW_OPEN;
-  app.workspaceTab = 'message';
   applyWorkspaceNavigation(dom, app);
-
   assert.equal(dom.teamsScreen.hidden, true);
   assert.equal(dom.main.hidden, false);
-  const visible = dom.workspacePanels.filter((panel) => panel.element.hidden === false);
-  assert.deepEqual(visible.map((panel) => panel.tab), ['message']);
-  for (const button of dom.workspaceTabs) {
-    assert.equal(button.getAttribute('aria-selected'), String(button.dataset.workspaceTab === 'message'));
-    assert.equal(button.getAttribute('tabindex'), button.dataset.workspaceTab === 'message' ? '0' : '-1');
+  assert.equal(dom.appHeader.hidden, true);
+  assert.equal(dom.appFooter.hidden, true);
+  assert.equal(dom.previewNote.hidden, true);
+  assert.equal(dom.heroPanel.hidden, false, 'el HERO debe verse sin herramienta abierta');
+  assert.equal(dom.toolDrawer.hidden, true);
+  assert.deepEqual(visibleToolPanels(dom), []);
+  for (const button of dom.editorTools) {
+    assert.equal(button.getAttribute('aria-expanded'), 'false');
   }
 
-  app.workspaceTab = 'inexistente';
+  app.editorTool = 'message';
   applyWorkspaceNavigation(dom, app);
-  const fallbackVisible = dom.workspacePanels.filter((panel) => panel.element.hidden === false);
-  assert.deepEqual(fallbackVisible.map((panel) => panel.tab), ['preview']);
+  assert.equal(dom.heroPanel.hidden, false, 'el HERO sigue visible con el drawer abierto');
+  assert.equal(dom.toolDrawer.hidden, false);
+  assert.equal(dom.toolTitle.textContent, 'Mensaje y destinos');
+  assert.deepEqual(visibleToolPanels(dom), ['message']);
+  const messageButton = dom.editorTools.find((button) => button.dataset.editorTool === 'message');
+  assert.equal(messageButton.getAttribute('aria-expanded'), 'true');
+  assert.equal(messageButton.getAttribute('aria-controls'), 'template-panel');
+
+  app.editorTool = 'inexistente';
+  applyWorkspaceNavigation(dom, app);
+  assert.equal(app.editorTool, null);
+  assert.equal(dom.heroPanel.hidden, false);
+  assert.equal(dom.toolDrawer.hidden, true);
+  assert.deepEqual(visibleToolPanels(dom), []);
+
+  app.workspaceView = WORKSPACE_VIEW_TEAMS;
+  applyWorkspaceNavigation(dom, app);
+  assert.equal(dom.appHeader.hidden, false);
+  assert.equal(dom.appFooter.hidden, false);
+  assert.equal(dom.teamsScreen.hidden, false);
+  assert.equal(dom.main.hidden, true);
 });
 
 test('tocar la tarjeta activa abre su plantilla sin guardar ni cambiar de equipo', async () => {
@@ -235,7 +283,7 @@ test('aplicar una propuesta de voz que cambia equipo actualiza título y ruta', 
   const dom = buildNavigationDom();
   const app = baseApp({
     workspaceView: WORKSPACE_VIEW_OPEN,
-    workspaceTab: 'voice',
+    editorTool: 'voice',
     workspace: {
       activeProfileId: 'champions',
       profiles: {},
@@ -245,6 +293,8 @@ test('aplicar una propuesta de voz que cambia equipo actualiza título y ruta', 
   applyWorkspaceNavigation(dom, app);
   assert.equal(dom.workspaceTitle.textContent, 'Los Champions');
   assert.equal(workspaceRouteFor(app.workspace.activeProfileId), '#equipo/champions');
+  assert.equal(dom.heroPanel.hidden, false);
+  assert.deepEqual(visibleToolPanels(dom), ['voice']);
 
   // Lo que hace switchWorkspaceProfile al aceptar la propuesta de otro equipo.
   app.workspace.activeProfileId = 'espartanos';
@@ -252,6 +302,6 @@ test('aplicar una propuesta de voz que cambia equipo actualiza título y ruta', 
 
   assert.equal(dom.workspaceTitle.textContent, 'Los Espartanos');
   assert.equal(workspaceRouteFor(app.workspace.activeProfileId), '#equipo/espartanos');
-  const visible = dom.workspacePanels.filter((panel) => panel.element.hidden === false);
-  assert.deepEqual(visible.map((panel) => panel.tab), ['voice']);
+  assert.equal(dom.heroPanel.hidden, false);
+  assert.deepEqual(visibleToolPanels(dom), ['voice']);
 });
