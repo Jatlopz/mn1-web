@@ -1,6 +1,6 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "protocol": 1,
   "updated": "2026-10-23",
-  "notes": "Corrige el cuadro de Cuenta y equipos en Android y su ajuste a la pantalla visible."
+  "notes": "Borrar y restaurar equipos en este teléfono conservando imágenes; conexión compatible con WebView."
 }

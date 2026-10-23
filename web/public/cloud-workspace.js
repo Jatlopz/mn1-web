@@ -240,7 +240,9 @@ export function createCloudWorkspace(getServices) {
     await action(async () => {
       await refresh();
       if (!access.member) return;
+      const localState = JSON.parse(await getServices().storage.getText(WORKSPACE_KEYS.state) || "{}");
       for (const row of rows) {
+        if (localState.archivedProfileIds?.includes(row.id)) continue;
         const bound = meta[row.id];
         if (!bound) {
           if (row.data && !definitions().some((t) => t.id === row.id))

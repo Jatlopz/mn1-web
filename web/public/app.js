@@ -53,6 +53,7 @@ import {
   normalizeTemplate,
   normalizeWorkspaceState,
   profileCatalogForWorkspace,
+  setTeamArchived,
   resolveCardCoverSource,
   resolveCoverSave,
   resolveDefaultHourAfterQuickHoursEdit,
@@ -88,7 +89,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.1';
+export const APP_VERSION = '0.5.2';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -2537,6 +2538,14 @@ function openAddTeamDialog(dom, app) {
     showStatus(dom, 'Los equipos personalizados necesitan el workspace web y su almacén.', 'warning');
     return;
   }
+  const restore = document.getElementById('restore-team-select');
+  restore.replaceChildren();
+  for (const id of app.workspace.archivedProfileIds || []) {
+    const option = document.createElement('option'); option.value = id;
+    option.textContent = getProfileDefinition(id, {customProfiles:app.workspace.customProfiles})?.name || id;
+    restore.append(option);
+  }
+  document.getElementById('restore-team-section').hidden = !restore.options.length;
   app.addTeamSubmitted = false;
   if (dom.addTeamInput) {
     dom.addTeamInput.value = '';
@@ -4050,6 +4059,8 @@ function wireUiEvents(dom, app) {
   if (dom.coverShade) {
     dom.coverShade.addEventListener('input', () => setCoverShade(dom, app, dom.coverShade.value));
   }
+  document.getElementById('delete-team').addEventListener('click', () => void changeTeamVisibility(dom, app, app.coverDraft?.profileId, true));
+  document.getElementById('restore-team').addEventListener('click', () => void changeTeamVisibility(dom, app, document.getElementById('restore-team-select').value, false));
   if (dom.coverSave) {
     dom.coverSave.addEventListener('click', () => void handleCoverSave(dom, app));
   }
@@ -4462,7 +4473,7 @@ async function boot() {
   }
   app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
-  app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
+  app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
   void app.cloud.start();
   await processWidgetLaunch();
   await processReportWidgetLaunch();
@@ -4474,4 +4485,25 @@ if (typeof document !== 'undefined') {
   } else {
     boot();
   }
+}
+
+async function changeTeamVisibility(dom, app, id, archived) {
+  if (app.busy || app.switching || app.changingTeam || !id || app.storageBlocked) return;
+  const name = getProfileDefinition(id, {customProfiles:app.workspace.customProfiles})?.name || 'equipo';
+  if (archived && !confirm('¿Borrar «' + name + '» de este teléfono? Sus imágenes y ajustes se conservarán para restaurarlo desde Agregar equipo. No se borrará de otros teléfonos.')) return;
+  app.changingTeam = true;
+  setBusy(dom, app, true, archived ? 'Quitando equipo…' : 'Restaurando equipo…');
+  try {
+    if (!await flushDraftBeforeLeaving(dom, app)) return;
+    const next = setTeamArchived(app.workspace, id, archived);
+    await enqueueStorageTask(app, () => app.storage.putText(WORKSPACE_KEYS.state, JSON.stringify(next)));
+    app.workspace = next; app.catalog = profileCatalogForWorkspace(next);
+    app.draft = cloneDraftFromProfile(activeProfileOf(app));
+    app.cardThumbnailCache = null;
+    app.workspaceView = WORKSPACE_VIEW_OPEN;
+    closeCoverDialog(dom, app); closeAddTeamDialog(dom);
+    await loadActiveImage(app); renderAll(dom, app, {syncFields:true});
+    showStatus(dom, archived ? 'Equipo quitado de este teléfono. Puedes restaurarlo desde Agregar equipo.' : 'Equipo restaurado con sus imágenes y ajustes.', 'success');
+  } catch (error) { showError(dom, error.message || 'No se pudo guardar el cambio.', app); }
+  finally { app.changingTeam = false; setBusy(dom, app, false); }
 }

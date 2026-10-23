@@ -80,6 +80,9 @@ export class CloudClient {
     if (body !== undefined)
       headers["Content-Type"] = raw ? "image/png" : "application/json";
     let result;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
     try {
       result = await this.fetcher(this.config.url + path, {
         method,
@@ -88,10 +91,10 @@ export class CloudClient {
           body === undefined ? undefined : raw ? body : JSON.stringify(body),
         redirect: "error",
         cache: "no-store",
-        signal: AbortSignal.timeout(20000),
+        signal: controller.signal,
       });
     } catch {
-      throw new CloudError(
+        throw new CloudError(
         "Sin conexión con la nube. Tu copia local se conserva.",
         "offline",
       );
@@ -124,6 +127,7 @@ export class CloudClient {
     if (result.status === 204) return null;
     const text = await result.text();
     return text ? JSON.parse(text) : null;
+    } finally { clearTimeout(timeout); }
   }
   async login(email, password) {
     const value = await this.request("/auth/v1/token?grant_type=password", {

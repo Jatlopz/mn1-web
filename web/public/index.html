@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.1">
+  <link rel="stylesheet" href="./styles.css?v=0.5.2">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -325,6 +325,7 @@
     <input id="cover-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
     <p class="field-error" id="cover-error" role="alert" hidden></p>
     <div class="dialog-actions"><button class="button button-secondary" id="cover-cancel" type="button">Cancelar</button><button class="button button-primary" id="cover-save" type="button">Guardar portada</button></div>
+    <button class="button button-secondary" id="delete-team" type="button">Borrar equipo de este teléfono</button>
   </dialog>
 
 
@@ -362,6 +363,7 @@
       <label class="field-label" for="add-team-input">Nombre del equipo</label>
       <input class="input" id="add-team-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-describedby="add-team-help add-team-error">
     </div>
+    <section id="restore-team-section" hidden><label class="field">Equipos borrados<select class="select" id="restore-team-select"></select></label><button class="button button-secondary" id="restore-team" type="button">Restaurar equipo</button></section>
     <p class="field-error" id="add-team-error" role="alert" hidden></p>
     <div class="dialog-actions">
       <button class="button button-secondary" id="add-team-cancel" type="button">Cancelar</button>
@@ -428,6 +430,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.1"></script>
+  <script type="module" src="./app.js?v=0.5.2"></script>
 </body>
 </html>

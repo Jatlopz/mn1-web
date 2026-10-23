@@ -282,3 +282,17 @@ test("restored live copies can be replaced without deleting immutable originals"
   assert.equal(await s.getText(second.profiles.champions.imageKey), png);
   assert.equal(await s.getText(backup.state.profiles.champions.imageKey), png);
 });
+
+test('cloud requests work without AbortSignal.timeout in Android WebView', async () => {
+ const previous = AbortSignal.timeout;
+ try {
+  AbortSignal.timeout = undefined;
+  let reached = false;
+  const client = new CloudClient(vault(), {fetcher: async (url, options) => {
+   reached = true; assert.ok(options.signal instanceof AbortSignal);
+   return new Response('{}', {status:200});
+  }});
+  await client.request('/auth/v1/settings', {auth:false, method:'GET'});
+  assert.equal(reached,true);
+ } finally { AbortSignal.timeout = previous; }
+});

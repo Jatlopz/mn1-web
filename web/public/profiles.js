@@ -414,7 +414,7 @@ export function profileCatalogForWorkspace(workspace) {
   return Object.freeze([
     ...PROFILE_CATALOG,
     ...customProfiles.map((profile) => Object.freeze({ ...profile })),
-  ]);
+  ].filter(profile => !workspace?.archivedProfileIds?.includes(profile.id)));
 }
 
 export function defaultMessageForTeam(name) {
@@ -721,10 +721,14 @@ export function normalizeWorkspaceState(raw) {
     const source = hasOwn(rawProfiles, definition.id) ? rawProfiles[definition.id] : undefined;
     profiles[definition.id] = normalizeTemplate(source, definition.id, { definitions });
   }
-  const activeProfileId = isProfileId(raw.activeProfileId, { definitions })
+  const archivedProfileIds = [...new Set(Array.isArray(raw.archivedProfileIds) ? raw.archivedProfileIds : [])].filter(id => definitions.some(d => d.id === id));
+  if (archivedProfileIds.length === definitions.length) archivedProfileIds.pop();
+  const visible = definitions.filter(d => !archivedProfileIds.includes(d.id));
+  const activeProfileId = !archivedProfileIds.includes(raw.activeProfileId) && isProfileId(raw.activeProfileId, { definitions })
     ? raw.activeProfileId
-    : DEFAULT_PROFILE_ID;
+    : visible.find(d => d.id === DEFAULT_PROFILE_ID)?.id || visible[0].id;
   return {
+    archivedProfileIds,
     version: 1,
     activeProfileId,
     profiles,
@@ -840,4 +844,18 @@ export function validateDraft(draft, options = {}) {
       targetLabels: labels,
     },
   };
+}
+
+/** Removal is local and reversible; original templates and vault references stay intact. */
+export function setTeamArchived(state, id, archived) {
+  const next = normalizeWorkspaceState(state);
+  if (!next || !next.profiles[id]) throw new Error('Equipo no encontrado.');
+  const ids = new Set(next.archivedProfileIds);
+  if (archived) {
+    if (profileCatalogForWorkspace(next).length <= 1 && !ids.has(id))
+      throw new Error('Conserva al menos un equipo.');
+    ids.add(id);
+  } else ids.delete(id);
+  next.archivedProfileIds = [...ids];
+  return normalizeWorkspaceState(next);
 }

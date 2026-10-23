@@ -206,3 +206,23 @@ test('normaliza estado guardado y actualiza sin mutar el original', () => {
   assert.equal(updated.profiles.champions.hour, '12:00');
   assert.equal(state.profiles.champions.hour, '08:00');
 });
+
+test('local team removal survives reload, switches active team and preserves original', async () => {
+ const {setTeamArchived,profileCatalogForWorkspace,normalizeWorkspaceState,createDefaultWorkspace} = await import('../public/profiles.js');
+ const state = createDefaultWorkspace();
+ state.profiles.indestructibles.hour = '14:30';
+ const original = structuredClone(state);
+ const removed = setTeamArchived(state,'indestructibles',true);
+ assert.equal(profileCatalogForWorkspace(removed).some(p=>p.id==='indestructibles'),false);
+ assert.notEqual(removed.activeProfileId,'indestructibles');
+ assert.equal(removed.profiles.indestructibles.hour,'14:30');
+ assert.deepEqual(state,original);
+ const reload = normalizeWorkspaceState(JSON.parse(JSON.stringify(removed)));
+ assert.equal(profileCatalogForWorkspace(reload).length,3);
+ const restored = setTeamArchived(reload,'indestructibles',false);
+ assert.equal(profileCatalogForWorkspace(restored).length,4);
+ assert.deepEqual(restored.profiles.indestructibles,removed.profiles.indestructibles);
+ let next = removed;
+ for (const id of ['champions','espartanos']) next=setTeamArchived(next,id,true);
+ assert.throws(()=>setTeamArchived(next,'super-guerreros',true),/al menos/);
+});
