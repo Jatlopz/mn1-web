@@ -154,6 +154,9 @@ export class CloudClient {
   access() {
     return this.request("/rest/v1/rpc/mn1_access", { body: {} });
   }
+  publicList() {
+    return this.request('/functions/v1/team-catalog', {method:'GET',auth:false});
+  }
   list() {
     return this.request(
       "/rest/v1/mn1_teams?select=id,revision,data,updated_at&order=id",
@@ -192,8 +195,8 @@ export class CloudClient {
   }
   download(path) {
     return this.request(
-      "/storage/v1/object/authenticated/mn1-team-art/" + path,
-      { method: "GET", blob: true },
+      "/functions/v1/team-catalog?asset=" + encodeURIComponent(path),
+      { method: "GET", blob: true, auth:false },
     );
   }
 }

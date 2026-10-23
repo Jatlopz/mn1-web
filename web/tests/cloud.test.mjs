@@ -350,3 +350,20 @@ test('actual auth rejection is distinguished from network failure without exposi
  const client=new CloudClient(vault(),{fetcher:async()=>new Response(JSON.stringify({code:'invalid_credentials',message:'internal detail must not leak'}),{status:400})});
  await assert.rejects(client.login('test@example.invalid','fictitious'),e=>e.code==='400' && e.message==='Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.');
 });
+
+test('public catalog and artwork do not require session or expose an existing bearer token',async()=>{
+ const calls=[];
+ const client=new CloudClient(vault(),{fetcher:async(url,options)=>{
+  calls.push({url,options});
+  return url.includes('?asset=')?new Response(new Uint8Array([137,80,78,71])):Response.json([]);
+ }});
+ client.session={access_token:'private-fixture',expires_at:Math.floor(Date.now()/1000)+3600};
+ await client.publicList();
+ await client.download('champions/12345678-1234-1234-1234-123456789abc.png');
+ assert.equal(calls.length,2);
+ assert.ok(calls.every(c=>!('Authorization' in c.options.headers)));
+ assert.ok(calls.every(c=>c.url.includes('/functions/v1/team-catalog')));
+ const anonymous=new CloudClient(vault(),{fetcher:async()=>Response.json([])});
+ assert.deepEqual(await anonymous.publicList(),[]);
+ await assert.rejects(anonymous.publish('champions',0,{}),e=>e.code==='login');
+});

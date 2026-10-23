@@ -37,12 +37,14 @@ export function createCloudWorkspace(getServices) {
   function render() {
     const logged = Boolean(client.session);
     $("cloud-login").hidden = logged;
-    $("cloud-connected").hidden = !logged;
+    $("cloud-connected").hidden = false;
+    $("cloud-logout").hidden = !logged;
+    $("cloud-password-settings").hidden = !logged;
     $("cloud-admin").hidden = !access?.admin;
     $("cloud-account").textContent = logged
       ? (client.session.user?.email || "Cuenta conectada") +
         (access?.admin ? " · Administrador general" : "")
-      : "";
+      : "Recepción automática · Sin cuenta";
     const list = $("cloud-teams");
     list.replaceChildren();
     const ids = new Set([
@@ -65,7 +67,7 @@ export function createCloudWorkspace(getServices) {
       detail.textContent = remote?.revision
         ? "Versión compartida " +
           remote.revision +
-          (meta[id]?.conflict ? " · Requiere revisión" : "")
+          (meta[id]?.paused ? " · Recepción pausada; pulsa Recibir para volver a vincular" : meta[id]?.conflict ? " · Requiere revisión" : "")
         : "Sólo en este teléfono; aún sin publicar";
       item.append(detail);
       if (access?.member && remote?.revision) {
@@ -126,7 +128,7 @@ export function createCloudWorkspace(getServices) {
         );
         item.append(publish);
       }
-      if (client.session && meta[id]?.original) {
+      if (meta[id]?.original) {
         const restore = document.createElement("button");
         restore.className = "button button-secondary";
         restore.textContent = "Restaurar mi copia original";
@@ -143,7 +145,7 @@ export function createCloudWorkspace(getServices) {
                 return;
               applying = true;
               try {
-                delete meta[id];
+                meta[id] = {original:true, paused:true};
                 await saveMeta();
                 const state = await restoreOriginal(getServices().storage, id);
                 await getServices().applyState(state);
@@ -169,14 +171,14 @@ export function createCloudWorkspace(getServices) {
       $("cloud-editor-team").value = selected;
   }
   async function refresh() {
-    access = await client.access();
+    access = client.session ? await client.access() : {member:true,admin:false,teams:[]};
     if (!access.member) {
       rows = [];
       status(
         "Cuenta sin equipo asignado. Pide al administrador general que autorice tu correo.",
         true,
       );
-    } else rows = await client.list();
+    } else rows = client.session ? await client.list() : await client.publicList();
     render();
   }
   async function action(fn) {
@@ -236,7 +238,7 @@ export function createCloudWorkspace(getServices) {
     }
   }
   async function tick() {
-    if (busy || !client.session || getServices().blocked()) return;
+    if (busy || getServices().blocked()) return;
     await action(async () => {
       await refresh();
       if (!access.member) return;
@@ -245,11 +247,11 @@ export function createCloudWorkspace(getServices) {
         if (localState.archivedProfileIds?.includes(row.id)) continue;
         const bound = meta[row.id];
         if (!bound) {
-          if (row.data && !definitions().some((t) => t.id === row.id))
+          if (row.data)
             await receiveRow(row);
           continue;
         }
-        if (bound.conflict) continue;
+        if (bound.paused || bound.conflict) continue;
         const local = await localTeamPacket(getServices().storage, row.id);
         const changed = local.fingerprint !== bound.fingerprint;
         if (row.revision > bound.revision) {
@@ -297,10 +299,10 @@ export function createCloudWorkspace(getServices) {
   $("open-cloud").addEventListener("click", () => {
     dialog.showModal();
     render();
-    if (client.session) void action(refresh);
+    void tick();
   });
   $("close-cloud").addEventListener("click", () => dialog.close());
-  $("cloud-login").addEventListener("submit", (e) => {
+  $("cloud-login-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const email = $("cloud-email").value,
       password = $("cloud-password").value;
@@ -323,7 +325,8 @@ export function createCloudWorkspace(getServices) {
         await client.logout();
         access = null;
         rows = [];
-        status("Sesión cerrada. Tu copia local sigue disponible.");
+        await refresh();
+        status("Sesión cerrada. Seguirás recibiendo los equipos publicados sin cuenta.");
       }),
   );
   $("cloud-refresh").addEventListener(
@@ -372,7 +375,8 @@ export function createCloudWorkspace(getServices) {
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
           meta = parsed;
       }
-      if (await client.restore()) await refresh();
+      await client.restore();
+      await refresh();
     } catch (e) {
       status(e.message, true);
     }
@@ -383,7 +387,7 @@ export function createCloudWorkspace(getServices) {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) schedule();
     });
-    schedule();
+    void tick();
   }
   return { start, tick };
 }

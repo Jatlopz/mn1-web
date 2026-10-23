@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.4">
+  <link rel="stylesheet" href="./styles.css?v=0.5.5">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -332,10 +332,10 @@
   <dialog class="dialog cloud-dialog" id="cloud-dialog" aria-labelledby="cloud-title">
     <div class="dialog-head"><h2 id="cloud-title">Cuenta y equipos</h2><button class="dialog-close" id="close-cloud" type="button" aria-label="Cerrar Cuenta y equipos">×</button></div>
     <p class="hint">Comparte plantillas, artes y logos entre teléfonos. Las fotos de reportes siguen en tu teléfono.</p>
-    <p id="cloud-status" role="status" aria-live="polite">Inicia sesión con la cuenta autorizada por el administrador.</p>
-    <form id="cloud-login"><label class="field">Correo<input class="input" id="cloud-email" type="email" autocomplete="username" maxlength="254" required></label><label class="field">Contraseña<input class="input" id="cloud-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="button button-primary" type="submit">Entrar</button></form>
-    <section id="cloud-connected" hidden><p id="cloud-account"></p><div class="cloud-actions"><button class="button button-secondary" id="cloud-refresh" type="button">Buscar cambios</button><button class="button button-secondary" id="cloud-logout" type="button">Cerrar sesión</button></div><p class="hint">Después de publicar o recibir una primera versión, los cambios guardados se sincronizan con internet. Si dos teléfonos cambian el mismo equipo, tendrás que elegir la versión.</p><div id="cloud-teams"></div>
-    <details><summary>Cambiar mi contraseña</summary><form id="cloud-change-password"><label class="field">Nueva contraseña<input class="input" id="cloud-own-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button class="button button-secondary" type="submit">Cambiar contraseña</button></form></details>
+    <p id="cloud-status" role="status" aria-live="polite">Los equipos publicados se reciben automáticamente. No necesitas cuenta.</p>
+    <details id="cloud-login"><summary>Administrar equipos · Iniciar sesión</summary><form id="cloud-login-form"><label class="field">Correo<input class="input" id="cloud-email" type="email" autocomplete="username" maxlength="254" required></label><label class="field">Contraseña<input class="input" id="cloud-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="button button-primary" type="submit">Entrar</button></form></details>
+    <section id="cloud-connected" hidden><p id="cloud-account"></p><div class="cloud-actions"><button class="button button-secondary" id="cloud-refresh" type="button">Buscar cambios</button><button class="button button-secondary" id="cloud-logout" type="button">Cerrar sesión</button></div><p class="hint">Recibes los equipos publicados al abrir la app y mientras está activa con internet. Tus originales se respaldan; los cambios locales pendientes se conservan para revisar. Sólo las cuentas autorizadas publican cambios.</p><div id="cloud-teams"></div>
+    <details id="cloud-password-settings"><summary>Cambiar mi contraseña</summary><form id="cloud-change-password"><label class="field">Nueva contraseña<input class="input" id="cloud-own-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button class="button button-secondary" type="submit">Cambiar contraseña</button></form></details>
     <section id="cloud-admin" hidden><h3>Administración general</h3><form id="cloud-grant"><label class="field">Equipo<select class="select" id="cloud-editor-team"></select></label><label class="field">Correo del responsable<input class="input" id="cloud-editor-email" type="email" maxlength="254" required></label><label class="watermark-toggle"><input id="cloud-editor-enabled" type="checkbox" checked> Puede editar este equipo</label><button class="button button-primary" type="submit">Guardar permisos</button></form><details><summary>Crear cuenta de responsable</summary><p class="hint">Elige una contraseña temporal de al menos 12 caracteres. Compártela directamente con su responsable; podrá cambiarla al entrar. No se envían correos desde aquí.</p><form id="cloud-create-account"><label class="field">Correo<input class="input" id="cloud-new-email" type="email" maxlength="254" required></label><label class="field">Contraseña temporal<input class="input" id="cloud-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button class="button button-secondary" type="submit">Crear cuenta</button></form></details></section></section>
   </dialog>
 
@@ -430,6 +430,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.4"></script>
+  <script type="module" src="./app.js?v=0.5.5"></script>
 </body>
 </html>

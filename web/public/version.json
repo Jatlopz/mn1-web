@@ -1,6 +1,6 @@
 {
-  "version": "0.5.4",
+  "version": "0.5.5",
   "protocol": 1,
   "updated": "2026-10-23",
-  "notes": "Corrige llamada de conexión en navegador y WebView y diferencia acceso incorrecto de fallos de red."
+  "notes": "Recepción automática de equipos, artes y logos publicados sin cuenta ni código; administración protegida."
 }
