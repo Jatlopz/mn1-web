@@ -1979,3 +1979,5 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 @media(prefers-reduced-motion:reduce){.theme-option{transition:none}}
 @media(forced-colors:active){.theme-option,.theme-sample,.profile-card,.dialog,.input,.select,.textarea{background:Canvas;color:CanvasText;border-color:ButtonText}.theme-option[aria-pressed=true]{outline-color:Highlight}.button-primary{background:ButtonFace;color:ButtonText}}
 .brand-projector{filter:drop-shadow(0 4px 12px var(--accent-glow))}.add-team-button,.add-team-button:hover:not(:disabled){box-shadow:0 10px 28px var(--accent-glow)}.editor-tool[aria-expanded=true],.editor-tool:hover:not(:disabled){background:var(--surface-highest);color:var(--lime)}.editor-tools,.tool-drawer{background:var(--panel-glass)}
+.app-header{max-width:760px;width:100%;margin:0 auto 1.2rem;gap:.45rem;flex-wrap:nowrap}.brand{flex:1}.theme-dialog .dialog-head h2{margin:0}
+@media(max-width:480px){.brand-projector{width:38px;height:38px;flex-basis:38px}.brand{gap:.4rem}.brand-name{font-size:1.1rem}.brand-sub{font-size:.58rem;letter-spacing:.07em}.app-header{gap:.3rem}.about-button{width:40px;height:40px;flex-basis:40px}}
