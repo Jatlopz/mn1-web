@@ -1,6 +1,6 @@
 {
   "version": "0.5.1",
   "protocol": 1,
-  "updated": "2026-10-22",
-  "notes": "Colores de marco editables y acceso de foto del widget para el equipo seleccionado."
+  "updated": "2026-10-23",
+  "notes": "Corrige el cuadro de Cuenta y equipos en Android y su ajuste a la pantalla visible."
 }

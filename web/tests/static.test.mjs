@@ -14,7 +14,7 @@ test('version.json es visible, parseable, 0.5.1 y usa el contrato v1', async () 
   assert.equal(version.version, '0.5.1');
   assert.match(version.version, /^\d+\.\d+\.\d+$/);
   assert.equal(version.protocol, 1);
-  assert.equal(version.updated, '2026-10-22');
+  assert.equal(version.updated, '2026-10-23');
 });
 
 test('index.html carga sólo assets locales versionados y declara CSP', async () => {
