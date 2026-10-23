@@ -10,6 +10,7 @@
  * - La web nunca simula guardado nativo, selector, micrófono ni entrega.
  */
 
+import { installThemes } from './themes.js';
 import {
   BridgeError,
   CAPABILITIES,
@@ -89,7 +90,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.5';
+export const APP_VERSION = '0.5.6';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -4471,6 +4472,7 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  await installThemes(app.storage);
   app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
   app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));

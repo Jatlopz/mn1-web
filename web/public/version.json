@@ -1,6 +1,6 @@
 {
-  "version": "0.5.5",
+  "version": "0.5.6",
   "protocol": 1,
   "updated": "2026-10-23",
-  "notes": "Recepción automática de equipos, artes y logos publicados sin cuenta ni código; administración protegida."
+  "notes": "Nuevo estilo azul hielo y selector de temas Amatista, Ámbar y Lima clásico; elección local sin modificar imágenes."
 }

@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Batiseñal · Avisos de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.5">
+  <link rel="stylesheet" href="./styles.css?v=0.5.6">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -29,6 +29,7 @@
         </div>
       </div>
       <button class="about-button" id="open-cloud" type="button" aria-haspopup="dialog" aria-label="Cuenta y equipos compartidos" title="Cuenta y equipos"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 18a5 5 0 0 1-1-9.9A6 6 0 0 1 18 8a5 5 0 0 1 0 10"/><path d="m9 14 3-3 3 3M12 11v10"/></svg></button>
+      <button class="about-button" id="open-themes" type="button" aria-haspopup="dialog" aria-label="Temas" title="Temas"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 17l9 5 9-5"/></svg></button>
       <button class="about-button" id="open-about" type="button" aria-haspopup="dialog" aria-label="Acerca de Batiseñal">ⓘ</button>
     </header>
 
@@ -339,6 +340,15 @@
     <section id="cloud-admin" hidden><h3>Administración general</h3><form id="cloud-grant"><label class="field">Equipo<select class="select" id="cloud-editor-team"></select></label><label class="field">Correo del responsable<input class="input" id="cloud-editor-email" type="email" maxlength="254" required></label><label class="watermark-toggle"><input id="cloud-editor-enabled" type="checkbox" checked> Puede editar este equipo</label><button class="button button-primary" type="submit">Guardar permisos</button></form><details><summary>Crear cuenta de responsable</summary><p class="hint">Elige una contraseña temporal de al menos 12 caracteres. Compártela directamente con su responsable; podrá cambiarla al entrar. No se envían correos desde aquí.</p><form id="cloud-create-account"><label class="field">Correo<input class="input" id="cloud-new-email" type="email" maxlength="254" required></label><label class="field">Contraseña temporal<input class="input" id="cloud-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button class="button button-secondary" type="submit">Crear cuenta</button></form></details></section></section>
   </dialog>
 
+  <dialog class="dialog theme-dialog" id="theme-dialog" aria-labelledby="theme-title">
+    <div class="dialog-head"><div><h2 id="theme-title">Tu estilo</h2><p class="hint">Elige el ambiente de tu estudio.</p></div><button class="dialog-close" id="close-themes" type="button" aria-label="Cerrar temas">×</button></div>
+    <div class="theme-grid" role="group" aria-label="Temas disponibles">
+      <button type="button" class="theme-option theme-ice" data-theme-choice="ice" aria-pressed="true"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Azul hielo</strong><small>Nítido y sereno</small></button>
+      <button type="button" class="theme-option theme-violet" data-theme-choice="violet" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Amatista</strong><small>Profundo y expresivo</small></button>
+      <button type="button" class="theme-option theme-amber" data-theme-choice="amber" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Ámbar</strong><small>Cálido y elegante</small></button>
+      <button type="button" class="theme-option theme-lime" data-theme-choice="lime" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Lima clásico</strong><small>Tu acento original</small></button>
+    </div><p id="theme-error" class="hint" role="status" aria-live="polite"></p><p class="hint">Sólo cambia la apariencia de este teléfono. Tus imágenes y anuncios quedan iguales.</p>
+  </dialog>
   <dialog class="dialog about-dialog" id="about-dialog" aria-labelledby="about-title">
     <div class="dialog-head"><h2 id="about-title">Acerca de Batiseñal</h2><button class="dialog-close" id="close-about" type="button" aria-label="Cerrar Acerca de">×</button></div>
     <p>Tu estudio de anuncios para los equipos de Sacos.</p>
@@ -430,6 +440,6 @@
     <p class="noscript">MN1 necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.5"></script>
+  <script type="module" src="./app.js?v=0.5.6"></script>
 </body>
 </html>
