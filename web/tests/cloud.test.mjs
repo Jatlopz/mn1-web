@@ -333,3 +333,20 @@ test('two native vault phones save login and exchange artwork during concurrent 
  assert.equal(await b.getText(received.profiles.indestructibles.imageKey),png);
  assert.equal(initial.profiles.indestructibles.hour,'09:45');
 });
+
+test('browser fetch retains its Window receiver rather than the CloudClient instance', async () => {
+ const previous=globalThis.fetch;
+ try {
+  globalThis.fetch=async function(){
+   if(this!==globalThis) throw new TypeError('Illegal invocation');
+   return new Response('{}',{status:200});
+  };
+  const client=new CloudClient(vault());
+  await client.request('/auth/v1/settings',{auth:false,method:'GET'});
+ }finally{globalThis.fetch=previous;}
+});
+
+test('actual auth rejection is distinguished from network failure without exposing server details', async () => {
+ const client=new CloudClient(vault(),{fetcher:async()=>new Response(JSON.stringify({code:'invalid_credentials',message:'internal detail must not leak'}),{status:400})});
+ await assert.rejects(client.login('test@example.invalid','fictitious'),e=>e.code==='400' && e.message==='Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.');
+});

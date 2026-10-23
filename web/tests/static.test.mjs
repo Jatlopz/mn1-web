@@ -9,9 +9,9 @@ async function readPublic(name) {
   return readFile(new URL(name, publicUrl), 'utf8');
 }
 
-test('version.json es visible, parseable, 0.5.3 y usa el contrato v1', async () => {
+test('version.json es visible, parseable, 0.5.4 y usa el contrato v1', async () => {
   const version = JSON.parse(await readPublic('version.json'));
-  assert.equal(version.version, '0.5.3');
+  assert.equal(version.version, '0.5.4');
   assert.match(version.version, /^\d+\.\d+\.\d+$/);
   assert.equal(version.protocol, 1);
   assert.equal(version.updated, '2026-10-23');
@@ -31,8 +31,8 @@ test('index.html carga sólo assets locales versionados y declara CSP', async ()
   assert.match(html, /base-uri 'none'/);
   assert.match(html, /form-action 'none'/);
   assert.match(html, /frame-ancestors 'none'/);
-  assert.match(html, /href="\.\/styles\.css\?v=0\.5\.3"/);
-  assert.match(html, /src="\.\/app\.js\?v=0\.5\.3"/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.5\.4"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.5\.4"/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i);
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
   assert.doesNotMatch(html.replaceAll('https://wnfqqqorktjiruxlzvlr.supabase.co',''), /https?:\/\//i);
@@ -145,7 +145,7 @@ test('no se referencia file:// y package.json no tiene dependencias', async () =
   ]);
   assert.doesNotMatch(`${html}\n${app}\n${bridge}\n${storage}`, /file:\/\//);
   const packageJson = JSON.parse(pkg);
-  assert.equal(packageJson.version, '0.5.3');
+  assert.equal(packageJson.version, '0.5.4');
   assert.equal(packageJson.type, 'module');
   assert.equal(packageJson.dependencies, undefined);
   assert.equal(packageJson.devDependencies, undefined);

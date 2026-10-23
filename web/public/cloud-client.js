@@ -13,7 +13,7 @@ export class CloudError extends Error {
 export class CloudClient {
   constructor(
     storage,
-    { config = CLOUD_CONFIG, fetcher = globalThis.fetch } = {},
+    { config = CLOUD_CONFIG, fetcher = globalThis.fetch.bind(globalThis) } = {},
   ) {
     this.storage = storage;
     this.config = config;
@@ -101,12 +101,18 @@ export class CloudClient {
     }
     if (!result.ok) {
       let code = String(result.status);
+      let authCode = "";
       try {
         const error = await result.json();
         if (error.code === "40001") code = "conflict";
+        authCode = error.code || error.error_code || "";
       } catch {}
       throw new CloudError(
-        code === "conflict"
+        path.startsWith("/auth/v1/token?grant_type=password") && (authCode === "invalid_credentials" || result.status === 400)
+          ? "Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo."
+          : result.status === 429
+          ? "El servidor recibió demasiados intentos. Espera un momento antes de volver a entrar."
+          : code === "conflict"
           ? "El equipo cambió en otro teléfono. Revisa las versiones antes de publicar."
           : result.status === 401
             ? "Tu sesión venció. Vuelve a entrar."

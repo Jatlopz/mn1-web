@@ -1,6 +1,6 @@
 {
-  "version": "0.5.3",
+  "version": "0.5.4",
   "protocol": 1,
   "updated": "2026-10-23",
-  "notes": "Corrige Demasiadas solicitudes al conectar la cuenta: cola de almacenamiento nativo para sincronización y carga de imágenes."
+  "notes": "Corrige llamada de conexión en navegador y WebView y diferencia acceso incorrecto de fallos de red."
 }
