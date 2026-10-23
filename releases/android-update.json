@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 14,
-  "versionName": "0.5.9-signal-intro",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-14-c031a2c1609504a5.apk",
-  "sha256": "c031a2c1609504a5abd4c550f3e75c9c05a398ea1c4950567479ac47ec2bed73",
+  "versionCode": 15,
+  "versionName": "0.5.10-update-notice",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-15-79b7ab290af3d6df.apk",
+  "sha256": "79b7ab290af3d6df9cd79042eac3f5e8ac436d225b95504126ce66ed3e5edb36",
   "sizeBytes": 17938881,
-  "notes": "Reflector metálico con lente, haz azul hielo difuminado y JT en silueta proyectado sobre bruma. Mantiene4segundos y toque para omitir. Conserva equipos, imágenes, sesiones y datos."
+  "notes": "Aviso superior de nueva actualización con acceso directo al actualizador. Revisa al abrir y volver a la app. Conserva intro JT, equipos, imágenes, sesiones y datos."
 }
