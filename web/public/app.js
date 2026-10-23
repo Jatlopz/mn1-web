@@ -10,7 +10,7 @@
  * - La web nunca simula guardado nativo, selector, micrófono ni entrega.
  */
 
-import { installThemes } from './themes.js';
+import { installThemes, installSettings } from './themes.js';
 import {
   BridgeError,
   CAPABILITIES,
@@ -90,7 +90,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.6';
+export const APP_VERSION = '0.5.7';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -4472,6 +4472,7 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  installSettings(app.capabilitySet.has('settings-menu-v1'));
   await installThemes(app.storage);
   app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);

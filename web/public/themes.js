@@ -16,7 +16,7 @@ export async function installThemes(storage, root=document, events=window) {
  };
  apply('ice');
  try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
- const open=()=>{if(!dialog.open)dialog.showModal();};
+ const open=()=>{root.getElementById('web-settings-dialog')?.close();if(!dialog.open)dialog.showModal();};
  root.getElementById('open-themes').addEventListener('click',open);
  root.getElementById('close-themes').addEventListener('click',()=>dialog.close());
  events.addEventListener('mn1:open-themes',open);
@@ -29,4 +29,12 @@ export async function installThemes(storage, root=document, events=window) {
   catch {apply(previous);error.textContent='No se pudo guardar el tema. Tus equipos no se modificaron.';}
   finally {saving=false;}
  });
+}
+
+export function installSettings(nativeMenu, root=document) {
+ const button=root.getElementById('open-web-settings');
+ const dialog=root.getElementById('web-settings-dialog');
+ button.hidden=Boolean(nativeMenu);
+ button.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});
+ root.getElementById('close-web-settings').addEventListener('click',()=>dialog.close());
 }

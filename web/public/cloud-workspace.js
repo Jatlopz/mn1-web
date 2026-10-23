@@ -296,11 +296,14 @@ export function createCloudWorkspace(getServices) {
       schedule();
     return result;
   };
-  $("open-cloud").addEventListener("click", () => {
+  const openCloud = () => {
+    $("web-settings-dialog")?.close();
     dialog.showModal();
     render();
     void tick();
-  });
+  };
+  $("open-cloud").addEventListener("click", openCloud);
+  window.addEventListener("mn1:open-cloud", openCloud);
   $("close-cloud").addEventListener("click", () => dialog.close());
   $("cloud-login-form").addEventListener("submit", (e) => {
     e.preventDefault();
