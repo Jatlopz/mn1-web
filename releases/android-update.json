@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 16,
-  "versionName": "0.5.11-prism",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-16-264b85a8daeb1049.apk",
-  "sha256": "264b85a8daeb10494ea29ad0fcc3c9fcfe91b1251a703a2cb8cc37b826db14d2",
-  "sizeBytes": 18109315,
-  "notes": "Nuevo icono de reflector con lente y acabado metálico azul. Selector Temas en Settings: Azul hielo, Amatista, Ámbar y Lima clásico. Conserva equipos, imágenes, sesiones y actualizador."
+  "versionCode": 17,
+  "versionName": "0.5.12-settings",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-17-95c7827b68d18893.apk",
+  "sha256": "95c7827b68d188930dd2c1de7685d676315dd3834231c87ce6d91a86f15e4725",
+  "sizeBytes": 17963075,
+  "notes": "Settings reúne Temas, Cuenta y nube y Actualizaciones en un único engranaje. Conserva icono Prism, recepción automática, equipos, imágenes, sesiones y datos."
 }
