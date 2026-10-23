@@ -1,5 +1,5 @@
 /*
- * Herramientas del editor único (web 0.4.12).
+ * Herramientas del editor único (web 0.5.0).
  *
  * El contrato no tiene pestañas ni pantallas separadas: el HERO presenta el
  * anuncio y un drawer inferior muestra como máximo un formulario. Estos tests

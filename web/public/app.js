@@ -80,13 +80,15 @@ import {
   renderCompositePng,
 } from './renderer.js';
 import { createMeetingReport } from './meeting-report.js';
+import { createCloudWorkspace } from './cloud-workspace.js';
+import { recoverPendingReceive } from './cloud-model.js';
 import { seedStarterImages } from './starter-templates.js';
 import {
   SPEECH_EXAMPLE,
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.4.12';
+export const APP_VERSION = '0.5.0';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -1830,6 +1832,7 @@ async function persistDraft(dom, app, options = {}) {
 }
 
 async function readWorkspaceFromStorage(app) {
+  try { await recoverPendingReceive(app.storage); } catch { app.storageBlocked=true;return {status:'corrupt',state:null}; }
   const result = await app.storage.getJson(WORKSPACE_KEYS.state);
   if (!result.ok) return { status: 'corrupt', state: null };
   if (result.value === null) return { status: 'missing', state: null };
@@ -4459,6 +4462,8 @@ async function boot() {
   }
   app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
+  app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
+  void app.cloud.start();
   await processWidgetLaunch();
   await processReportWidgetLaunch();
 }
