@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';
+test('cloud login dialog uses measured Android viewport instead of dvh that may resolve to zero',async()=>{const css=await readFile(new URL('../public/styles.css',import.meta.url),'utf8');const rule=[...css.matchAll(/\.cloud-dialog\s*\{([^}]+)\}/g)].at(-1)?.[1]||'';assert.match(rule,/max-height:\s*min\(640px,\s*calc\(var\(--mn1-editor-height,\s*100vh\)\s*\*\s*\.85\)\)/);assert.doesNotMatch(rule,/\d(?:dvh|svh|lvh)/);assert.match(rule,/overflow-y:\s*auto/);});
