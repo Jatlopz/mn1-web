@@ -182,3 +182,34 @@ test('en navegador sin IndexedDB se usa memoria y se declara no persistente', as
   await vault.adapter.put('clave-1', 'x');
   assert.equal(await vault.adapter.get('clave-1'), 'x');
 });
+
+test('native vault queues simultaneous cloud and thumbnail operations below Android limit', async () => {
+ let active=0, maximum=0;
+ const values=new Map();
+ const bridge={request:async(action,payload)=>{
+  active++; maximum=Math.max(maximum,active);
+  if(active>4){active--;return {ok:false,message:'Demasiadas solicitudes'};}
+  try {
+   await new Promise(resolve=>setTimeout(resolve,2));
+   if(action==='VAULT_PUT'){values.set(payload.key,payload.value);return {ok:true,data:{saved:true}};}
+   if(action==='VAULT_REMOVE'){return {ok:true,data:{removed:values.delete(payload.key)}};}
+   return {ok:true,data:{value:values.get(payload.key)??null}};
+  } finally {active--;}
+ }};
+ const a=new BridgeVaultAdapter(bridge), b=new BridgeVaultAdapter(bridge);
+ await Promise.all(Array.from({length:16},(_,i)=>(i%2?a:b).put('test.'+i,'original-'+i)));
+ const read=await Promise.all(Array.from({length:16},(_,i)=>(i%2?b:a).get('test.'+i)));
+ assert.deepEqual(read,Array.from({length:16},(_,i)=>'original-'+i));
+ assert.equal(maximum,1);
+});
+test('native vault queue continues after a rejected request without repeating writes', async () => {
+ let calls=0;
+ const adapter=new BridgeVaultAdapter({request:async()=>{
+  calls++; if(calls===1) throw Error('interrupted');
+  return {ok:true,data:{value:'preserved'}};
+ }});
+ const results=await Promise.allSettled([adapter.get('first'),adapter.get('second')]);
+ assert.equal(results[0].status,'rejected');
+ assert.equal(results[1].value,'preserved');
+ assert.equal(calls,2);
+});

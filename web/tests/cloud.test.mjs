@@ -296,3 +296,40 @@ test('cloud requests work without AbortSignal.timeout in Android WebView', async
   assert.equal(reached,true);
  } finally { AbortSignal.timeout = previous; }
 });
+
+test('two native vault phones save login and exchange artwork during concurrent card reads', async () => {
+ const {BridgeVaultAdapter,VaultClient}=await import('../public/storage.js');
+ function phone(){
+  const data=new Map(); let active=0;
+  const bridge={request:async(action,payload)=>{
+   active++;
+   if(active>4){active--;return {ok:false,message:'Demasiadas solicitudes'};}
+   try {
+    await new Promise(r=>setTimeout(r,0));
+    if(action==='VAULT_PUT'){data.set(payload.key,payload.value);return {ok:true,data:{saved:true}};}
+    if(action==='VAULT_REMOVE')return {ok:true,data:{removed:data.delete(payload.key)}};
+    return {ok:true,data:{value:data.get(payload.key)??null}};
+   }finally{active--;}
+  }};
+  return new VaultClient(new BridgeVaultAdapter(bridge));
+ }
+ const a=phone(), b=phone();
+ const initial=createDefaultWorkspace();
+ initial.profiles.indestructibles.imageKey='mn1.workspace.image.indestructibles.fixture';
+ initial.profiles.indestructibles.imageWidth=1; initial.profiles.indestructibles.imageHeight=1;
+ initial.profiles.indestructibles.hour='09:45';
+ await a.putText(WORKSPACE_KEYS.state,JSON.stringify(initial));
+ await a.putText(initial.profiles.indestructibles.imageKey,png);
+ await b.putText(WORKSPACE_KEYS.state,JSON.stringify(createDefaultWorkspace()));
+ const client=new CloudClient(a,{fetcher:async url=>new Response(JSON.stringify(url.includes('/token?')?{access_token:'fixture-access',refresh_token:'fixture-refresh',expires_at:Math.floor(Date.now()/1000)+3600,user:{id:'fixture-user'}}:{admin:true,member:true,teams:[]}),{status:200})});
+ await Promise.all([client.login('fixture@example.invalid','fixture-only'),...Array.from({length:12},()=>a.getText(initial.profiles.indestructibles.imageKey))]);
+ const reloaded=new CloudClient(a); assert.equal(await reloaded.restore(),true);
+ let row; const files=new Map();
+ const server={upload:async(k,v)=>files.set(k,v),publish:async(id,revision,data)=>{row={id,revision:1,data};return 1;},download:async k=>files.get(k)};
+ const packet=await localTeamPacket(a,'indestructibles');
+ await publishPacket(server,a,packet,0);
+ const [received]=await Promise.all([receivePacket(b,server,row),...Array.from({length:12},()=>b.getText(WORKSPACE_KEYS.state))]);
+ assert.equal(received.profiles.indestructibles.hour,'09:45');
+ assert.equal(await b.getText(received.profiles.indestructibles.imageKey),png);
+ assert.equal(initial.profiles.indestructibles.hour,'09:45');
+});

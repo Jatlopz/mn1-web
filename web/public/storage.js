@@ -162,6 +162,9 @@ export class MemoryVault {
   }
 }
 
+// Shared by adapters of the same native bridge: thumbnails, cloud and drafts
+// must not exhaust Android's four in-flight slots. No retry of mutating actions.
+const nativeVaultQueues = new WeakMap();
 /** Adaptador del puente nativo. El almacén real y sus cuotas viven en Android. */
 export class BridgeVaultAdapter {
   constructor(bridge, options = {}) {
@@ -169,9 +172,16 @@ export class BridgeVaultAdapter {
     this.timeoutMs = options.timeoutMs ?? MN1_LIMITS.VAULT_TIMEOUT_MS;
   }
 
+  _request(action, payload, options) {
+    const previous = nativeVaultQueues.get(this.bridge) || Promise.resolve();
+    const task = previous.then(() => this.bridge.request(action, payload, options));
+    nativeVaultQueues.set(this.bridge, task.then(() => undefined, () => undefined));
+    return task;
+  }
+
   async get(key) {
     if (!isValidVaultKey(key)) throw new VaultError('invalid_key', 'Clave no válida.');
-    const result = await this.bridge.request('VAULT_GET', { key }, { timeoutMs: this.timeoutMs });
+    const result = await this._request('VAULT_GET', { key }, { timeoutMs: this.timeoutMs });
     if (!result.ok) {
       throw new VaultError('native_rejected', result.message || 'El almacén privado rechazó la lectura.');
     }
@@ -189,7 +199,7 @@ export class BridgeVaultAdapter {
   async put(key, value) {
     const check = validateVaultWrite(key, value);
     if (!check.ok) throw check.error;
-    const result = await this.bridge.request(
+    const result = await this._request(
       'VAULT_PUT',
       { key, value },
       { timeoutMs: this.timeoutMs },
@@ -205,7 +215,7 @@ export class BridgeVaultAdapter {
 
   async remove(key) {
     if (!isValidVaultKey(key)) throw new VaultError('invalid_key', 'Clave no válida.');
-    const result = await this.bridge.request('VAULT_REMOVE', { key }, { timeoutMs: this.timeoutMs });
+    const result = await this._request('VAULT_REMOVE', { key }, { timeoutMs: this.timeoutMs });
     if (!result.ok) {
       throw new VaultError('native_rejected', result.message || 'El almacén privado rechazó el borrado.');
     }
