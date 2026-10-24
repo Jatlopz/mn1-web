@@ -11,6 +11,7 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+const IDEAS_ENABLED = false; // Activar sólo después de autorización y verificación de la migración.
 export function createCloudWorkspace(getServices) {
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
@@ -41,6 +42,7 @@ export function createCloudWorkspace(getServices) {
     $("cloud-logout").hidden = !logged;
     $("cloud-password-settings").hidden = !logged;
     $("cloud-admin").hidden = !access?.admin;
+    $("cloud-ideas-admin").hidden = !access?.admin || !IDEAS_ENABLED;
     $("cloud-account").textContent = logged
       ? (client.session.user?.email || "Cuenta conectada") +
         (access?.admin ? " · Administrador general" : "")
@@ -370,6 +372,52 @@ export function createCloudWorkspace(getServices) {
       status("Contraseña actualizada.");
     });
   });
+  const ideasDialog=$('ideas-dialog'),ideaStatus=$('ideas-status');
+  let ideaBusy=false,ideaRequest=null,ideaOffset=0;
+  const ideaDraftKey=id=>'mn1.idea.draft.'+id;
+  const ideaRequestKey=id=>'mn1.idea.req.'+id;
+  const ideasLock=value=>{ideaBusy=value;for(const control of ideasDialog.querySelectorAll('button,input,select,textarea'))control.disabled=value;$('idea-send').disabled=value||!IDEAS_ENABLED;};
+  $('ideas-close').addEventListener('click',()=>{if(!ideaBusy)ideasDialog.close();});
+  ideasDialog.addEventListener('cancel',event=>{if(ideaBusy)event.preventDefault();});
+  $('open-ideas').addEventListener('click',async()=>{
+    const services=getServices(),team=services.catalog.find(t=>t.id===services.activeProfileId);
+    if(!team)return;ideaStatus.textContent=IDEAS_ENABLED?'':'Buzón preparado. El envío estará disponible cuando se active la nube de ideas.';ideaRequest=null;
+    $('ideas-form').hidden=false;$('ideas-inbox').hidden=true;$('ideas-team').textContent='Equipo: '+team.name;
+    $('idea-note').value='';ideasDialog.showModal();ideasLock(true);
+    try{$('idea-note').value=await services.storage.getText(ideaDraftKey(team.id))||'';}catch{ideaStatus.textContent='No se pudo leer tu borrador anterior.';}finally{ideasLock(false);}
+  });
+  $('idea-note').addEventListener('input',()=>{ideaRequest=null;});
+  ideasDialog.addEventListener('close',()=>{
+    if(!$('ideas-form').hidden){const id=getServices().activeProfileId;void getServices().storage.putText(ideaDraftKey(id),$('idea-note').value).catch(()=>{});}
+  });
+  $('ideas-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(ideaBusy||!IDEAS_ENABLED)return;
+    const note=$('idea-note').value.trim(),team=getServices().activeProfileId;
+    if(note.length<10||note.length>1500){ideaStatus.textContent='Describe la idea entre 10 y 1500 caracteres.';return;}
+    ideasLock(true);ideaStatus.textContent='Enviando tu propuesta…';
+    try{
+      await getServices().storage.putText(ideaDraftKey(team),note);
+      let device=await getServices().storage.getText('mn1.idea.client');
+      if(!/^[0-9a-f-]{36}$/.test(device||'')){device=crypto.randomUUID();await getServices().storage.putText('mn1.idea.client',device);}
+      if(!ideaRequest){let pending=null;try{pending=JSON.parse(await getServices().storage.getText(ideaRequestKey(team)));}catch{}ideaRequest=pending?.note===note&&/^[0-9a-f-]{36}$/.test(pending.id)?pending.id:crypto.randomUUID();await getServices().storage.putText(ideaRequestKey(team),JSON.stringify({id:ideaRequest,note}));}
+      await client.submitIdea(ideaRequest,device,team,note);
+      $('idea-note').value='';await getServices().storage.putText(ideaDraftKey(team),'');await getServices().storage.putText(ideaRequestKey(team),'');
+      ideaStatus.textContent='Idea enviada al administrador general. Gracias por ayudar a mejorar SuperTools.';ideaRequest=null;
+    }catch(e){ideaStatus.textContent=e.message+' Tu nota se conserva. Si el equipo es nuevo, el administrador debe publicarlo primero.';}finally{ideasLock(false);}
+  });
+  async function loadIdeas(append=false){
+    if(ideaBusy)return;ideasLock(true);ideaStatus.textContent='Cargando bandeja…';
+    try{
+      if(!(await client.access()).admin)throw Error('Sólo el administrador general puede leer esta bandeja.');
+      if(!append){ideaOffset=0;$('ideas-list').replaceChildren();}
+      const ideas=await client.listIdeas(ideaOffset);ideaOffset+=ideas.length;$('ideas-more').hidden=ideas.length<50;
+      for(const idea of ideas){const card=document.createElement('article');card.className='idea-card';const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');const note=document.createElement('p');note.textContent=idea.note;const select=document.createElement('select');select.setAttribute('aria-label','Estado de la idea de '+idea.team_name);for(const [value,label] of [['pending','Pendiente'],['reviewing','En revisión'],['integrated','Integrada']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=idea.status;select.addEventListener('change',async()=>{const previous=idea.status;ideasLock(true);try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;ideaStatus.textContent='Estado guardado.';}catch{select.value=previous;ideaStatus.textContent='No se pudo cambiar el estado. Recarga la bandeja antes de reintentar.';}finally{ideasLock(false);}});card.append(title,date,note,select);$('ideas-list').append(card);}
+      ideaStatus.textContent=ideaOffset?ideaOffset+' propuestas cargadas.':'Todavía no hay propuestas.';
+    }catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
+  }
+  $('cloud-ideas-admin').addEventListener('click',()=>{dialog.close();$('ideas-form').hidden=true;$('ideas-inbox').hidden=false;ideasDialog.showModal();void loadIdeas();});
+  $('ideas-refresh').addEventListener('click',()=>void loadIdeas());$('ideas-more').addEventListener('click',()=>void loadIdeas(true));
+
   async function start() {
     try {
       const raw = await storage.getText(CLOUD_META_KEY);

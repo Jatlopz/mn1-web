@@ -4,6 +4,8 @@ export const THEMES = Object.freeze([
  {id:'violet',name:'Amatista',accent:'#d5b7ff'},
  {id:'amber',name:'Ámbar',accent:'#ffd08a'},
  {id:'lime',name:'Lima clásico',accent:'#c8f751'},
+ {id:'halloween',name:'Halloween',accent:'#ffbd80',seasonal:true},
+ {id:'winter',name:'Fin de año',accent:'#9ce8dd',seasonal:true},
 ]);
 export const normalizeTheme = value => THEMES.some(t=>t.id===value) ? value : 'ice';
 export async function installThemes(storage, root=document, events=window) {

@@ -108,7 +108,8 @@ export function createMeetingReport(getServices) {
     const token=++loadToken;
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
-      if(options.fromWidget&&visibleTeams.some(t=>t.id===s.activeProfileId))prefs.teamId=s.activeProfileId;
+      const requestedTeam=options.fromWidget?s.activeProfileId:options.teamId;
+      if(visibleTeams.some(t=>t.id===requestedTeam))prefs.teamId=requestedTeam;
       if(!visibleTeams.some(t=>t.id===prefs.teamId))prefs.teamId=visibleTeams[0].id;
       const rawStyles=s.storage?await s.storage.getText(REPORT_STYLES_KEY):null;teamStyles=rawStyles?JSON.parse(rawStyles):{};if(!teamStyles||typeof teamStyles!=='object'||Array.isArray(teamStyles))throw Error('Estilos no válidos');
       prefs=normalizeReportPreferences({...prefs,...teamStyles[prefs.teamId],teamId:prefs.teamId,logoKeys:prefs.logoKeys},s.catalog);
@@ -133,7 +134,7 @@ export function createMeetingReport(getServices) {
   $('report-logo-pick').addEventListener('click',async()=>{if(busy)return;const s=services();if(s.mode!=='native'){$('report-logo-input').value='';$('report-logo-input').click();return;}lock(true);try{const r=await s.bridge.request('IMPORT_IMAGE',{}, {timeoutMs:300000});if(!r.ok)throw Error(r.message);await acceptLogo(r.data?.imageDataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
   $('report-logo-input').addEventListener('change',async()=>{const file=$('report-logo-input').files?.[0];if(!file||busy)return;lock(true);try{const prepared=await prepareImageFile(file);await acceptLogo(prepared.dataUrl);}catch(e){message(e.message,true);}finally{lock(false);}});
   async function close(){if(busy)return;lock(true);try{if(dirty)await persist();root.hidden=true;$('app').hidden=false;document.title=priorTitle;services().onClose?.();$('open-report').focus();}catch(e){message('No se guardaron los ajustes: '+e.message,true);}finally{lock(false);}}
-  $('open-report').addEventListener('click',()=>void open());$('report-back').addEventListener('click',()=>void close());
+  $('open-report').addEventListener('click',()=>void open({teamId:services().activeProfileId}));$('report-back').addEventListener('click',()=>void close());
   for(const button of root.querySelectorAll('[data-report-color]'))button.addEventListener('click',()=>{if(busy)return;frameColor=button.dataset.reportColor;dirty=true;render();});
   $('report-frame-color').addEventListener('input',()=>{if(busy)return;frameColor=$('report-frame-color').value;dirty=true;render();});
   $('report-color-auto').addEventListener('click',()=>{if(busy)return;frameColor=null;dirty=true;render();});
@@ -153,5 +154,5 @@ export function createMeetingReport(getServices) {
       else {const result=await s.bridge.request('SHARE_PNG',{imageDataUrl:dataUrl,message:text},{timeoutMs:300000});if(!result.ok)throw Error(result.message);message(result.message+' Elige y confirma los grupos en WhatsApp.');}
     }catch(e){message(e.message||'No se compartió.',true);}finally{lock(false);}
   });
-  return {open};
+  return {open,close};
 }

@@ -3,8 +3,8 @@ import {THEMES,THEME_KEY,normalizeTheme,installThemes,installSettings} from '../
 function page(){const handlers={},buttons=THEMES.map(t=>({dataset:{themeChoice:t.id},setAttribute(k,v){this[k]=v}}));const elements=new Map();
  for(const id of ['theme-dialog','theme-error','open-themes','close-themes'])elements.set(id,{open:false,textContent:'',addEventListener(type,fn){handlers[id+':'+type]=fn},querySelectorAll(){return buttons},showModal(){this.open=true},close(){this.open=false}});
  return {root:{documentElement:{dataset:{}},getElementById:id=>elements.get(id)},events:{addEventListener(type,fn){handlers[type]=fn}},handlers,buttons,elements};}
-test('four themes normalize unsupported stored values and keep readable primary buttons',()=>{
- assert.equal(THEMES.length,4);assert.equal(normalizeTheme('unknown'),'ice');
+test('six themes normalize unsupported stored values and keep readable primary buttons',()=>{
+ assert.equal(THEMES.length,6);assert.equal(normalizeTheme('unknown'),'ice');
  for(const theme of THEMES){assert.equal(normalizeTheme(theme.id),theme.id);const rgb=theme.accent.match(/[a-f0-9]{2}/gi).map(x=>parseInt(x,16)/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4);assert.ok((.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]+.05)/.057>4.5);}
 });
 test('theme preference persists independently, opens from Settings event, and rolls back failed save',async()=>{

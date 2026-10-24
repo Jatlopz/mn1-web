@@ -1,5 +1,5 @@
 /*
- * Comportamiento de navegación de equipos (web 0.5.11).
+ * Comportamiento de navegación de equipos (web 0.5.12).
  *
  * Estos tests no levantan un navegador: construyen el mínimo DOM compartido del
  * editor único (#teams-screen, #contenido, HERO y drawer de herramientas) y
@@ -95,8 +95,8 @@ function visibleToolPanels(dom) {
     .map((panel) => panel.tool);
 }
 
-test('APP_VERSION es 0.5.11 y las herramientas del editor son válidas', () => {
-  assert.equal(APP_VERSION, '0.5.11');
+test('APP_VERSION es 0.5.12 y las herramientas del editor son válidas', () => {
+  assert.equal(APP_VERSION, '0.5.12');
   assert.deepEqual([...EDITOR_TOOLS], ['hour', 'message', 'voice']);
   for (const tool of EDITOR_TOOLS) assert.equal(isEditorTool(tool), true);
   assert.equal(isEditorTool('preview'), false);
@@ -319,4 +319,46 @@ test('seleccionar planta sigue disponible durante sincronización sin mutar dato
     assert.equal(selectPlant(app,'unknown'),false);
     assert.equal(workspace.activeProfileId,'indestructibles');
   }
+});
+
+test('planta recordada sobrevive reinicios sin cambiar el workspace',async()=>{
+  const {readSelectedPlant,rememberSelectedPlant,PLANT_SELECTION_KEY}=await import('../public/profiles.js');
+  const data=new Map([['mn1.workspace.state','KEEP']]);
+  const storage=()=>({getText:async k=>data.get(k)||null,putText:async(k,v)=>data.set(k,v)});
+  assert.equal(await readSelectedPlant(storage()),null);
+  await rememberSelectedPlant(storage(),'polietileno');
+  assert.equal(await readSelectedPlant(storage()),'polietileno');
+  await rememberSelectedPlant(storage(),'sacos');
+  assert.equal(await readSelectedPlant(storage()),'sacos');
+  assert.equal(data.get('mn1.workspace.state'),'KEEP');
+  data.set(PLANT_SELECTION_KEY,'invalid');assert.equal(await readSelectedPlant(storage()),null);
+  await assert.rejects(()=>rememberSelectedPlant({putText:async()=>{throw Error('full')}},'sacos'),/full/);
+});
+
+test('Atrás prioriza diálogo, luego reporte o herramienta; en bienvenida permite salida',async()=>{
+  const {handleAppBack}=await import('../public/app.js');let closed=0;
+  const dialog={dispatchEvent:event=>{assert.equal(event.type,'cancel');return true},close:()=>closed++};
+  const root={querySelectorAll:()=>[dialog],getElementById:()=>({hidden:false})};
+  const app={workspaceView:WORKSPACE_VIEW_OPEN,editorTool:'hour',reportStudio:{close:()=>closed+=10}};
+  assert.equal(handleAppBack({},app,root),true);assert.equal(closed,1);
+  root.querySelectorAll=()=>[];
+  assert.equal(handleAppBack({},app,root),true);assert.equal(closed,11);
+  root.getElementById=()=>({hidden:true});
+  assert.equal(handleAppBack({closeTool:{click:()=>closed+=100}},app,root),true);assert.equal(closed,111);
+  app.workspaceView='teams';app.selectedPlantId=null;
+  assert.equal(handleAppBack({},app,root),false);
+  assert.equal(closed,111);
+});
+
+
+test('accesos rápidos sólo admiten herramientas reales y se guardan por equipo',async()=>{
+ const {TEAM_TOOLS,normalizeToolShortcuts,teamShortcutsKey}=await import('../public/profiles.js');
+ assert.deepEqual(TEAM_TOOLS.map(t=>t.id),['announcement','report']);
+ assert.deepEqual(normalizeToolShortcuts(null),['announcement','report']);
+ assert.deepEqual(normalizeToolShortcuts(['report','fake','report']),['report']);
+ assert.deepEqual(normalizeToolShortcuts([]),[]);
+ assert.notEqual(teamShortcutsKey('champions'),teamShortcutsKey('espartanos'));
+ const saved=new Map([[teamShortcutsKey('champions'),JSON.stringify(['report'])]]);
+ assert.deepEqual(normalizeToolShortcuts(JSON.parse(saved.get(teamShortcutsKey('champions')))),['report']);
+ assert.deepEqual(normalizeToolShortcuts(saved.get(teamShortcutsKey('espartanos'))),['announcement','report']);
 });

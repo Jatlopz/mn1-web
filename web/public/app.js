@@ -1,3 +1,5 @@
+import { TEAM_TOOLS, normalizeToolShortcuts, teamShortcutsKey } from './profiles.js';
+import { readSelectedPlant, rememberSelectedPlant } from './profiles.js';
 /*
  * MN1 híbrido · app web del workspace.
  *
@@ -91,7 +93,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.11';
+export const APP_VERSION = '0.5.12';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -643,7 +645,7 @@ function focusEditorTool(dom, tool) {
 function syncWorkspaceRoute(app, open, profileId, legacy) {
   if (typeof window === 'undefined') return;
   const view = open ? WORKSPACE_VIEW_OPEN : WORKSPACE_VIEW_TEAMS;
-  const hash = app.plantNavigation && !open ? (app.selectedPlantId ? '#planta/'+app.selectedPlantId : '#plantas') : workspaceRouteFor(profileId, { view, catalog: app.catalog });
+  const hash = app.teamToolsOpen && !open ? '#herramientas/'+profileId : app.plantNavigation && !open ? (app.selectedPlantId ? '#planta/'+app.selectedPlantId : '#plantas') : workspaceRouteFor(profileId, { view, catalog: app.catalog });
   try {
     if (typeof window.history?.replaceState === 'function'
         && window.location
@@ -654,7 +656,7 @@ function syncWorkspaceRoute(app, open, profileId, legacy) {
     // La navegación interna sigue funcionando aunque el WebView restrinja history.
   }
   if (typeof document !== 'undefined') {
-    document.title = app.plantNavigation && !open ? (app.selectedPlantId ? 'SuperTools · '+PLANTS.find(p=>p.id===app.selectedPlantId)?.name : 'SuperTools · Bienvenido') : workspaceDocumentTitle(profileId, { view, legacy, catalog: app.catalog });
+    document.title = app.teamToolsOpen && !open ? 'SuperTools · Herramientas de '+(getProfileDefinition(profileId,{catalog:app.catalog})?.name||'equipo') : app.plantNavigation && !open ? (app.selectedPlantId ? 'SuperTools · '+PLANTS.find(p=>p.id===app.selectedPlantId)?.name : 'SuperTools · Bienvenido') : workspaceDocumentTitle(profileId, { view, legacy, catalog: app.catalog });
   }
 }
 
@@ -677,6 +679,33 @@ export function selectPlant(app, plantId) {
   return true;
 }
 
+export function handleAppBack(dom, app, root = document) {
+  const dialog = [...root.querySelectorAll('dialog[open]')].at(-1);
+  if (dialog) {
+    const event = new Event('cancel', {cancelable:true});
+    if (dialog.dispatchEvent(event)) dialog.close();
+    return true;
+  }
+  const report = root.getElementById('report-studio');
+  if (report && !report.hidden) {
+    void app.reportStudio?.close();
+    return true;
+  }
+  if (app.workspaceView === WORKSPACE_VIEW_OPEN) {
+    if (app.editorTool) dom.closeTool?.click();
+    else void handleBackToTeams(dom,app);
+    return true;
+  }
+  if (app.teamToolsOpen) { app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});return true; }
+  if (app.selectedPlantId) {
+    app.selectedPlantId=null;
+    renderAll(dom,app,{syncFields:true});
+    dom.welcomeScreen?.focus();
+    return true;
+  }
+  return false;
+}
+
 export function applyWorkspaceNavigation(dom, app) {
   syncEditorViewport();
   const open = app.workspaceView === WORKSPACE_VIEW_OPEN;
@@ -687,8 +716,10 @@ export function applyWorkspaceNavigation(dom, app) {
 
   const selectingPlant = Boolean(dom.welcomeScreen) && !app.selectedPlantId && !open;
   if (dom.welcomeScreen) dom.welcomeScreen.hidden = !selectingPlant;
-  if (dom.skipLink) dom.skipLink.setAttribute('href', selectingPlant ? '#welcome-screen' : open ? '#contenido' : '#teams-screen');
-  if (dom.teamsScreen) dom.teamsScreen.hidden = open || selectingPlant;
+  if (dom.skipLink) dom.skipLink.setAttribute('href', selectingPlant ? '#welcome-screen' : open ? '#contenido' : app.teamToolsOpen ? '#team-tools-home' : '#teams-screen');
+  const hub = Boolean(dom.teamToolsHome) && app.teamToolsOpen && !open;
+  if (dom.teamToolsHome) dom.teamToolsHome.hidden=!hub;
+  if (dom.teamsScreen) dom.teamsScreen.hidden = open || selectingPlant || hub;
   if (dom.main) dom.main.hidden = !open;
 
   // El chrome global no se duplica dentro del editor.
@@ -1402,6 +1433,7 @@ function renderAll(dom, app, { syncFields = true } = {}) {
     renderTargetsEditor(dom, app);
   }
   renderMode(dom, app);
+  renderTeamTools(dom, app);
   renderProfiles(dom, app);
   renderCounts(dom, app);
   renderHour(dom, app);
@@ -2136,6 +2168,34 @@ async function seedStarterImagesOnBoot(dom, app) {
   }
 }
 
+function openTeamTools(dom, app, profileId) {
+  app.selectedPlantId=plantForTeam(getProfileDefinition(profileId,{catalog:app.catalog}));
+  app.teamToolsOpen=true;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;
+  renderAll(dom,app,{syncFields:true});dom.teamToolsHome?.focus();
+  return true;
+}
+
+function launchTeamTool(dom,app,id) {
+  if(app.busy||app.switching)return;
+  if(id==='announcement')openWorkspaceFor(dom,app,app.workspace.activeProfileId);
+  if(id==='report')void app.reportStudio?.open({teamId:app.workspace.activeProfileId});
+}
+function renderTeamTools(dom,app) {
+  if(!dom.teamToolsHome)return;
+  const id=app.workspace?.activeProfileId;
+  if(id && app.storage && !Object.hasOwn(app.toolShortcuts,id)) {
+    app.toolShortcuts[id]=null;
+    void app.storage.getText(teamShortcutsKey(id)).then(raw=>{
+      app.toolShortcuts[id]=normalizeToolShortcuts(raw?JSON.parse(raw):null);renderTeamTools(dom,app);
+    }).catch(()=>{document.getElementById('tools-feedback').textContent='No se pudieron leer los accesos guardados.';});
+  }
+  document.getElementById('team-tools-title').textContent=getProfileDefinition(id,{catalog:app.catalog})?.name||'Tu equipo';
+  const grid=document.getElementById('team-shortcuts');grid.replaceChildren();
+  const chosen=normalizeToolShortcuts(app.toolShortcuts?.[id]);
+  document.getElementById('shortcuts-empty').hidden=chosen.length>0;
+  for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);const name=document.createElement('strong');name.textContent=tool.name;const detail=document.createElement('small');detail.textContent=tool.description;button.append(icon,name,detail);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
+}
+
 function openWorkspaceFor(dom, app, profileId, options = {}) {
   if (isWorkspace(app) && app.workspace
       && isProfileId(profileId, { customProfiles: app.workspace.customProfiles })
@@ -2152,6 +2212,7 @@ function openWorkspaceFor(dom, app, profileId, options = {}) {
 
 function showTeamsView(dom, app) {
   cancelScheduledSave(app);
+  if(dom.teamToolsHome) { app.teamToolsOpen=true;renderTeamTools(dom,app); }
   app.workspaceView = WORKSPACE_VIEW_TEAMS;
   app.editorTool = null;
   applyWorkspaceNavigation(dom, app);
@@ -2653,7 +2714,8 @@ async function handleCreateTeam(dom, app) {
     app.workspace = created.state;
     app.catalog = profileCatalogForWorkspace(created.state);
     app.draft = cloneDraftFromProfile(created.state.profiles[created.profileId]);
-    app.workspaceView = WORKSPACE_VIEW_OPEN;
+    app.teamToolsOpen=true;
+    app.workspaceView = WORKSPACE_VIEW_TEAMS;
     app.editorTool = null;
     app.dirty = false;
     app.persistedRevision = app.draftRevision;
@@ -3361,7 +3423,7 @@ async function handleSelectProfile(dom, app, profileId) {
     isListening: app.listening,
     catalog: app.catalog,
     switchProfile: (id) => switchWorkspaceProfile(dom, app, id),
-    openProfile: (id) => openWorkspaceFor(dom, app, id),
+    openProfile: (id) => openTeamTools(dom, app, id),
     reportBlocked: (reason) => {
       if (reason === 'listening') {
         showError(dom, 'Detén la escucha antes de cambiar de equipo. No se cambió nada.', app);
@@ -3627,6 +3689,7 @@ function collectDom() {
     appHeader: byId('app-header'),
     appFooter: byId('app-footer'),
     welcomeScreen: byId('welcome-screen'),
+    teamToolsHome: byId('team-tools-home'),
     skipLink: document.querySelector('.skip-link'),
     profilesTitle: byId('profiles-title'),
     teamsScreen: byId('teams-screen') ?? document.querySelector('.profiles-panel'),
@@ -4434,6 +4497,8 @@ async function boot() {
     mode: bridge.mode,
     connection: bridge.mode === 'native' ? 'checking' : 'preview',
     uiMode: 'loading',
+    teamToolsOpen: false,
+    toolShortcuts: {},
     plantNavigation: true,
     selectedPlantId: null,
     workspaceView: WORKSPACE_VIEW_TEAMS,
@@ -4494,6 +4559,7 @@ async function boot() {
   wireUiEvents(dom, app);
   for (const button of document.querySelectorAll('[data-plant]')) button.addEventListener('click',()=>{
     if (!selectPlant(app,button.dataset.plant)) return;
+    void rememberSelectedPlant(app.storage,app.selectedPlantId).catch(()=>showError(dom,'No se pudo recordar la planta. Tus equipos se conservan.',app));
     renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();
   });
   document.getElementById('back-to-plants').addEventListener('click',()=>{
@@ -4506,11 +4572,33 @@ async function boot() {
   } else {
     await hydrateBrowser(dom, app);
   }
+  try {
+    if (app.selectedPlantId) await rememberSelectedPlant(app.storage,app.selectedPlantId);
+    else app.selectedPlantId=await readSelectedPlant(app.storage);
+  } catch { showError(dom,'No se pudo leer la planta guardada. Puedes elegirla de nuevo.',app); }
+  renderAll(dom,app,{syncFields:true});
+  window.mn1HandleBack = () => handleAppBack(dom,app);
+  document.getElementById('tools-back-teams').addEventListener('click',()=>{app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();});
+  document.getElementById('open-announcement').addEventListener('click',()=>launchTeamTool(dom,app,'announcement'));
+  const shortcutsDialog=document.getElementById('shortcuts-dialog');
+  document.getElementById('manage-shortcuts').addEventListener('click',()=>{
+    const chosen=normalizeToolShortcuts(app.toolShortcuts[app.workspace.activeProfileId]);
+    for(const input of shortcutsDialog.querySelectorAll('[data-shortcut]'))input.checked=chosen.includes(input.value);
+    document.getElementById('shortcuts-error').textContent='';shortcutsDialog.showModal();
+  });
+  document.getElementById('shortcuts-close').addEventListener('click',()=>shortcutsDialog.close());
+  document.getElementById('shortcuts-save').addEventListener('click',async()=>{
+    const id=app.workspace.activeProfileId,button=document.getElementById('shortcuts-save');button.disabled=true;
+    const selected=normalizeToolShortcuts([...shortcutsDialog.querySelectorAll('[data-shortcut]:checked')].map(input=>input.value));
+    try{await app.storage.putText(teamShortcutsKey(id),JSON.stringify(selected));app.toolShortcuts[id]=selected;renderTeamTools(dom,app);shortcutsDialog.close();}
+    catch{document.getElementById('shortcuts-error').textContent='No se pudieron guardar los accesos. Inténtalo de nuevo.';}
+    finally{button.disabled=false;}
+  });
   installSettings(app.capabilitySet.has('settings-menu-v1'));
   await installThemes(app.storage);
-  app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{if(!app.selectedPlantId)app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,plantId:app.selectedPlantId || plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog})),blocked:app.busy||app.switching}));
+  app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.teamToolsOpen=true;if(!app.selectedPlantId)app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,plantId:app.selectedPlantId || plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog})),blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
-  app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
+  app.cloud=createCloudWorkspace(()=>({activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
   void app.cloud.start();
   await processWidgetLaunch();
   await processReportWidgetLaunch();

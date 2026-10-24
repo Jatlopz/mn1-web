@@ -866,3 +866,20 @@ export function setTeamArchived(state, id, archived) {
   next.archivedProfileIds = [...ids];
   return normalizeWorkspaceState(next);
 }
+
+export const PLANT_SELECTION_KEY = 'mn1.navigation.plant';
+export async function readSelectedPlant(storage) {
+  const value = await storage.getText(PLANT_SELECTION_KEY);
+  return PLANTS.some(plant => plant.id === value) ? value : null;
+}
+export async function rememberSelectedPlant(storage, plantId) {
+  if (!storage || !PLANTS.some(plant => plant.id === plantId)) return;
+  await storage.putText(PLANT_SELECTION_KEY, plantId);
+}
+
+export const TEAM_TOOLS = Object.freeze([
+  {id:'announcement',name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
+  {id:'report',name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
+]);
+export const normalizeToolShortcuts = value => Array.isArray(value) ? [...new Set(value.filter(id=>TEAM_TOOLS.some(tool=>tool.id===id)))] : TEAM_TOOLS.map(tool=>tool.id);
+export const teamShortcutsKey = id => 'mn1.tools.'+id;

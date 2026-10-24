@@ -157,6 +157,15 @@ export class CloudClient {
   publicList() {
     return this.request('/functions/v1/team-catalog', {method:'GET',auth:false});
   }
+  submitIdea(id,client,team,note) {
+    return this.request('/rest/v1/rpc/mn1_submit_idea',{auth:false,body:{p_id:id,p_client:client,p_team:team,p_note:note}});
+  }
+  listIdeas(offset=0) {
+    return this.request('/rest/v1/mn1_ideas?select=id,team_id,team_name,plant_id,note,status,created_at&order=created_at.desc,id.desc&limit=50&offset='+offset,{method:'GET'});
+  }
+  updateIdea(id,expected,status) {
+    return this.request('/rest/v1/rpc/mn1_update_idea',{body:{p_id:id,p_expected:expected,p_status:status}});
+  }
   list() {
     return this.request(
       "/rest/v1/mn1_teams?select=id,revision,data,updated_at&order=id",

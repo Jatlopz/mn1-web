@@ -384,3 +384,15 @@ test('Polietileno travels between phones without moving or altering Sacos teams'
   assert.deepEqual(restored.profiles.champions,old.profiles.champions);
   assert.throws(()=>validateRemoteTeam({...remote,data:{...remote.data,definition:{...remote.data.definition,plantId:'unknown'}}}),/no es válido/);
 });
+
+test('ideas use anonymous submission but require authenticated access for inbox and status',async()=>{
+ const calls=[];const client=new CloudClient(vault(),{fetcher:async(url,options)=>{calls.push({url,options});return new Response(JSON.stringify('ok'),{status:200});}});
+ await client.submitIdea('request','device','champions','Feature proposal');
+ assert.ok(calls[0].url.endsWith('/rpc/mn1_submit_idea'));
+ assert.equal(calls[0].options.headers.Authorization,undefined);
+ assert.deepEqual(JSON.parse(calls[0].options.body),{p_id:'request',p_client:'device',p_team:'champions',p_note:'Feature proposal'});
+ await assert.rejects(()=>client.listIdeas(),/Inicia sesión/);
+ client.session={access_token:'fixture',expires_at:Date.now()/1000+3600};
+ await client.listIdeas(50);assert.match(calls.at(-1).url,/offset=50/);assert.equal(calls.at(-1).options.headers.Authorization,'Bearer fixture');
+ await client.updateIdea('idea','pending','reviewing');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{p_id:'idea',p_expected:'pending',p_status:'reviewing'});
+});
