@@ -93,7 +93,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.15';
+export const APP_VERSION = '0.5.16';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
