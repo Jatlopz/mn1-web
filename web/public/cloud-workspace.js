@@ -11,7 +11,7 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
-const IDEAS_ENABLED = false; // Activar sólo después de autorización y verificación de la migración.
+const IDEAS_ENABLED = true; // Migración autorizada y verificada con RLS e idempotencia.
 export function createCloudWorkspace(getServices) {
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
