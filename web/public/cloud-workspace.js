@@ -472,7 +472,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   }
   async function openAdmin(){
     try{if(!(await client.access()).admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminDashboard.open)adminDashboard.showModal();await loadAdmin();}
-    catch(e){status(e.message,true);if(!dialog.open)dialog.showModal();}
+    catch(e){status(client.session?e.message:'Inicia sesión con tu cuenta principal para abrir el dashboard del buzón.',true);if(!dialog.open)dialog.showModal();if(!client.session){$('cloud-login').open=true;$('cloud-email').focus();}}
   }
   $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
