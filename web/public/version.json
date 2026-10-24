@@ -1,6 +1,6 @@
 {
   "version": "0.5.17",
   "protocol": 1,
-  "updated": "2026-10-23",
-  "notes": "SuperTools · Herramientas para supervisor de planta. Nueva marca con tus equipos, artes, reportes y preferencias conservados."
+  "updated": "2026-10-24",
+  "notes": "Administración disponible en Settings: dashboard privado del buzón y seguimiento de solicitudes."
 }

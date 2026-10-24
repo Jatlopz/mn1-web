@@ -14,7 +14,7 @@ test('version.json es visible, parseable, 0.5.17 y usa el contrato v1', async ()
   assert.equal(version.version, '0.5.17');
   assert.match(version.version, /^\d+\.\d+\.\d+$/);
   assert.equal(version.protocol, 1);
-  assert.equal(version.updated, '2026-10-23');
+  assert.equal(version.updated, '2026-10-24');
 });
 
 test('index.html carga sólo assets locales versionados y declara CSP', async () => {
@@ -178,3 +178,11 @@ test('la portada editable tiene controles y el símbolo es un proyector local', 
   }
   for (const blur of [0,6,12]) assert.ok(html.includes('data-cover-blur="'+blur+'"'));
 });
+
+test('Settings siempre permite encontrar Administración sin exponer datos privados', async () => {
+ const html=await readPublic('index.html');
+ assert.match(html, /id="settings-admin"/);
+ const source=await readPublic('cloud-workspace.js');
+ assert.match(source, /settings-admin.*addEventListener/);
+});
+

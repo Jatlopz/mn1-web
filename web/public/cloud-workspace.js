@@ -183,6 +183,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   }
   async function refresh() {
     access = client.session ? await client.access() : {member:true,admin:false,teams:[]};
+    render(); // El acceso no depende de que el catálogo termine de cargar.
     if (!access.member) {
       rows = [];
       status(
@@ -473,6 +474,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     try{if(!(await client.access()).admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminDashboard.open)adminDashboard.showModal();await loadAdmin();}
     catch(e){status(e.message,true);if(!dialog.open)dialog.showModal();}
   }
+  $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
   $('admin-close').addEventListener('click',()=>adminDashboard.close());$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
   for(const button of adminDashboard.querySelectorAll('[data-admin-state]'))button.addEventListener('click',()=>{$('admin-filter').value=button.dataset.adminState;void loadAdmin();});
