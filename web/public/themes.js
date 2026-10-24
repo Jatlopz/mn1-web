@@ -1,4 +1,5 @@
 export const THEME_KEY = 'mn1.appearance.theme';
+export const DEFAULT_THEME = 'halloween';
 export const THEMES = Object.freeze([
  {id:'ice',name:'Azul hielo',accent:'#8dd8ff'},
  {id:'violet',name:'Amatista',accent:'#d5b7ff'},
@@ -7,16 +8,16 @@ export const THEMES = Object.freeze([
  {id:'halloween',name:'Halloween',accent:'#ffbd80',seasonal:true},
  {id:'winter',name:'Fin de año',accent:'#9ce8dd',seasonal:true},
 ]);
-export const normalizeTheme = value => THEMES.some(t=>t.id===value) ? value : 'ice';
+export const normalizeTheme = value => THEMES.some(t=>t.id===value) ? value : DEFAULT_THEME;
 export async function installThemes(storage, root=document, events=window) {
  const dialog=root.getElementById('theme-dialog');
  const error=root.getElementById('theme-error');
- let selected='ice',saving=false;
+ let selected=DEFAULT_THEME,saving=false;
  const apply=id=>{
   selected=normalizeTheme(id);root.documentElement.dataset.theme=selected;
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
- apply('ice');
+ apply(DEFAULT_THEME);
  try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
  const section=value=>{
   const base=root.getElementById('base-themes'),season=root.getElementById('seasonal-themes');
