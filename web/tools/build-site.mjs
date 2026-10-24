@@ -26,6 +26,35 @@ export const STARTER_IMAGES = Object.freeze([
   }),
 ]);
 
+export const THEME_ART = Object.freeze([
+  {
+    "id": "halloween",
+    "path": "themes/halloween.270bd76a04c0f76c.webp",
+    "sha256": "270bd76a04c0f76cff9b44f8b9522f4b57a71a886b2e221e15a0765b7435e894",
+    "size": 152984,
+    "width": 1024,
+    "height": 1536
+  },
+  {
+    "id": "winter",
+    "path": "themes/winter.2b84eaa69482468d.webp",
+    "sha256": "2b84eaa69482468d01e2cb3f72aa3d67daae471d7413ccca6ff2144e4ae7185a",
+    "size": 145940,
+    "width": 1024,
+    "height": 1536
+  }
+]);
+
+async function readThemeArt(source, sourceReal, art) {
+  const file=path.join(source,art.path),info=await lstat(file);
+  if(!info.isFile()||info.isSymbolicLink()||info.size>512*1024)throw Error('Invalid theme artwork: '+art.path);
+  if(!isWithin(await realpath(file),sourceReal))throw Error('Theme artwork outside source');
+  const bytes=await readFile(file);
+  if(bytes.length!==art.size||createHash('sha256').update(bytes).digest('hex')!==art.sha256)throw Error('Theme artwork integrity mismatch');
+  if(bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Invalid WebP artwork');
+  return bytes;
+}
+
 function shortHash(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
@@ -117,6 +146,8 @@ export async function buildSite(source, destination) {
 
   const sourceReal = await realpath(source);
   for (const image of STARTER_IMAGES) output[image.path] = await readStarterImage(source, sourceReal, image);
+
+  for (const art of THEME_ART) output[art.path] = await readThemeArt(source, sourceReal, art);
 
   await mkdir(destination, {recursive:true});
   output['index.html'] = html;

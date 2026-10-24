@@ -4,7 +4,7 @@ import {mkdtemp, readFile, readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {buildSite} from '../tools/build-site.mjs';
+import {buildSite,THEME_ART} from '../tools/build-site.mjs';
 
 const publicPath = fileURLToPath(new URL('../public', import.meta.url));
 const STARTER_PNGS = [
@@ -16,7 +16,7 @@ const MODULE_PATTERN = /^(themes|app|meeting-report|bridge|profiles|renderer|sta
 test('published bundle contains every module with coherent content hashes', async () => {
   const out = await mkdtemp(path.join(tmpdir(), 'mn1-pages-'));
   const files = await buildSite(publicPath, out);
-  assert.equal(files.length, 18);
+  assert.equal(files.length, 20);
   assert.deepEqual((await readdir(path.join(out, 'templates'))).sort(), ['indestructibles.c9e3d4ac8d3d6f3f.png', 'super-guerreros.8200d4c6f9ede505.png']);
 
   const html = await readFile(path.join(out, 'index.html'), 'utf8');
@@ -48,17 +48,18 @@ test('published bundle contains every module with coherent content hashes', asyn
   assert.match(app, /from '\.\/starter-templates\.[a-f0-9]{16}\.js'/);
 
   const version = JSON.parse(await readFile(path.join(out, 'version.json'), 'utf8'));
-  assert.equal(version.version, '0.5.13');
+  assert.equal(version.version, '0.5.14');
   assert.equal(version.protocol, 1);
   assert.ok(files.includes('.nojekyll'));
 
   assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...STARTER_PNGS].sort());
   for (const file of files) {
     assert.ok(
-      MODULE_PATTERN.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file),
+      MODULE_PATTERN.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file) || THEME_ART.some(art=>art.path===file),
       `Archivo no permitido en el paquete: ${file}`,
     );
   }
+  for(const art of THEME_ART){const bytes=await readFile(path.join(out,art.path));assert.equal(bytes.length,art.size);assert.ok(art.size<512*1024);assert.match(await readFile(path.join(out,cssName),'utf8'),new RegExp(art.path.replaceAll('.','\\.')));}
   assert.ok(!files.some((file) => /\.(apk|keystore|jks)$|(^|\/)(private|secret)|\.env/i.test(file)));
   assert.deepEqual(files, await buildSite(publicPath, out));
 });

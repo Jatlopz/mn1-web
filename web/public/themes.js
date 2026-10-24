@@ -18,7 +18,23 @@ export async function installThemes(storage, root=document, events=window) {
  };
  apply('ice');
  try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
- const open=()=>{root.getElementById('web-settings-dialog')?.close();if(!dialog.open)dialog.showModal();};
+ const section=value=>{
+  const base=root.getElementById('base-themes'),season=root.getElementById('seasonal-themes');
+  if(!base||!season)return;
+  base.hidden=value==='season';season.hidden=value!=='season';
+  root.getElementById('theme-tab-base').setAttribute('aria-selected',String(value!=='season'));
+  root.getElementById('theme-tab-season').setAttribute('aria-selected',String(value==='season'));
+  root.getElementById('theme-tab-base').tabIndex=value==='season'?-1:0;
+  root.getElementById('theme-tab-season').tabIndex=value==='season'?0:-1;
+ };
+ root.getElementById('theme-tab-base')?.addEventListener('click',()=>section('base'));
+ root.getElementById('theme-tab-season')?.addEventListener('click',()=>section('season'));
+ for(const id of ['theme-tab-base','theme-tab-season']) root.getElementById(id)?.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();const next=event.key==='Home'?'base':event.key==='End'?'season':id==='theme-tab-base'?'season':'base';
+  section(next);root.getElementById(next==='base'?'theme-tab-base':'theme-tab-season').focus();
+ });
+ const open=()=>{root.getElementById('web-settings-dialog')?.close();section(THEMES.find(t=>t.id===selected)?.seasonal?'season':'base');if(!dialog.open)dialog.showModal();};
  root.getElementById('open-themes').addEventListener('click',open);
  root.getElementById('close-themes').addEventListener('click',()=>dialog.close());
  events.addEventListener('mn1:open-themes',open);

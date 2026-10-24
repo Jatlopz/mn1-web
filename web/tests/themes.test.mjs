@@ -24,3 +24,17 @@ test('native unified Settings hides web fallback gear while browser retains it',
  installSettings(false,root);assert.equal(button.hidden,false);
  handlers.click();assert.equal(dialog.open,true);handlers.close();assert.equal(dialog.open,false);
 });
+
+test('theme collections restore seasonal selection and support arrows without changing the saved theme',async()=>{
+ const ui=page(),values=new Map([[THEME_KEY,'halloween']]);let writes=0,focused='';
+ for(const id of ['base-themes','seasonal-themes','theme-tab-base','theme-tab-season'])ui.elements.set(id,{hidden:false,tabIndex:0,setAttribute(k,v){this[k]=v},addEventListener(type,fn){ui.handlers[id+':'+type]=fn},focus(){focused=id}});
+ await installThemes({getText:async k=>values.get(k),putText:async()=>writes++},ui.root,ui.events);
+ ui.handlers['mn1:open-themes']();
+ assert.equal(ui.elements.get('base-themes').hidden,true);assert.equal(ui.elements.get('seasonal-themes').hidden,false);
+ assert.equal(ui.elements.get('theme-tab-season').tabIndex,0);
+ ui.handlers['theme-tab-season:keydown']({key:'ArrowLeft',preventDefault(){}});
+ assert.equal(ui.elements.get('base-themes').hidden,false);assert.equal(focused,'theme-tab-base');
+ ui.handlers['theme-tab-base:keydown']({key:'End',preventDefault(){}});
+ assert.equal(ui.elements.get('seasonal-themes').hidden,false);assert.equal(focused,'theme-tab-season');
+ assert.equal(writes,0);assert.equal(ui.root.documentElement.dataset.theme,'halloween');
+});

@@ -93,7 +93,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.13';
+export const APP_VERSION = '0.5.14';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -2193,7 +2193,7 @@ function renderTeamTools(dom,app) {
   const grid=document.getElementById('team-shortcuts');grid.replaceChildren();
   const chosen=normalizeToolShortcuts(app.toolShortcuts?.[id]);
   document.getElementById('shortcuts-empty').hidden=chosen.length>0;
-  for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);const name=document.createElement('strong');name.textContent=tool.name;const detail=document.createElement('small');detail.textContent=tool.description;button.append(icon,name,detail);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
+  for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);button.setAttribute('aria-label',tool.name);button.title=tool.name;button.append(icon);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
 }
 
 function openWorkspaceFor(dom, app, profileId, options = {}) {

@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>SuperTools · Herramientas para supervisor de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.13">
+  <link rel="stylesheet" href="./styles.css?v=0.5.14">
 </head>
 <body>
   <a class="skip-link" href="#welcome-screen">Saltar al contenido</a>
@@ -369,14 +369,14 @@
   </dialog>
   <dialog class="dialog theme-dialog" id="theme-dialog" aria-labelledby="theme-title">
     <div class="dialog-head"><div><h2 id="theme-title">Tu estilo</h2><p class="hint">Elige el ambiente de tu estudio.</p></div><button class="dialog-close" id="close-themes" type="button" aria-label="Cerrar temas">×</button></div>
-    <div class="theme-grid" role="group" aria-label="Temas disponibles">
-      <button type="button" class="theme-option theme-ice" data-theme-choice="ice" aria-pressed="true"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Azul hielo</strong><small>Nítido y sereno</small></button>
-      <button type="button" class="theme-option theme-violet" data-theme-choice="violet" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Amatista</strong><small>Profundo y expresivo</small></button>
-      <button type="button" class="theme-option theme-amber" data-theme-choice="amber" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Ámbar</strong><small>Cálido y elegante</small></button>
-      <button type="button" class="theme-option theme-lime" data-theme-choice="lime" aria-pressed="false"><span class="theme-sample" aria-hidden="true">Aa<span></span></span><strong>Lima clásico</strong><small>Tu acento original</small></button>
-    </div><section class="seasonal-themes" aria-labelledby="seasonal-title"><p class="welcome-eyebrow">AMBIENTES ESPECIALES</p><h3 id="seasonal-title">Temas de temporada</h3><p class="hint">Papel tapiz ilustrado, detalles e interfaces de cristal.</p><div class="theme-grid">
-      <button type="button" class="theme-option theme-halloween" data-theme-choice="halloween" aria-pressed="false"><span class="season-art halloween-art" aria-hidden="true"><svg viewBox="0 0 200 100"><circle cx="159" cy="26" r="17" fill="#ffe1ac"/><path d="m27 80 8-23 8 23m-12-9h9" stroke="#8b66ac" fill="none"/><ellipse cx="103" cy="60" rx="37" ry="26" fill="#e78236"/><ellipse cx="103" cy="60" rx="22" ry="26" fill="#ffac56"/><path d="m100 35 5-12 8 3-6 11" fill="#a6af69"/><path d="m83 57 10-8 5 12m10 0 5-12 10 8m-36 10 8 8 7-4 8 4 9-8" fill="#321c32"/><path d="m25 23 9 5 9-5-6 9h-6Z" fill="#c9a8d8"/></svg></span><strong>Halloween</strong><small>Luna, calabazas y cristal ahumado</small></button>
-      <button type="button" class="theme-option theme-winter" data-theme-choice="winter" aria-pressed="false"><span class="season-art winter-art" aria-hidden="true"><svg viewBox="0 0 200 100"><path d="m39 84 18-27H47l17-25H54l18-22 18 22H80l17 25H87l18 27Z" fill="#5aaba4"/><path d="m111 91 13-20h-8l14-19h-7l15-20 15 20h-7l14 19h-8l13 20Z" fill="#296c76"/><path d="m165 12 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#f8dda6"/><path d="M17 21v12m-6-6h12m96-19v10m-5-5h10M181 66v12m-6-6h12" stroke="#d2fff5" stroke-width="2"/><circle cx="104" cy="40" r="2" fill="#f8dda6"/></svg></span><strong>Fin de año</strong><small>Bosque, estrellas y cristal helado</small></button>
+    <div class="theme-tabs" role="tablist" aria-label="Colecciones de temas"><button type="button" role="tab" id="theme-tab-base" aria-controls="base-themes" aria-selected="true">Esenciales</button><button type="button" role="tab" id="theme-tab-season" tabindex="-1" aria-controls="seasonal-themes" aria-selected="false">Temporada</button></div><div id="base-themes" role="tabpanel" aria-labelledby="theme-tab-base"><div class="theme-grid" role="group" aria-label="Temas disponibles">
+      <button type="button" class="theme-option theme-ice" data-theme-choice="ice" aria-pressed="true"><span class="theme-sample" aria-hidden="true"><i></i><i></i><i></i></span><strong>Azul hielo</strong><small>Nítido y sereno</small></button>
+      <button type="button" class="theme-option theme-violet" data-theme-choice="violet" aria-pressed="false"><span class="theme-sample" aria-hidden="true"><i></i><i></i><i></i></span><strong>Amatista</strong><small>Profundo y expresivo</small></button>
+      <button type="button" class="theme-option theme-amber" data-theme-choice="amber" aria-pressed="false"><span class="theme-sample" aria-hidden="true"><i></i><i></i><i></i></span><strong>Ámbar</strong><small>Cálido y elegante</small></button>
+      <button type="button" class="theme-option theme-lime" data-theme-choice="lime" aria-pressed="false"><span class="theme-sample" aria-hidden="true"><i></i><i></i><i></i></span><strong>Lima clásico</strong><small>Tu acento original</small></button>
+    </div></div><section class="seasonal-themes" id="seasonal-themes" role="tabpanel" aria-labelledby="theme-tab-season" hidden><p class="welcome-eyebrow">AMBIENTES ESPECIALES</p><h3 id="seasonal-title">Temas de temporada</h3><p class="hint">Escenarios inmersivos, luz ambiental y superficies de cristal.</p><div class="theme-grid">
+      <button type="button" class="theme-option theme-halloween" data-theme-choice="halloween" aria-pressed="false"><span class="season-art halloween-art" aria-hidden="true"><img src="./themes/halloween.270bd76a04c0f76c.webp" width="1024" height="1536" alt="" loading="lazy" decoding="async"></span><strong>Halloween</strong><small>Noche de fábrica · Cristal ahumado</small></button>
+      <button type="button" class="theme-option theme-winter" data-theme-choice="winter" aria-pressed="false"><span class="season-art winter-art" aria-hidden="true"><img src="./themes/winter.2b84eaa69482468d.webp" width="1024" height="1536" alt="" loading="lazy" decoding="async"></span><strong>Fin de año</strong><small>Aurora boreal · Cristal helado</small></button>
       </div></section><p id="theme-error" class="hint" role="status" aria-live="polite"></p><p class="hint">Sólo cambia la apariencia de este teléfono. Tus imágenes y anuncios quedan iguales.</p>
   </dialog>
   <dialog class="dialog about-dialog" id="about-dialog" aria-labelledby="about-title">
@@ -470,6 +470,6 @@
     <p class="noscript">SuperTools necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.13"></script>
+  <script type="module" src="./app.js?v=0.5.14"></script>
 </body>
 </html>
