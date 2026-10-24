@@ -187,3 +187,5 @@ test('Settings siempre permite encontrar Administración sin exponer datos priva
  assert.match(source, /settings-admin.*addEventListener/);
 });
 
+
+test('Administración es una pantalla independiente con equipos, herramientas y buzón',async()=>{const html=await readPublic('index.html');assert.match(html,/<section class="admin-dashboard"[^>]+hidden/);assert.doesNotMatch(html,/<dialog[^>]+id="admin-dashboard"/);for(const id of ['admin-team-list','admin-tool-list','admin-feedback','admin-plant','admin-inbox'])assert.ok(html.includes('id="'+id+'"'));});

@@ -436,3 +436,10 @@ test('Mi espacio restaura la vista antes de cerrar Administración y conserva bo
  assert.equal(await leaveAdminDashboard(dialog,async()=>false),false);assert.deepEqual(calls,[]);
  await assert.rejects(()=>leaveAdminDashboard(dialog,async()=>{throw Error('No se guardó');}));assert.deepEqual(calls,[]);
 });
+
+test('la pantalla administrativa sustituye el espacio normal sin depender de un diálogo',async()=>{
+ const {setAdminScreenVisible}=await import('../public/cloud-workspace.js');
+ const screen={hidden:true,focus(){this.focused=true;}};const app={hidden:false};const root={getElementById:id=>id==='app'?app:null};
+ setAdminScreenVisible(screen,true,root);assert.equal(screen.hidden,false);assert.equal(app.hidden,true);
+ setAdminScreenVisible(screen,false,root);assert.equal(screen.hidden,true);assert.equal(app.hidden,false);
+});

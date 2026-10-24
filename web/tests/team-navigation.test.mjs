@@ -16,6 +16,7 @@ import {
   WORKSPACE_VIEW_OPEN,
   WORKSPACE_VIEW_TEAMS,
   applyWorkspaceNavigation,
+  handleAppBack,
   isEditorTool,
   leaveWorkspaceToTeams,
   navigateToProfile,
@@ -338,7 +339,7 @@ test('planta recordada sobrevive reinicios sin cambiar el workspace',async()=>{
 test('Atrás prioriza diálogo, luego reporte o herramienta; en bienvenida permite salida',async()=>{
   const {handleAppBack}=await import('../public/app.js');let closed=0;
   const dialog={dispatchEvent:event=>{assert.equal(event.type,'cancel');return true},close:()=>closed++};
-  const root={querySelectorAll:()=>[dialog],getElementById:()=>({hidden:false})};
+  const root={querySelectorAll:()=>[dialog],getElementById:id=>id==='report-studio'?({hidden:false}):null};
   const app={workspaceView:WORKSPACE_VIEW_OPEN,editorTool:'hour',reportStudio:{close:()=>closed+=10}};
   assert.equal(handleAppBack({},app,root),true);assert.equal(closed,1);
   root.querySelectorAll=()=>[];
@@ -362,3 +363,5 @@ test('accesos rápidos sólo admiten herramientas reales y se guardan por equipo
  assert.deepEqual(normalizeToolShortcuts(JSON.parse(saved.get(teamShortcutsKey('champions')))),['report']);
  assert.deepEqual(normalizeToolShortcuts(saved.get(teamShortcutsKey('espartanos'))),['announcement','report']);
 });
+
+test('Atrás sale de Administración hacia la vista de usuario',()=>{let clicked=0;const root={querySelectorAll:()=>[],getElementById:id=>id==='admin-dashboard'?{hidden:false}:id==='admin-close'?{click:()=>clicked++}:null};assert.equal(handleAppBack({}, {}, root),true);assert.equal(clicked,1);});

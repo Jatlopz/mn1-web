@@ -1,3 +1,4 @@
+import { TEAM_TOOLS } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
 import {
   CLOUD_META_KEY,
@@ -11,6 +12,11 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+export function setAdminScreenVisible(screen,visible,root=document) {
+ screen.hidden=!visible;
+ const app=root.getElementById('app');if(app)app.hidden=visible;
+ if(visible)screen.focus();
+}
 export async function leaveAdminDashboard(dashboard,openSpace) {
  const restored=await openSpace();
  if(restored===false)return false;
@@ -53,7 +59,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     $("cloud-logout").hidden = !logged;
     $("cloud-password-settings").hidden = !logged;
     $('open-admin-dashboard').hidden=!access?.admin;
-    if(!access?.admin){$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminDashboard.open)adminDashboard.close();}
+    if(!access?.admin){$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminIsOpen())hideAdmin();}
     if(access?.admin&&!adminOffered&&!getServices().isEditing?.()){adminOffered=true;queueMicrotask(()=>void openAdmin());}
     $("cloud-admin").hidden = !access?.admin;
     $("cloud-ideas-admin").hidden = !access?.admin || !IDEAS_ENABLED;
@@ -437,16 +443,36 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   $('cloud-ideas-admin').addEventListener('click',()=>void openAdmin());
   $('ideas-refresh').addEventListener('click',()=>void loadIdeas());$('ideas-more').addEventListener('click',()=>void loadIdeas(true));
 
-  const adminDashboard=$('admin-dashboard');let adminOffered=false,adminBusy=false,adminOffset=0,seenCursor=0,myOffset=0;
+  const adminDashboard=$('admin-dashboard');
+  const adminIsOpen=()=>!adminDashboard.hidden;
+  const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');};
+  const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
+  const screenCloser={close:hideAdmin};
+  function selectAdminView(view){for(const panel of adminDashboard.querySelectorAll('[data-admin-panel]'))panel.hidden=panel.dataset.adminPanel!==view;for(const button of adminDashboard.querySelectorAll('[data-admin-view]'))button.setAttribute('aria-pressed',String(button.dataset.adminView===view));adminDashboard.scrollTop=0;}
+  function renderAdminTeams(){
+    const all=definitions(),plant=$('admin-plant').value;
+    $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=String(rows.filter(row=>row.revision).length);
+    const host=$('admin-team-list');host.replaceChildren();
+    for(const team of all.filter(t=>!plant||(t.plantId||'sacos')===plant)){
+      const card=document.createElement('article');card.className='admin-team-card';const name=document.createElement('h3');name.textContent=team.name;
+      const detail=document.createElement('p'),row=rows.find(r=>r.id===team.id);detail.className='hint';detail.textContent=((team.plantId||'sacos')==='polietileno'?'Polietileno':'Sacos')+' · '+(row?.revision?'Publicación '+row.revision:'Copia local');
+      const tools=document.createElement('p');tools.textContent=TEAM_TOOLS.map(t=>t.name).join(' · ');
+      const button=document.createElement('button');button.className='button button-secondary';button.textContent='Abrir vista del equipo';button.addEventListener('click',async()=>{button.disabled=true;try{if(!(await client.access()).admin)throw Error('Vuelve a iniciar sesión como administrador.');if(await getServices().openTeamSpace(team.id))hideAdmin();else throw Error('Guarda la edición pendiente antes de cambiar de equipo.');}catch(e){$('admin-status').textContent=e.message;selectAdminView('inbox');}finally{button.disabled=false;}});card.append(name,detail,tools,button);host.append(card);
+    }
+    $('admin-team-empty').hidden=host.childElementCount>0;
+    const toolsHost=$('admin-tool-list');toolsHost.replaceChildren();for(const tool of TEAM_TOOLS){const card=document.createElement('article');card.className='admin-team-card';const title=document.createElement('h3');title.textContent=tool.name;const text=document.createElement('p');text.textContent=tool.description;const note=document.createElement('p');note.className='hint';note.textContent='Reuniones MN1 · Disponible en los equipos';const button=document.createElement('button');button.className='button button-secondary';button.textContent='Elegir equipo';button.addEventListener('click',()=>selectAdminView('overview'));card.append(title,text,note,button);toolsHost.append(card);}
+  }
+  for(const button of adminDashboard.querySelectorAll('[data-admin-view]'))button.addEventListener('click',()=>selectAdminView(button.dataset.adminView));
+  $('admin-plant').addEventListener('change',renderAdminTeams);let adminOffered=false,adminBusy=false,adminOffset=0,seenCursor=0,myOffset=0;
   const seenKey='mn1.ideas.seen';
   function incoming(summary){
     const unread=Number(summary.unread)||0;$('admin-unread').hidden=unread===0;$('admin-unread').textContent=String(unread);
-    $('admin-incoming').hidden=unread===0||adminDashboard.open;
+    $('admin-incoming').hidden=unread===0||adminIsOpen();
     $('admin-incoming').textContent=unread===1?'Nueva solicitud en el buzón':unread+' solicitudes nuevas en el buzón';
   }
   async function pollAdmin(){
     if(!access?.admin||document.hidden||adminBusy)return;
-    try{incoming(await client.ideaDashboard(seenCursor));}catch(e){if(['401','403'].includes(e.code)){access={...access,admin:false};$('open-admin-dashboard').hidden=true;$('admin-incoming').hidden=true;adminDashboard.close();render();}}
+    try{incoming(await client.ideaDashboard(seenCursor));}catch(e){if(['401','403'].includes(e.code)){access={...access,admin:false};$('open-admin-dashboard').hidden=true;$('admin-incoming').hidden=true;hideAdmin();render();}}
   }
   function appendRequest(host,idea,{editable=false}={}){
     const card=document.createElement('article');card.className='idea-card';card.dataset.state=idea.status;
@@ -457,14 +483,14 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     if(editable){
       const label=document.createElement('label');label.className='field';label.textContent='Cambiar estado';const select=document.createElement('select');select.className='select';
       for(const [value,text] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}select.value=idea.status;
-      select.addEventListener('change',async()=>{const previous=idea.status;select.disabled=true;try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;badge.textContent=IDEA_STATES[idea.status];$('admin-status').textContent='Estado guardado. El remitente podrá ver el avance.';const summary=await client.ideaDashboard(seenCursor);for(const key of Object.keys(IDEA_STATES))$('count-'+key).textContent=String(summary.counts[key]||0);}catch{select.value=previous;$('admin-status').textContent='No se guardó el cambio. Actualiza la bandeja e inténtalo de nuevo.';}finally{select.disabled=false;}});
+      select.addEventListener('change',async()=>{const previous=idea.status;select.disabled=true;try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;badge.textContent=IDEA_STATES[idea.status];$('admin-status').textContent='Estado guardado. El remitente podrá ver el avance.';const summary=await client.ideaDashboard(seenCursor);renderAdminTeams();for(const key of Object.keys(IDEA_STATES))$('count-'+key).textContent=String(summary.counts[key]||0);}catch{select.value=previous;$('admin-status').textContent='No se guardó el cambio. Actualiza la bandeja e inténtalo de nuevo.';}finally{select.disabled=false;}});
       label.append(select);card.append(label);
     }
     if(Array.isArray(idea.history)){const history=document.createElement('ol');history.className='idea-history';for(const item of idea.history){const entry=document.createElement('li');entry.textContent=(IDEA_STATES[item.status]||item.status)+' · '+new Date(item.at).toLocaleString('es-HN');history.append(entry);}card.append(history);}
     host.append(card);
   }
   async function loadAdmin(append=false){
-    if(adminBusy)return;adminBusy=true;$('admin-refresh').disabled=true;$('admin-filter').disabled=true;$('admin-more').disabled=true;$('admin-status').textContent='Cargando solicitudes…';
+    if(adminBusy)return;adminBusy=true;$('admin-refresh').disabled=true;$('admin-filter').disabled=true;$('admin-more').disabled=true;$('admin-status').textContent='Cargando solicitudes…';$('admin-feedback').textContent='';
     try{
       if(!(await client.access()).admin)throw Error('Esta pantalla es exclusiva del administrador general.');
       const summary=await client.ideaDashboard(seenCursor);for(const key of Object.keys(IDEA_STATES))$('count-'+key).textContent=String(summary.counts[key]||0);
@@ -473,20 +499,20 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       for(const idea of ideas)appendRequest($('admin-ideas-list'),idea,{editable:true});
       $('admin-more').hidden=ideas.length<50;$('admin-status').textContent=adminOffset?adminOffset+' solicitudes cargadas.':'No hay solicitudes en este estado.';
       seenCursor=Number(summary.cursor)||0;await getServices().storage.putText(seenKey,String(seenCursor));incoming({...summary,unread:0});
-    }catch(e){$('admin-status').textContent=e.message;}finally{adminBusy=false;$('admin-refresh').disabled=false;$('admin-filter').disabled=false;$('admin-more').disabled=false;}
+    }catch(e){$('admin-status').textContent=e.message;$('admin-feedback').textContent=e.message;}finally{adminBusy=false;$('admin-refresh').disabled=false;$('admin-filter').disabled=false;$('admin-more').disabled=false;}
   }
   async function openAdmin(){
-    try{if(!(await client.access()).admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminDashboard.open)adminDashboard.showModal();await loadAdmin();}
+    try{access=await client.access();if(!access.admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminIsOpen())showAdmin();await loadAdmin();}
     catch(e){status(client.session?e.message:'Inicia sesión con tu cuenta principal para abrir el dashboard del buzón.',true);if(!dialog.open)dialog.showModal();if(!client.session){$('cloud-login').open=true;$('cloud-email').focus();}}
   }
   $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
-  $('admin-close').addEventListener('click',async()=>{const button=$('admin-close');button.disabled=true;try{await leaveAdminDashboard(adminDashboard,()=>getServices().openPersonalSpace());}catch{$('admin-status').textContent='No se pudo volver a Mi espacio. Tu trabajo se conserva; inténtalo de nuevo.';}finally{button.disabled=false;}});$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
-  for(const button of adminDashboard.querySelectorAll('[data-admin-state]'))button.addEventListener('click',()=>{$('admin-filter').value=button.dataset.adminState;void loadAdmin();});
-  $('admin-to-inbox').addEventListener('click',()=>{$('admin-inbox').scrollIntoView({block:'start'});$('admin-filter').focus();});
-  $('admin-to-accounts').addEventListener('click',()=>{adminDashboard.close();void openCloud();});
-  $('admin-to-about').addEventListener('click',()=>{adminDashboard.close();$('open-about').click();});
+  $('admin-close').addEventListener('click',async()=>{const button=$('admin-close');button.disabled=true;try{if(!(await leaveAdminDashboard(screenCloser,()=>getServices().openPersonalSpace())))$('admin-feedback').textContent='Guarda la edición pendiente antes de abrir la vista de usuario.';}catch{$('admin-status').textContent='No se pudo volver a Mi espacio. Tu trabajo se conserva; inténtalo de nuevo.';}finally{button.disabled=false;}});$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
+  for(const button of adminDashboard.querySelectorAll('[data-admin-state]'))button.addEventListener('click',()=>{$('admin-filter').value=button.dataset.adminState;selectAdminView('inbox');void loadAdmin();});
+  $('admin-to-inbox').addEventListener('click',()=>{selectAdminView('inbox');$('admin-filter').focus();});
+  $('admin-to-accounts').addEventListener('click',()=>{hideAdmin();void openCloud();});
+  $('admin-to-about').addEventListener('click',()=>{hideAdmin();$('open-about').click();});
   async function loadMine(append=false){
     if(ideaBusy)return;ideasLock(true);ideaStatus.textContent='Consultando tus solicitudes…';
     try{if(!append){myOffset=0;$('my-ideas-list').replaceChildren();}const device=await getServices().storage.getText('mn1.idea.client');const ideas=device?await client.myIdeas(device,myOffset):[];myOffset+=ideas.length;for(const idea of ideas)appendRequest($('my-ideas-list'),idea);$('my-ideas-more').hidden=ideas.length<50;ideaStatus.textContent=myOffset?myOffset+' solicitudes cargadas.':'Todavía no has enviado solicitudes desde este teléfono.';}catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
