@@ -54,6 +54,7 @@ import {
   normalizeTemplate,
   normalizeWorkspaceState,
   profileCatalogForWorkspace,
+  PLANTS, plantForTeam, teamsForPlant,
   setTeamArchived,
   resolveCardCoverSource,
   resolveCoverSave,
@@ -90,7 +91,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.8';
+export const APP_VERSION = '0.5.9';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -642,7 +643,7 @@ function focusEditorTool(dom, tool) {
 function syncWorkspaceRoute(app, open, profileId, legacy) {
   if (typeof window === 'undefined') return;
   const view = open ? WORKSPACE_VIEW_OPEN : WORKSPACE_VIEW_TEAMS;
-  const hash = workspaceRouteFor(profileId, { view, catalog: app.catalog });
+  const hash = app.plantNavigation && !open ? (app.selectedPlantId ? '#planta/'+app.selectedPlantId : '#plantas') : workspaceRouteFor(profileId, { view, catalog: app.catalog });
   try {
     if (typeof window.history?.replaceState === 'function'
         && window.location
@@ -653,7 +654,7 @@ function syncWorkspaceRoute(app, open, profileId, legacy) {
     // La navegación interna sigue funcionando aunque el WebView restrinja history.
   }
   if (typeof document !== 'undefined') {
-    document.title = workspaceDocumentTitle(profileId, { view, legacy, catalog: app.catalog });
+    document.title = app.plantNavigation && !open ? (app.selectedPlantId ? 'SuperTools · '+PLANTS.find(p=>p.id===app.selectedPlantId)?.name : 'SuperTools · Bienvenido') : workspaceDocumentTitle(profileId, { view, legacy, catalog: app.catalog });
   }
 }
 
@@ -672,11 +673,14 @@ function syncEditorViewport() {
 export function applyWorkspaceNavigation(dom, app) {
   syncEditorViewport();
   const open = app.workspaceView === WORKSPACE_VIEW_OPEN;
+  if (open && app.plantNavigation) app.selectedPlantId = plantForTeam(getProfileDefinition(app.workspace?.activeProfileId, {catalog:app.catalog}));
   const activeTool = resolveEditorTool(app.editorTool);
   app.editorTool = activeTool;
   const drawerOpen = open && activeTool !== null;
 
-  if (dom.teamsScreen) dom.teamsScreen.hidden = open;
+  const selectingPlant = Boolean(dom.welcomeScreen) && !app.selectedPlantId && !open;
+  if (dom.welcomeScreen) dom.welcomeScreen.hidden = !selectingPlant;
+  if (dom.teamsScreen) dom.teamsScreen.hidden = open || selectingPlant;
   if (dom.main) dom.main.hidden = !open;
 
   // El chrome global no se duplica dentro del editor.
@@ -890,7 +894,14 @@ function renderProfiles(dom, app) {
   const thumbnailCache = isWorkspace(app) && app.storage
     ? cardThumbnailCacheFor(app)
     : null;
-  for (const definition of app.catalog) {
+  const visibleTeams = teamsForPlant(app.catalog, app.selectedPlantId);
+  const empty = document.getElementById('plant-empty'); if (empty) empty.hidden = visibleTeams.length > 0;
+  const report = document.getElementById('open-report'); if (report) report.hidden = visibleTeams.length === 0;
+  const plantName = PLANTS.find(p=>p.id===app.selectedPlantId)?.name || 'Sacos';
+  const label = document.getElementById('selected-plant-label'); if (label) label.textContent=plantName;
+  if (dom.profilesTitle) dom.profilesTitle.textContent='Equipos de '+plantName;
+  for (const plant of PLANTS) {const counter=document.getElementById('plant-count-'+plant.id);if(counter){const count=teamsForPlant(app.catalog,plant.id).length;counter.textContent=count ? count+' equipo'+(count===1?'':'s') : 'Sin equipos todavía';}}
+  for (const definition of visibleTeams) {
     const template = app.workspace?.profiles?.[definition.id];
     const appearance = normalizeCardAppearance(template?.cardAppearance);
     const coverSourceKey = isWorkspace(app) ? resolveCardCoverSource(template) : null;
@@ -2123,6 +2134,7 @@ function openWorkspaceFor(dom, app, profileId, options = {}) {
       && app.workspace.activeProfileId !== profileId) {
     return false;
   }
+  app.selectedPlantId = plantForTeam(getProfileDefinition(profileId, {catalog:app.catalog}));
   app.editorTool = isEditorTool(options.tool) ? options.tool : null;
   clearError(dom, app);
   app.workspaceView = WORKSPACE_VIEW_OPEN;
@@ -2547,6 +2559,7 @@ function openAddTeamDialog(dom, app) {
     restore.append(option);
   }
   document.getElementById('restore-team-section').hidden = !restore.options.length;
+  document.getElementById('add-team-help').textContent='El equipo se creará en '+(PLANTS.find(p=>p.id===app.selectedPlantId)?.name || 'Sacos')+' con su propia plantilla.';
   app.addTeamSubmitted = false;
   if (dom.addTeamInput) {
     dom.addTeamInput.value = '';
@@ -2618,7 +2631,7 @@ async function handleCreateTeam(dom, app) {
       return;
     }
   }
-  const created = createCustomTeam(app.workspace, check.name);
+  const created = createCustomTeam(app.workspace, check.name, {plantId:app.selectedPlantId});
   if (!created.ok) {
     setAddTeamError(dom, created.error);
     return;
@@ -3605,6 +3618,8 @@ function collectDom() {
     app: byId('app'),
     appHeader: byId('app-header'),
     appFooter: byId('app-footer'),
+    welcomeScreen: byId('welcome-screen'),
+    profilesTitle: byId('profiles-title'),
     teamsScreen: byId('teams-screen') ?? document.querySelector('.profiles-panel'),
     main: byId('contenido'),
     workspaceTitle: byId('workspace-title'),
@@ -4393,7 +4408,7 @@ function wireReportWidgetLaunch(dom,app) {
   const open=async()=>{
     if(app.reportWidgetOpening||!app.reportStudio)return false;
     app.reportWidgetOpening=true;
-    try{return await openWidgetReport({isBusy:app.busy||app.switching,isListening:app.listening,activeProfileId:app.workspace?.activeProfileId,flushSave:()=>flushDraftBeforeLeaving(dom,app),openReport:options=>app.reportStudio.open(options),consumeHash:()=>{if(window.location.hash===REPORT_WIDGET_HASH)window.history?.replaceState?.(null,'','#equipos');}});}catch(error){showError(dom,'No se pudo abrir el reporte del widget. '+(error.message||''),app);return false;}finally{app.reportWidgetOpening=false;}
+    try{return await openWidgetReport({isBusy:app.busy||app.switching,isListening:app.listening,activeProfileId:app.workspace?.activeProfileId,flushSave:()=>flushDraftBeforeLeaving(dom,app),openReport:options=>{app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));return app.reportStudio.open(options);},consumeHash:()=>{if(window.location.hash===REPORT_WIDGET_HASH)window.history?.replaceState?.(null,'','#equipos');}});}catch(error){showError(dom,'No se pudo abrir el reporte del widget. '+(error.message||''),app);return false;}finally{app.reportWidgetOpening=false;}
   };
   window.addEventListener('mn1:report-open',()=>{if(!queue.enqueue('warm'))void open();});
   return async()=>{const pending=queue.markHydrated();if(pending.length)await open();};
@@ -4410,6 +4425,8 @@ async function boot() {
     mode: bridge.mode,
     connection: bridge.mode === 'native' ? 'checking' : 'preview',
     uiMode: 'loading',
+    plantNavigation: true,
+    selectedPlantId: null,
     workspaceView: WORKSPACE_VIEW_TEAMS,
     editorTool: null,
     navigationError: '',
@@ -4466,6 +4483,17 @@ async function boot() {
   renderAll(dom, app);
   readVersion(dom, app);
   wireUiEvents(dom, app);
+  for (const button of document.querySelectorAll('[data-plant]')) button.addEventListener('click',()=>{
+    if (app.busy || app.switching) return;
+    app.selectedPlantId=button.dataset.plant;
+    app.workspaceView=WORKSPACE_VIEW_TEAMS;
+    renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();
+  });
+  document.getElementById('back-to-plants').addEventListener('click',()=>{
+    if(app.busy||app.switching)return;
+    app.selectedPlantId=null;app.workspaceView=WORKSPACE_VIEW_TEAMS;
+    renderAll(dom,app,{syncFields:true});dom.welcomeScreen?.focus();
+  });
 
   if (app.mode === 'native') {
     await hydrateNative(dom, app);
@@ -4474,7 +4502,7 @@ async function boot() {
   }
   installSettings(app.capabilitySet.has('settings-menu-v1'));
   await installThemes(app.storage);
-  app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,blocked:app.busy||app.switching}));
+  app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{if(!app.selectedPlantId)app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,plantId:app.selectedPlantId || plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog})),blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
   app.cloud=createCloudWorkspace(()=>({storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
   void app.cloud.start();

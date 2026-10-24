@@ -1,3 +1,4 @@
+import { teamsForPlant } from './profiles.js';
 import { CAPABILITIES, isValidVaultKey, isPngDataUrl, pngBase64FromDataUrl, pngDataUrlFromBase64 } from './bridge.js';
 import { loadImageElement, prepareImageFile } from './renderer.js';
 
@@ -102,15 +103,17 @@ export function createMeetingReport(getServices) {
     if(busy)return false;
     if(!root.hidden&&dirty){try{await persist();}catch(e){message(e.message,true);return false;}}
     const s=services();if(s.blocked){message('Espera a que termine la operación actual.',true);return false;}
+    const visibleTeams=teamsForPlant(s.catalog,s.plantId);if(!visibleTeams.length)return false;
     priorTitle=document.title;document.title='Reporte de reunión · SuperTools';$('app').hidden=true;root.hidden=false;lock(true);message('Preparando estudio…');
     const token=++loadToken;
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
-      if(options.fromWidget&&s.catalog.some(t=>t.id===s.activeProfileId))prefs.teamId=s.activeProfileId;
+      if(options.fromWidget&&visibleTeams.some(t=>t.id===s.activeProfileId))prefs.teamId=s.activeProfileId;
+      if(!visibleTeams.some(t=>t.id===prefs.teamId))prefs.teamId=visibleTeams[0].id;
       const rawStyles=s.storage?await s.storage.getText(REPORT_STYLES_KEY):null;teamStyles=rawStyles?JSON.parse(rawStyles):{};if(!teamStyles||typeof teamStyles!=='object'||Array.isArray(teamStyles))throw Error('Estilos no válidos');
       prefs=normalizeReportPreferences({...prefs,...teamStyles[prefs.teamId],teamId:prefs.teamId,logoKeys:prefs.logoKeys},s.catalog);
       frameColor=prefs.frameColor;
-      const select=$('report-team');select.replaceChildren();for(const team of s.catalog){const option=document.createElement('option');option.value=team.id;option.textContent=team.name;select.append(option);}
+      const select=$('report-team');select.replaceChildren();for(const team of visibleTeams){const option=document.createElement('option');option.value=team.id;option.textContent=team.name;select.append(option);}
       select.value=prefs.teamId;$('report-frame').value=prefs.frame;$('report-heading').value=prefs.heading;$('report-date').checked=prefs.showDate;dirty=false;logoKeys={...prefs.logoKeys};$('report-watermark').checked=prefs.watermark;$('report-watermark-opacity').value=String(Math.round(prefs.watermarkOpacity*100));$('report-watermark-position').value=prefs.watermarkPosition;
       if(!photo&&s.storage){const stored=await s.storage.getText(REPORT_PHOTO_KEY);if(stored){const savedPhoto=parseCaptureRecord(stored);if(savedPhoto){const url=pngDataUrlFromBase64(savedPhoto.imageBase64);photo=await loadImageElement(url);capture=savedPhoto;}}}
       if(token!==loadToken)return;await loadLogo();render();message(photo?'Tu último reporte está listo para editar.':'Toma una foto para crear el reporte.');

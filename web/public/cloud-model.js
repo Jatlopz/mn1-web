@@ -209,6 +209,7 @@ export function validateRemoteTeam(row) {
     !/^(champions|espartanos|super-guerreros|indestructibles|custom-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.test(
       row.id,
     ) ||
+    (p.definition.plantId != null && !['sacos','polietileno'].includes(p.definition.plantId)) ||
     typeof p.definition.name !== "string" ||
     !p.definition.name.trim() ||
     p.definition.name.length > 60 ||

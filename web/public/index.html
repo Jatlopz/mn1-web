@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>SuperTools · Herramientas para supervisor de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.8">
+  <link rel="stylesheet" href="./styles.css?v=0.5.9">
 </head>
 <body>
   <a class="skip-link" href="#teams-screen">Saltar a los equipos</a>
@@ -34,7 +34,15 @@
 
 
 
-    <section class="teams-screen" id="teams-screen" aria-labelledby="profiles-title" tabindex="-1">
+    <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title" tabindex="-1">
+      <div class="welcome-copy"><p class="welcome-eyebrow">TU TURNO EMPIEZA AQUÍ</p><h1 id="welcome-title">Bienvenido a<br><span>SuperTools</span></h1><p>Selecciona tu planta para continuar.</p></div>
+      <div class="plant-grid" role="group" aria-label="Elegir planta">
+        <button class="plant-card" type="button" data-plant="sacos"><span class="plant-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 27V14l8 4v-8l8 4V6h6v21ZM8 22h2m5 0h2m5 0h2M20 6V3h6v3"/></svg></span><span class="plant-caption">PLANTA</span><strong>Sacos</strong><span id="plant-count-sacos" class="plant-count">4 equipos</span><span class="plant-open">Elegir equipos <span aria-hidden="true">↗</span></span></button>
+        <button class="plant-card plant-poly" type="button" data-plant="polietileno"><span class="plant-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m16 3 11 6v13l-11 7-11-7V9ZM5 9l11 7 11-7M16 16v13M11 6l11 7v12"/></svg></span><span class="plant-caption">PLANTA</span><strong>Polietileno</strong><span id="plant-count-polietileno" class="plant-count">Sin equipos todavía</span><span class="plant-open">Elegir equipos <span aria-hidden="true">↗</span></span></button>
+      </div><p class="welcome-footnote">Tus equipos, anuncios y reportes, organizados por planta.</p>
+    </section>
+    <section class="teams-screen" id="teams-screen" hidden aria-labelledby="profiles-title" tabindex="-1">
+      <div class="plant-navigation"><button class="back-button" id="back-to-plants" type="button">← Plantas</button><span class="plant-badge" id="selected-plant-label">Sacos</span></div>
       <div class="teams-intro">
 
         <h1 id="profiles-title">Tus equipos</h1>
@@ -47,6 +55,7 @@
 
 
 
+      <p class="plant-empty" id="plant-empty" hidden>Esta planta aún no tiene equipos. Usa «Agregar equipo» para crear el primero.</p>
       <div class="profile-grid" id="profile-list" role="radiogroup" aria-label="Elegir equipo"></div>
       <button class="report-entry" id="open-report" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 5 9.5 3h5L16 5h4v15H4V5Z"/><circle cx="12" cy="12" r="4"/></svg><span><strong>Reportar reunión</strong><small>Foto, marco y membrete del equipo</small></span><span aria-hidden="true">↗</span></button>
       <p class="profiles-notice" id="profiles-notice" role="note" hidden></p>
@@ -443,6 +452,6 @@
     <p class="noscript">SuperTools necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.8"></script>
+  <script type="module" src="./app.js?v=0.5.9"></script>
 </body>
 </html>

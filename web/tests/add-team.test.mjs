@@ -288,3 +288,28 @@ test('la pantalla de equipos tiene botón verde y diálogo accesible con máximo
   assert.match(html, /id="add-team-cancel"[^>]*>Cancelar</);
   assert.match(html, /id="add-team-create"[^>]*>Crear equipo</);
 });
+
+test('plantas separan equipos nuevos sin modificar el estado histórico de Sacos', async () => {
+  const {PLANTS, teamsForPlant, plantForTeam} = await import('../public/profiles.js');
+  const before = stateWithSavedDetails();
+  const old = JSON.stringify(before);
+  const baseCatalog = profileCatalogForWorkspace(before);
+  assert.deepEqual(PLANTS.map(p=>p.name), ['Sacos','Polietileno']);
+  assert.equal(teamsForPlant(baseCatalog,'sacos').length,4);
+  assert.equal(teamsForPlant(baseCatalog,'polietileno').length,0);
+  assert.ok(baseCatalog.every(team=>plantForTeam(team)==='sacos'&&!Object.hasOwn(team,'plantId')));
+  const result=createCustomTeam(before,'Equipo de prueba',{idFactory:()=>uuidFor(99),plantId:'polietileno'});
+  assert.equal(result.ok,true);
+  assert.equal(JSON.stringify(before),old);
+  const restored=normalizeWorkspaceState(JSON.parse(JSON.stringify(result.state)));
+  const catalog=profileCatalogForWorkspace(restored);
+  assert.equal(teamsForPlant(catalog,'sacos').length,4);
+  assert.deepEqual(teamsForPlant(catalog,'polietileno').map(t=>t.id),[result.profileId]);
+  assert.deepEqual(restored.profiles.champions,result.state.profiles.champions);
+  assert.equal(restored.profiles.champions.imageKey,IMAGE_KEY_CHAMPIONS);
+  assert.equal(restored.profiles.champions.hour,'10:15');
+  assert.deepEqual(result.template.targetLabels,['Equipo']);
+  const {normalizeReportPreferences}=await import('../public/meeting-report.js');
+  const logos={champions:'mn1.report.logo.champions.keep01',[result.profileId]:'mn1.report.logo.poly.keep02'};
+  assert.deepEqual(normalizeReportPreferences({teamId:result.profileId,logoKeys:logos},catalog).logoKeys,logos);
+});

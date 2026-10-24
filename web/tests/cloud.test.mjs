@@ -367,3 +367,20 @@ test('public catalog and artwork do not require session or expose an existing be
  assert.deepEqual(await anonymous.publicList(),[]);
  await assert.rejects(anonymous.publish('champions',0,{}),e=>e.code==='login');
 });
+
+test('Polietileno travels between phones without moving or altering Sacos teams', async()=>{
+  const {createCustomTeam,profileCatalogForWorkspace,teamsForPlant}=await import('../public/profiles.js');
+  const a=vault(),b=vault(),old=createDefaultWorkspace();
+  const created=createCustomTeam(old,'Equipo de prueba',{plantId:'polietileno',idFactory:()=> '00000000-0000-4000-8000-000000000099'});
+  await a.putText(WORKSPACE_KEYS.state,JSON.stringify(created.state));
+  await b.putText(WORKSPACE_KEYS.state,JSON.stringify(old));
+  const packet=await localTeamPacket(a,created.profileId);let remote;
+  const server={publish:async(id,expected,data)=>{remote={id,revision:1,data};return 1;}};
+  await publishPacket(server,a,packet,0);
+  assert.equal(remote.data.definition.plantId,'polietileno');
+  const restored=await receivePacket(b,server,remote),catalog=profileCatalogForWorkspace(restored);
+  assert.equal(teamsForPlant(catalog,'sacos').length,4);
+  assert.equal(teamsForPlant(catalog,'polietileno')[0].id,created.profileId);
+  assert.deepEqual(restored.profiles.champions,old.profiles.champions);
+  assert.throws(()=>validateRemoteTeam({...remote,data:{...remote.data,definition:{...remote.data.definition,plantId:'unknown'}}}),/no es válido/);
+});

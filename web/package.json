@@ -1,6 +1,6 @@
 {
   "name": "@mn1/web",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "type": "module",
   "description": "Frontend web MN1 híbrido: workspace de cuatro equipos, foto original, editor Canvas, dictado y puente v1. Sin dependencias.",

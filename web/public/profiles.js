@@ -14,6 +14,11 @@ import {
 } from './bridge.js';
 import { WORKSPACE_KEYS } from './storage.js';
 
+export const PLANTS = Object.freeze([{id:'sacos',name:'Sacos'},{id:'polietileno',name:'Polietileno'}]);
+export const normalizePlantId = value => value === 'polietileno' ? value : 'sacos';
+export const plantForTeam = definition => normalizePlantId(definition?.plantId);
+export const teamsForPlant = (catalog, plantId) => catalog.filter(team => plantForTeam(team) === normalizePlantId(plantId));
+
 export const DEFAULT_HOUR = '08:00';
 export const DEFAULT_QUICK_HOURS = Object.freeze(['08:00', '09:00', '10:00']);
 // Se conserva el export histórico de los accesos 08/09; los accesos editables de
@@ -480,13 +485,14 @@ export function validateCustomTeamName(state, value) {
   return { ok: true, name: check.name };
 }
 
-function buildCustomProfileDefinition(id, name, index, createdAt = '') {
+function buildCustomProfileDefinition(id, name, index, createdAt = '', plantId = 'sacos') {
   return {
     id,
     name,
     shortName: name,
     color: CUSTOM_PROFILE_COLORS[index % CUSTOM_PROFILE_COLORS.length],
-    defaultMessage: defaultMessageForTeam(name),
+    ...(plantId === 'polietileno' ? {plantId:'polietileno'} : {}),
+    defaultMessage: plantId === 'polietileno' ? `Convocatoria del equipo ${name} a las {hora}. Planta Polietileno.` : defaultMessageForTeam(name),
     createdAt: typeof createdAt === 'string' ? createdAt.slice(0, 40) : '',
   };
 }
@@ -549,7 +555,7 @@ export function normalizeCustomProfiles(value) {
     const createdAt = hasOwn(raw, 'createdAt') && typeof raw.createdAt === 'string'
       ? raw.createdAt
       : '';
-    result.push(buildCustomProfileDefinition(id, nameCheck.name, result.length, createdAt));
+    result.push(buildCustomProfileDefinition(id, nameCheck.name, result.length, createdAt, normalizePlantId(raw.plantId)));
   }
   return result;
 }
@@ -584,6 +590,7 @@ export function createCustomTeam(state, rawName, options = {}) {
     check.name,
     customProfiles.length,
     createdAt,
+    normalizePlantId(options.plantId),
   );
   const nextCustomProfiles = [...customProfiles, definition];
   const nextDefinitions = [...PROFILE_CATALOG, ...nextCustomProfiles];
@@ -601,7 +608,7 @@ export function createCustomTeam(state, rawName, options = {}) {
     definitions: nextDefinitions,
     message: definition.defaultMessage,
     hour: DEFAULT_HOUR,
-    targetLabels: DEFAULT_TARGETS,
+    targetLabels: options.plantId === 'polietileno' ? ['Equipo'] : DEFAULT_TARGETS,
     overlay: DEFAULT_OVERLAY,
     imageKey: null,
     imageWidth: null,
