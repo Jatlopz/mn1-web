@@ -179,9 +179,9 @@ test('la portada editable tiene controles y el símbolo es un proyector local', 
   for (const blur of [0,6,12]) assert.ok(html.includes('data-cover-blur="'+blur+'"'));
 });
 
-test('Settings siempre permite encontrar Administración sin exponer datos privados', async () => {
+test('Settings conserva Administración oculta hasta verificar el rol', async () => {
  const html=await readPublic('index.html');
- assert.match(html, /id="settings-admin"/);
+ assert.match(html, /id="settings-admin"[^>]*hidden/);
  assert.match(html, /id="cloud-dashboard-access"/);
  const source=await readPublic('cloud-workspace.js');
  assert.match(source, /settings-admin.*addEventListener/);
@@ -189,3 +189,5 @@ test('Settings siempre permite encontrar Administración sin exponer datos priva
 
 
 test('Administración es una pantalla independiente con equipos, herramientas y buzón',async()=>{const html=await readPublic('index.html');assert.match(html,/<section class="admin-dashboard"[^>]+hidden/);assert.doesNotMatch(html,/<dialog[^>]+id="admin-dashboard"/);for(const id of ['admin-team-list','admin-tool-list','admin-feedback','admin-plant','admin-inbox'])assert.ok(html.includes('id="'+id+'"'));});
+
+test('Acerca de oculta indicadores internos y conserva versión instalada y créditos',async()=>{const html=await readPublic('index.html');assert.match(html,/id="mode-badge"[^>]*hidden/);assert.match(html,/id="refresh-state"[^>]*hidden/);assert.match(html,/id="native-version"/);assert.match(html,/Joel Triminio/);assert.match(html,/Todos los derechos reservados/);});

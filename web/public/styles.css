@@ -2034,3 +2034,6 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 @media(max-width:600px){.admin-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.admin-nav button{white-space:normal;font-size:.78rem;padding:12px 10px;line-height:1.3}.admin-top{flex-wrap:wrap}.admin-top>div{flex:1;min-width:180px}.admin-top .button{max-width:none}.admin-top h1{margin:.5rem 0}.admin-summary{margin-top:14px}.admin-overview>.tools-heading h2{font-size:1.3rem}}
 
 .admin-feedback{max-width:1100px;margin:12px auto;color:var(--cyan-text);line-height:1.5}.admin-feedback:empty{display:none}
+
+/* La vista normal muestra la cuenta, no operaciones internas ni accesos administrativos. */
+#settings-admin[hidden],#cloud-dashboard-access[hidden],#cloud-refresh[hidden],#cloud-teams[hidden],#cloud-sync-details[hidden],#mode-badge,#refresh-state,#version-badge{display:none!important}

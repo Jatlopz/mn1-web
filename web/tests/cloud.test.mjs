@@ -443,3 +443,10 @@ test('la pantalla administrativa sustituye el espacio normal sin depender de un 
  setAdminScreenVisible(screen,true,root);assert.equal(screen.hidden,false);assert.equal(app.hidden,true);
  setAdminScreenVisible(screen,false,root);assert.equal(screen.hidden,true);assert.equal(app.hidden,false);
 });
+
+test('usuarios normales no ven accesos administrativos ni controles de sincronización',async()=>{
+ const {applyAccountVisibility}=await import('../public/cloud-workspace.js');const nodes=new Map();const root={getElementById:id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id);}};
+ applyAccountVisibility({admin:false},root);for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details'])assert.equal(nodes.get(id).hidden,true,id);
+ applyAccountVisibility({admin:true},root);for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details'])assert.equal(nodes.get(id).hidden,false,id);
+ applyAccountVisibility(null,root);assert.equal(nodes.get('settings-admin').hidden,true);
+});

@@ -12,6 +12,10 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+export function applyAccountVisibility(access,root=document){
+ const admin=access?.admin===true;
+ for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details']){const node=root.getElementById(id);if(node)node.hidden=!admin;}
+}
 export function setAdminScreenVisible(screen,visible,root=document) {
  screen.hidden=!visible;
  const app=root.getElementById('app');if(app)app.hidden=visible;
@@ -54,6 +58,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const definitions = () => getServices().catalog;
   function render() {
     const logged = Boolean(client.session);
+    applyAccountVisibility(access);
     $("cloud-login").hidden = logged;
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
@@ -66,7 +71,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     $("cloud-account").textContent = logged
       ? (client.session.user?.email || "Cuenta conectada") +
         (access?.admin ? " · Administrador general" : "")
-      : "Recepción automática · Sin cuenta";
+      : "No has iniciado sesión.";
     const list = $("cloud-teams");
     list.replaceChildren();
     const ids = new Set([
@@ -342,7 +347,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       await refresh();
       status(
         access.member
-          ? "Cuenta conectada. Publica o recibe una primera versión para vincular cada equipo."
+          ? (access.admin?"Cuenta conectada. Administración disponible.":"Cuenta conectada.")
           : "Cuenta sin permisos. Solicita asignación de equipo.",
         !access.member,
       );
@@ -356,7 +361,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
         access = null;adminOffered=false;
         rows = [];
         await refresh();
-        status("Sesión cerrada. Seguirás recibiendo los equipos publicados sin cuenta.");
+        status("Sesión cerrada.");
       }),
   );
   $("cloud-refresh").addEventListener(
