@@ -680,6 +680,7 @@ export function applyWorkspaceNavigation(dom, app) {
 
   const selectingPlant = Boolean(dom.welcomeScreen) && !app.selectedPlantId && !open;
   if (dom.welcomeScreen) dom.welcomeScreen.hidden = !selectingPlant;
+  if (dom.skipLink) dom.skipLink.setAttribute('href', selectingPlant ? '#welcome-screen' : open ? '#contenido' : '#teams-screen');
   if (dom.teamsScreen) dom.teamsScreen.hidden = open || selectingPlant;
   if (dom.main) dom.main.hidden = !open;
 
@@ -3619,6 +3620,7 @@ function collectDom() {
     appHeader: byId('app-header'),
     appFooter: byId('app-footer'),
     welcomeScreen: byId('welcome-screen'),
+    skipLink: document.querySelector('.skip-link'),
     profilesTitle: byId('profiles-title'),
     teamsScreen: byId('teams-screen') ?? document.querySelector('.profiles-panel'),
     main: byId('contenido'),
