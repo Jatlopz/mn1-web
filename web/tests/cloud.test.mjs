@@ -427,3 +427,12 @@ test('administrative dashboard RPC is authenticated and sender history uses only
  assert.equal(calls.at(-1).options.headers.Authorization,'Bearer fixture');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{p_after:17});
  await client.listIdeas(0,'in_progress');assert.match(calls.at(-1).url,/status=eq.in_progress/);
 });
+
+test('Mi espacio restaura la vista antes de cerrar Administración y conserva borradores si falla',async()=>{
+ const {leaveAdminDashboard}=await import('../public/cloud-workspace.js');
+ const calls=[];const dialog={close:()=>calls.push('close')};
+ assert.equal(await leaveAdminDashboard(dialog,async()=>{calls.push('restore');return true;}),true);
+ assert.deepEqual(calls,['restore','close']);calls.length=0;
+ assert.equal(await leaveAdminDashboard(dialog,async()=>false),false);assert.deepEqual(calls,[]);
+ await assert.rejects(()=>leaveAdminDashboard(dialog,async()=>{throw Error('No se guardó');}));assert.deepEqual(calls,[]);
+});

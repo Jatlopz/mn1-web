@@ -11,6 +11,11 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+export async function leaveAdminDashboard(dashboard,openSpace) {
+ const restored=await openSpace();
+ if(restored===false)return false;
+ dashboard.close();return true;
+}
 export const IDEA_STATES = Object.freeze({pending:'Pendiente',reviewing:'En análisis',in_progress:'En proceso',integrated:'Ejecutada'});
 const IDEAS_ENABLED = true; // Migración autorizada y verificada con RLS e idempotencia.
 export async function performCloudSync(operation,{background=false,setSyncing=()=>{},setLocked=()=>{}}={}) {
@@ -477,7 +482,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
-  $('admin-close').addEventListener('click',()=>adminDashboard.close());$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
+  $('admin-close').addEventListener('click',async()=>{const button=$('admin-close');button.disabled=true;try{await leaveAdminDashboard(adminDashboard,()=>getServices().openPersonalSpace());}catch{$('admin-status').textContent='No se pudo volver a Mi espacio. Tu trabajo se conserva; inténtalo de nuevo.';}finally{button.disabled=false;}});$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
   for(const button of adminDashboard.querySelectorAll('[data-admin-state]'))button.addEventListener('click',()=>{$('admin-filter').value=button.dataset.adminState;void loadAdmin();});
   $('admin-to-inbox').addEventListener('click',()=>{$('admin-inbox').scrollIntoView({block:'start'});$('admin-filter').focus();});
   $('admin-to-accounts').addEventListener('click',()=>{adminDashboard.close();void openCloud();});
