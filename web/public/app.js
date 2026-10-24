@@ -91,7 +91,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.9';
+export const APP_VERSION = '0.5.10';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -668,6 +668,13 @@ function syncEditorViewport() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   const height = Number(window.visualViewport?.height || window.innerHeight);
   if (Number.isFinite(height) && height > 0) document.documentElement.style.setProperty('--mn1-editor-height', height + 'px');
+}
+
+export function selectPlant(app, plantId) {
+  if (!PLANTS.some(plant => plant.id === plantId)) return false;
+  app.selectedPlantId = plantId;
+  app.workspaceView = WORKSPACE_VIEW_TEAMS;
+  return true;
 }
 
 export function applyWorkspaceNavigation(dom, app) {
@@ -4486,13 +4493,10 @@ async function boot() {
   readVersion(dom, app);
   wireUiEvents(dom, app);
   for (const button of document.querySelectorAll('[data-plant]')) button.addEventListener('click',()=>{
-    if (app.busy || app.switching) return;
-    app.selectedPlantId=button.dataset.plant;
-    app.workspaceView=WORKSPACE_VIEW_TEAMS;
+    if (!selectPlant(app,button.dataset.plant)) return;
     renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();
   });
   document.getElementById('back-to-plants').addEventListener('click',()=>{
-    if(app.busy||app.switching)return;
     app.selectedPlantId=null;app.workspaceView=WORKSPACE_VIEW_TEAMS;
     renderAll(dom,app,{syncFields:true});dom.welcomeScreen?.focus();
   });

@@ -1,5 +1,5 @@
 /*
- * Comportamiento de navegación de equipos (web 0.5.9).
+ * Comportamiento de navegación de equipos (web 0.5.10).
  *
  * Estos tests no levantan un navegador: construyen el mínimo DOM compartido del
  * editor único (#teams-screen, #contenido, HERO y drawer de herramientas) y
@@ -95,8 +95,8 @@ function visibleToolPanels(dom) {
     .map((panel) => panel.tool);
 }
 
-test('APP_VERSION es 0.5.9 y las herramientas del editor son válidas', () => {
-  assert.equal(APP_VERSION, '0.5.9');
+test('APP_VERSION es 0.5.10 y las herramientas del editor son válidas', () => {
+  assert.equal(APP_VERSION, '0.5.10');
   assert.deepEqual([...EDITOR_TOOLS], ['hour', 'message', 'voice']);
   for (const tool of EDITOR_TOOLS) assert.equal(isEditorTool(tool), true);
   assert.equal(isEditorTool('preview'), false);
@@ -304,4 +304,19 @@ test('aplicar una propuesta de voz que cambia equipo actualiza título y ruta', 
   assert.equal(workspaceRouteFor(app.workspace.activeProfileId), '#equipo/espartanos');
   assert.equal(dom.heroPanel.hidden, false);
   assert.deepEqual(visibleToolPanels(dom), ['voice']);
+});
+
+test('seleccionar planta sigue disponible durante sincronización sin mutar datos guardados',async()=>{
+  const {selectPlant}=await import('../public/app.js');
+  const workspace={activeProfileId:'indestructibles',profiles:{}};
+  for(const busy of [true,false]) {
+    const app={busy,switching:false,workspace,workspaceView:'teams',selectedPlantId:null};
+    assert.equal(selectPlant(app,'sacos'),true);
+    assert.equal(app.selectedPlantId,'sacos');
+    assert.equal(app.workspace,workspace);
+    assert.equal(selectPlant(app,'polietileno'),true);
+    assert.equal(app.selectedPlantId,'polietileno');
+    assert.equal(selectPlant(app,'unknown'),false);
+    assert.equal(workspace.activeProfileId,'indestructibles');
+  }
 });

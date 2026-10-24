@@ -48,7 +48,7 @@ test('published bundle contains every module with coherent content hashes', asyn
   assert.match(app, /from '\.\/starter-templates\.[a-f0-9]{16}\.js'/);
 
   const version = JSON.parse(await readFile(path.join(out, 'version.json'), 'utf8'));
-  assert.equal(version.version, '0.5.9');
+  assert.equal(version.version, '0.5.10');
   assert.equal(version.protocol, 1);
   assert.ok(files.includes('.nojekyll'));
 
