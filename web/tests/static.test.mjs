@@ -182,6 +182,7 @@ test('la portada editable tiene controles y el símbolo es un proyector local', 
 test('Settings siempre permite encontrar Administración sin exponer datos privados', async () => {
  const html=await readPublic('index.html');
  assert.match(html, /id="settings-admin"/);
+ assert.match(html, /id="cloud-dashboard-access"/);
  const source=await readPublic('cloud-workspace.js');
  assert.match(source, /settings-admin.*addEventListener/);
 });

@@ -474,6 +474,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     try{if(!(await client.access()).admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminDashboard.open)adminDashboard.showModal();await loadAdmin();}
     catch(e){status(e.message,true);if(!dialog.open)dialog.showModal();}
   }
+  $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
   $('admin-close').addEventListener('click',()=>adminDashboard.close());$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
