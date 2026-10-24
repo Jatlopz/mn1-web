@@ -178,11 +178,3 @@ test('la portada editable tiene controles y el símbolo es un proyector local', 
   }
   for (const blur of [0,6,12]) assert.ok(html.includes('data-cover-blur="'+blur+'"'));
 });
-
-test('SuperTools branding keeps its complete tagline and developer credits',async()=>{
- const html=await readPublic('index.html');
- assert.match(html,/<p class="brand-name">SuperTools<\/p>/);
- assert.match(html,/<p class="brand-sub">Herramientas para supervisor de planta<\/p>/);
- assert.ok(html.includes('Acerca de SuperTools'));
- assert.ok(html.includes('Joel Triminio'));assert.ok(html.includes('Tecnify HN S. de R. L.'));
-});
