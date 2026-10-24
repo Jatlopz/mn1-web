@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 18,
-  "versionName": "0.5.13-supertools",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-18-97ca39e70fe6cd42.apk",
-  "sha256": "97ca39e70fe6cd42baa0a4a7dd870d3faae097b634b8eef631b661256b51fa79",
-  "sizeBytes": 17974014,
-  "notes": "Nuevo nombre: SuperTools · Herramientas para supervisor de planta. Actualiza inicio, widget, intro y Acerca de. Conserva equipos, imágenes, temas, sesiones y actualizador."
+  "versionCode": 19,
+  "versionName": "0.5.14-settings",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-19-11ede9528734f0a4.apk",
+  "sha256": "11ede9528734f0a4e5f7124e318ad7563439719bc01d25d34a0465373ada4069",
+  "sizeBytes": 17966859,
+  "notes": "Settings renovado con tarjetas, iconos y descripciones para Temas, Cuenta y nube y Actualizaciones. Conserva equipos, imágenes y datos."
 }
