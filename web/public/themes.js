@@ -64,3 +64,10 @@ export function installCoffeeLink({native=false,canOpenExternal=false}={},root=d
  link.href=SUPPORT_PAYPAL_URL;link.target=native?'_self':'_blank';hint.hidden=true;
  link.addEventListener('click',event=>{if(native&&!canOpenExternal){event.preventDefault();hint.hidden=false;hint.textContent='Abre paypal.me/Jatlopz90 en tu navegador. Para abrirlo directamente desde aquí, actualiza SuperTools desde Settings → Actualizaciones.';}});
 }
+
+export function installContactCopy(root=document,clipboard=globalThis.navigator?.clipboard){
+ for(const [kind,label] of [['whatsapp','Número de WhatsApp'],['email','Correo']]){
+  const button=root.getElementById('copy-creator-'+kind),value=root.getElementById('creator-'+kind),status=root.getElementById('creator-contact-status');
+  button.addEventListener('click',async()=>{try{if(!clipboard?.writeText)throw Error('Copiado no disponible');await clipboard.writeText(value.textContent.trim());status.textContent=label+' copiado.';}catch{status.textContent='Mantén pulsado el dato para copiarlo.';value.focus?.();}});
+ }
+}

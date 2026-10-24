@@ -59,3 +59,5 @@ test('PayPal usa el enlace público y mantiene el navegador separado de la app',
   assert.equal(elements.get('coffee-compat').hidden,!(native&&!supported));
  }
 });
+
+test('los contactos copian sólo el número y correo indicados y tienen alternativa sin portapapeles',async()=>{const {installContactCopy}=await import('../public/themes.js');const nodes=new Map();for(const id of ['copy-creator-whatsapp','copy-creator-email','creator-whatsapp','creator-email','creator-contact-status'])nodes.set(id,{textContent:id==='creator-whatsapp'?'+504 8830-1336':id==='creator-email'?'Jatlopz90@gmail.com':'',addEventListener(type,fn){this[type]=fn;},focus(){}});const root={getElementById:id=>nodes.get(id)},copies=[];installContactCopy(root,{writeText:async value=>copies.push(value)});await nodes.get('copy-creator-whatsapp').click();await nodes.get('copy-creator-email').click();assert.deepEqual(copies,['+504 8830-1336','Jatlopz90@gmail.com']);installContactCopy(root,null);await nodes.get('copy-creator-email').click();assert.match(nodes.get('creator-contact-status').textContent,/Mantén pulsado/);});
