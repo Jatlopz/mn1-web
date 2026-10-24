@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 19,
-  "versionName": "0.5.14-settings",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-19-11ede9528734f0a4.apk",
-  "sha256": "11ede9528734f0a4e5f7124e318ad7563439719bc01d25d34a0465373ada4069",
-  "sizeBytes": 17966859,
-  "notes": "Settings renovado con tarjetas, iconos y descripciones para Temas, Cuenta y nube y Actualizaciones. Conserva equipos, imágenes y datos."
+  "versionCode": 20,
+  "versionName": "0.5.15-navigation",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-20-ddc9f340572661b9.apk",
+  "sha256": "ddc9f340572661b9b34ba80e0fa40549d7986cfc32eb8f8479d9a6c7c3f13df1",
+  "sizeBytes": 18018623,
+  "notes": "Atrás vuelve primero a herramientas y equipos. Conserva planta seleccionada, inicio por equipo, accesos rápidos y temas ilustrados de temporada. Mantiene equipos, imágenes y actualizador."
 }
