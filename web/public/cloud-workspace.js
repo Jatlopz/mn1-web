@@ -11,11 +11,17 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+export const IDEA_STATES = Object.freeze({pending:'Pendiente',reviewing:'En análisis',in_progress:'En proceso',integrated:'Ejecutada'});
 const IDEAS_ENABLED = true; // Migración autorizada y verificada con RLS e idempotencia.
-export function createCloudWorkspace(getServices) {
+export async function performCloudSync(operation,{background=false,setSyncing=()=>{},setLocked=()=>{}}={}) {
+ setSyncing(true);
+ if(!background)setLocked(true);
+ try{return await operation();}finally{if(!background)setLocked(false);setSyncing(false);}
+}
+export function createCloudWorkspace(getServices,{client:providedClient=null}={}) {
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
-    client = new CloudClient(getServices().storage);
+    client = providedClient || new CloudClient(getServices().storage);
   let meta = {},
     access = null,
     rows = [],
@@ -32,7 +38,7 @@ export function createCloudWorkspace(getServices) {
     busy = value;
     for (const e of dialog.querySelectorAll("button,input,select"))
       e.disabled = value;
-    getServices().setLocked?.(value);
+
   };
   const definitions = () => getServices().catalog;
   function render() {
@@ -41,6 +47,9 @@ export function createCloudWorkspace(getServices) {
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
     $("cloud-password-settings").hidden = !logged;
+    $('open-admin-dashboard').hidden=!access?.admin;
+    if(!access?.admin){$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminDashboard.open)adminDashboard.close();}
+    if(access?.admin&&!adminOffered&&!getServices().isEditing?.()){adminOffered=true;queueMicrotask(()=>void openAdmin());}
     $("cloud-admin").hidden = !access?.admin;
     $("cloud-ideas-admin").hidden = !access?.admin || !IDEAS_ENABLED;
     $("cloud-account").textContent = logged
@@ -183,15 +192,18 @@ export function createCloudWorkspace(getServices) {
     } else rows = client.session ? await client.list() : await client.publicList();
     render();
   }
-  async function action(fn) {
+  async function action(fn,{background=false}={}) {
     if (busy) return;
     lock(true);
     try {
-      if (!(await getServices().flush()))
+      await performCloudSync(async()=>{
+      if (!background && !(await getServices().flush()))
         throw Error("Corrige y guarda el borrador antes de sincronizar.");
       await fn();
-      if (client.session) await refresh();
+      if (client.session && !background) await refresh();
+      },{background,setSyncing:getServices().setSyncing,setLocked:getServices().setLocked});
     } catch (e) {
+      if(e.code==='deferred')return;
       status(e.message || "No se completó la sincronización.", true);
     } finally {
       lock(false);
@@ -223,7 +235,7 @@ export function createCloudWorkspace(getServices) {
   async function receiveRow(row) {
     applying = true;
     try {
-      const state = await receivePacket(getServices().storage, client, row);
+      const state = await receivePacket(getServices().storage, client, row, {commit: getServices().commitReceive});
       await getServices().applyState(state);
       const packet = await localTeamPacket(getServices().storage, row.id);
       meta[row.id] = {
@@ -246,6 +258,7 @@ export function createCloudWorkspace(getServices) {
       if (!access.member) return;
       const localState = JSON.parse(await getServices().storage.getText(WORKSPACE_KEYS.state) || "{}");
       for (const row of rows) {
+        if(getServices().blocked())return;
         if (localState.archivedProfileIds?.includes(row.id)) continue;
         const bound = meta[row.id];
         if (!bound) {
@@ -281,7 +294,7 @@ export function createCloudWorkspace(getServices) {
           }
         }
       }
-    });
+    },{background:true});
   }
   const schedule = () => {
     if (applying) return;
@@ -328,7 +341,7 @@ export function createCloudWorkspace(getServices) {
     () =>
       void action(async () => {
         await client.logout();
-        access = null;
+        access = null;adminOffered=false;
         rows = [];
         await refresh();
         status("Sesión cerrada. Seguirás recibiendo los equipos publicados sin cuenta.");
@@ -382,7 +395,7 @@ export function createCloudWorkspace(getServices) {
   $('open-ideas').addEventListener('click',async()=>{
     const services=getServices(),team=services.catalog.find(t=>t.id===services.activeProfileId);
     if(!team)return;ideaStatus.textContent=IDEAS_ENABLED?'':'Buzón preparado. El envío estará disponible cuando se active la nube de ideas.';ideaRequest=null;
-    $('ideas-form').hidden=false;$('ideas-inbox').hidden=true;$('ideas-team').textContent='Equipo: '+team.name;
+    $('my-ideas-panel').hidden=true;$('ideas-form').hidden=false;$('ideas-inbox').hidden=true;$('ideas-team').textContent='Equipo: '+team.name;
     $('idea-note').value='';ideasDialog.showModal();ideasLock(true);
     try{$('idea-note').value=await services.storage.getText(ideaDraftKey(team.id))||'';}catch{ideaStatus.textContent='No se pudo leer tu borrador anterior.';}finally{ideasLock(false);}
   });
@@ -411,12 +424,69 @@ export function createCloudWorkspace(getServices) {
       if(!(await client.access()).admin)throw Error('Sólo el administrador general puede leer esta bandeja.');
       if(!append){ideaOffset=0;$('ideas-list').replaceChildren();}
       const ideas=await client.listIdeas(ideaOffset);ideaOffset+=ideas.length;$('ideas-more').hidden=ideas.length<50;
-      for(const idea of ideas){const card=document.createElement('article');card.className='idea-card';const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');const note=document.createElement('p');note.textContent=idea.note;const select=document.createElement('select');select.setAttribute('aria-label','Estado de la idea de '+idea.team_name);for(const [value,label] of [['pending','Pendiente'],['reviewing','En revisión'],['integrated','Integrada']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=idea.status;select.addEventListener('change',async()=>{const previous=idea.status;ideasLock(true);try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;ideaStatus.textContent='Estado guardado.';}catch{select.value=previous;ideaStatus.textContent='No se pudo cambiar el estado. Recarga la bandeja antes de reintentar.';}finally{ideasLock(false);}});card.append(title,date,note,select);$('ideas-list').append(card);}
+      for(const idea of ideas){const card=document.createElement('article');card.className='idea-card';const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');const note=document.createElement('p');note.textContent=idea.note;const select=document.createElement('select');select.setAttribute('aria-label','Estado de la idea de '+idea.team_name);for(const [value,label] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=idea.status;select.addEventListener('change',async()=>{const previous=idea.status;ideasLock(true);try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;ideaStatus.textContent='Estado guardado.';}catch{select.value=previous;ideaStatus.textContent='No se pudo cambiar el estado. Recarga la bandeja antes de reintentar.';}finally{ideasLock(false);}});card.append(title,date,note,select);$('ideas-list').append(card);}
       ideaStatus.textContent=ideaOffset?ideaOffset+' propuestas cargadas.':'Todavía no hay propuestas.';
     }catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
   }
-  $('cloud-ideas-admin').addEventListener('click',()=>{dialog.close();$('ideas-form').hidden=true;$('ideas-inbox').hidden=false;ideasDialog.showModal();void loadIdeas();});
+  $('cloud-ideas-admin').addEventListener('click',()=>void openAdmin());
   $('ideas-refresh').addEventListener('click',()=>void loadIdeas());$('ideas-more').addEventListener('click',()=>void loadIdeas(true));
+
+  const adminDashboard=$('admin-dashboard');let adminOffered=false,adminBusy=false,adminOffset=0,seenCursor=0,myOffset=0;
+  const seenKey='mn1.ideas.seen';
+  function incoming(summary){
+    const unread=Number(summary.unread)||0;$('admin-unread').hidden=unread===0;$('admin-unread').textContent=String(unread);
+    $('admin-incoming').hidden=unread===0||adminDashboard.open;
+    $('admin-incoming').textContent=unread===1?'Nueva solicitud en el buzón':unread+' solicitudes nuevas en el buzón';
+  }
+  async function pollAdmin(){
+    if(!access?.admin||document.hidden||adminBusy)return;
+    try{incoming(await client.ideaDashboard(seenCursor));}catch(e){if(['401','403'].includes(e.code)){access={...access,admin:false};$('open-admin-dashboard').hidden=true;$('admin-incoming').hidden=true;adminDashboard.close();render();}}
+  }
+  function appendRequest(host,idea,{editable=false}={}){
+    const card=document.createElement('article');card.className='idea-card';card.dataset.state=idea.status;
+    const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');
+    const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');
+    const note=document.createElement('p');note.textContent=idea.note;
+    const badge=document.createElement('span');badge.className='idea-state';badge.textContent=IDEA_STATES[idea.status]||'Pendiente';card.append(title,date,note,badge);
+    if(editable){
+      const label=document.createElement('label');label.className='field';label.textContent='Cambiar estado';const select=document.createElement('select');select.className='select';
+      for(const [value,text] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}select.value=idea.status;
+      select.addEventListener('change',async()=>{const previous=idea.status;select.disabled=true;try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;badge.textContent=IDEA_STATES[idea.status];$('admin-status').textContent='Estado guardado. El remitente podrá ver el avance.';const summary=await client.ideaDashboard(seenCursor);for(const key of Object.keys(IDEA_STATES))$('count-'+key).textContent=String(summary.counts[key]||0);}catch{select.value=previous;$('admin-status').textContent='No se guardó el cambio. Actualiza la bandeja e inténtalo de nuevo.';}finally{select.disabled=false;}});
+      label.append(select);card.append(label);
+    }
+    if(Array.isArray(idea.history)){const history=document.createElement('ol');history.className='idea-history';for(const item of idea.history){const entry=document.createElement('li');entry.textContent=(IDEA_STATES[item.status]||item.status)+' · '+new Date(item.at).toLocaleString('es-HN');history.append(entry);}card.append(history);}
+    host.append(card);
+  }
+  async function loadAdmin(append=false){
+    if(adminBusy)return;adminBusy=true;$('admin-refresh').disabled=true;$('admin-filter').disabled=true;$('admin-more').disabled=true;$('admin-status').textContent='Cargando solicitudes…';
+    try{
+      if(!(await client.access()).admin)throw Error('Esta pantalla es exclusiva del administrador general.');
+      const summary=await client.ideaDashboard(seenCursor);for(const key of Object.keys(IDEA_STATES))$('count-'+key).textContent=String(summary.counts[key]||0);
+      if(!append){adminOffset=0;$('admin-ideas-list').replaceChildren();}
+      const ideas=await client.listIdeas(adminOffset,$('admin-filter').value);adminOffset+=ideas.length;
+      for(const idea of ideas)appendRequest($('admin-ideas-list'),idea,{editable:true});
+      $('admin-more').hidden=ideas.length<50;$('admin-status').textContent=adminOffset?adminOffset+' solicitudes cargadas.':'No hay solicitudes en este estado.';
+      seenCursor=Number(summary.cursor)||0;await getServices().storage.putText(seenKey,String(seenCursor));incoming({...summary,unread:0});
+    }catch(e){$('admin-status').textContent=e.message;}finally{adminBusy=false;$('admin-refresh').disabled=false;$('admin-filter').disabled=false;$('admin-more').disabled=false;}
+  }
+  async function openAdmin(){
+    try{if(!(await client.access()).admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminDashboard.open)adminDashboard.showModal();await loadAdmin();}
+    catch(e){status(e.message,true);if(!dialog.open)dialog.showModal();}
+  }
+  $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
+  $('admin-close').addEventListener('click',()=>adminDashboard.close());$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
+  for(const button of adminDashboard.querySelectorAll('[data-admin-state]'))button.addEventListener('click',()=>{$('admin-filter').value=button.dataset.adminState;void loadAdmin();});
+  $('admin-to-inbox').addEventListener('click',()=>{$('admin-inbox').scrollIntoView({block:'start'});$('admin-filter').focus();});
+  $('admin-to-accounts').addEventListener('click',()=>{adminDashboard.close();void openCloud();});
+  $('admin-to-about').addEventListener('click',()=>{adminDashboard.close();$('open-about').click();});
+  async function loadMine(append=false){
+    if(ideaBusy)return;ideasLock(true);ideaStatus.textContent='Consultando tus solicitudes…';
+    try{if(!append){myOffset=0;$('my-ideas-list').replaceChildren();}const device=await getServices().storage.getText('mn1.idea.client');const ideas=device?await client.myIdeas(device,myOffset):[];myOffset+=ideas.length;for(const idea of ideas)appendRequest($('my-ideas-list'),idea);$('my-ideas-more').hidden=ideas.length<50;ideaStatus.textContent=myOffset?myOffset+' solicitudes cargadas.':'Todavía no has enviado solicitudes desde este teléfono.';}catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
+  }
+  $('my-ideas-open').addEventListener('click',async()=>{
+    try{await getServices().storage.putText(ideaDraftKey(getServices().activeProfileId),$('idea-note').value);$('ideas-form').hidden=true;$('ideas-inbox').hidden=true;$('my-ideas-panel').hidden=false;await loadMine();}catch{ideaStatus.textContent='No se pudo conservar el borrador. No se cambió de pantalla.';}
+  });
+  $('my-ideas-refresh').addEventListener('click',()=>void loadMine());$('my-ideas-more').addEventListener('click',()=>void loadMine(true));
 
   async function start() {
     try {
@@ -426,6 +496,7 @@ export function createCloudWorkspace(getServices) {
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
           meta = parsed;
       }
+      seenCursor=Number(await storage.getText(seenKey))||0;
       await client.restore();
       await refresh();
     } catch (e) {
@@ -433,6 +504,8 @@ export function createCloudWorkspace(getServices) {
     }
     render();
     setInterval(() => void tick(), 60000);
+    setInterval(()=>void pollAdmin(),30000);
+    void pollAdmin();
     window.addEventListener("online", schedule);
     window.addEventListener("focus", schedule);
     document.addEventListener("visibilitychange", () => {

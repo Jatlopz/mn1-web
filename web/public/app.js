@@ -93,7 +93,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.16';
+export const APP_VERSION = '0.5.17';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -4598,7 +4598,7 @@ async function boot() {
   await installThemes(app.storage);
   app.reportStudio=createMeetingReport(() => ({activeProfileId:app.workspace?.activeProfileId,onClose:()=>{app.teamToolsOpen=true;if(!app.selectedPlantId)app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});},mode:app.mode,bridge:app.bridge,capabilities:app.capabilitySet||new Set(),storage:app.storage,catalog:app.catalog,plantId:app.selectedPlantId || plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog})),blocked:app.busy||app.switching}));
   await seedStarterImagesOnBoot(dom, app);
-  app.cloud=createCloudWorkspace(()=>({activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setLocked:value=>{setBusy(dom,app,value,'Sincronizando equipos…');document.getElementById('open-report').disabled=value;},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
+  app.cloud=createCloudWorkspace(()=>({isEditing:()=>app.busy||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]:not(#cloud-dialog)'))||!document.getElementById('report-studio').hidden,activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]'))||!document.getElementById('report-studio').hidden,flush:()=>flushDraftBeforeLeaving(dom,app),setSyncing:value=>{document.getElementById('sync-indicator').hidden=!value;},setLocked:value=>{app.cloudManualBusy=value;app.busy=value;renderAll(dom,app,{syncFields:false});},commitReceive:async task=>{const manual=app.cloudManualBusy===true;if((app.busy&&!manual)||app.switching||app.dirty||app.listening||(!manual&&(app.workspaceView===WORKSPACE_VIEW_OPEN||!document.getElementById('report-studio').hidden||document.querySelector('dialog[open]'))))throw Object.assign(Error('Se aplaza la recepción mientras trabajas.'),{code:'deferred'});const wasBusy=app.busy;app.busy=true;try{return await enqueueStorageTask(app,task);}finally{app.busy=wasBusy;}},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
   void app.cloud.start();
   await processWidgetLaunch();
   await processReportWidgetLaunch();

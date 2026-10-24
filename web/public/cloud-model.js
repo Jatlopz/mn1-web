@@ -334,7 +334,7 @@ export async function publishPacket(
   });
   return { revision, assetPaths: assets, assetHashes: hashes };
 }
-export async function receivePacket(storage, client, row) {
+export async function receivePacket(storage, client, row, {commit=task=>task()}={}) {
   const p = validateRemoteTeam(row);
   const before = await records(storage);
   const state = normalizeWorkspaceState(
@@ -384,6 +384,9 @@ export async function receivePacket(storage, client, row) {
   });
   const prefs = await json(storage, REPORT_PREFS_KEY, {}),
     styles = await json(storage, REPORT_STYLES_KEY, {});
+  return commit(async()=>{
+  const current=await records(storage);
+  if(recordKeys.some(key=>current[key]!==before[key]))throw Object.assign(Error('Hay cambios locales; se aplaza la recepción.'),{code:'deferred'});
   await preserveOriginal(storage, row.id);
   const teamReport = normalizeReportPreferences(
     { ...p.report, teamId: row.id, logoKeys: {} },
@@ -399,4 +402,5 @@ export async function receivePacket(storage, client, row) {
     [WORKSPACE_KEYS.state]: JSON.stringify(state),
   });
   return state;
+  });
 }

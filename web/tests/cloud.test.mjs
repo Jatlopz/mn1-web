@@ -396,3 +396,34 @@ test('ideas use anonymous submission but require authenticated access for inbox 
  await client.listIdeas(50);assert.match(calls.at(-1).url,/offset=50/);assert.equal(calls.at(-1).options.headers.Authorization,'Bearer fixture');
  await client.updateIdea('idea','pending','reviewing');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{p_id:'idea',p_expected:'pending',p_status:'reviewing'});
 });
+
+test('background synchronization only signals the header and never locks the workspace',async()=>{
+ const {performCloudSync}=await import('../public/cloud-workspace.js');const signals=[],locks=[];let release;
+ const pending=performCloudSync(()=>new Promise(resolve=>release=resolve),{background:true,setSyncing:v=>signals.push(v),setLocked:v=>locks.push(v)});
+ assert.deepEqual(signals,[true]);assert.deepEqual(locks,[]);release();await pending;
+ assert.deepEqual(signals,[true,false]);assert.deepEqual(locks,[]);
+ await assert.rejects(()=>performCloudSync(async()=>{throw Error('offline')},{background:true,setSyncing:v=>signals.push(v),setLocked:v=>locks.push(v)}),/offline/);
+ assert.equal(signals.at(-1),false);assert.deepEqual(locks,[]);
+ await performCloudSync(async()=>{}, {setLocked:v=>locks.push(v)});assert.deepEqual(locks,[true,false]);
+});
+
+test('remote receive defers if a local edit occurs during download and leaves that edit intact',async()=>{
+ const storage=vault(),state=createDefaultWorkspace();await storage.putText(WORKSPACE_KEYS.state,JSON.stringify(state));
+ const row={id:'champions',revision:1,data:{schema:1,definition:{id:'champions',name:'Los Champions',color:'#123456'},template:state.profiles.champions,report:{},assets:{image:'champions/00000000-0000-4000-8000-000000000099.png'}}};
+ const client={download:async()=>{const changed=JSON.parse(await storage.getText(WORKSPACE_KEYS.state));changed.profiles.champions.hour='11:45';await storage.putText(WORKSPACE_KEYS.state,JSON.stringify(changed));return Uint8Array.from(Buffer.from(png,'base64'));}};
+ await assert.rejects(()=>receivePacket(storage,client,row),e=>e.code==='deferred');
+ assert.equal(JSON.parse(await storage.getText(WORKSPACE_KEYS.state)).profiles.champions.hour,'11:45');
+ assert.equal(await storage.getText('mn1.cloud.pending'),null);
+});
+
+test('administrative dashboard RPC is authenticated and sender history uses only its private receipt',async()=>{
+ const {IDEA_STATES}=await import('../public/cloud-workspace.js');assert.deepEqual(Object.values(IDEA_STATES),['Pendiente','En análisis','En proceso','Ejecutada']);
+ const calls=[];const client=new CloudClient(vault(),{fetcher:async(url,options)=>{calls.push({url,options});return new Response(JSON.stringify([]),{status:200});}});
+ await assert.rejects(()=>client.ideaDashboard(),/Inicia sesión/);
+ await client.myIdeas('private-receipt',50);
+ assert.equal(calls[0].options.headers.Authorization,undefined);assert.ok(!calls[0].url.includes('private-receipt'));
+ assert.deepEqual(JSON.parse(calls[0].options.body),{p_client:'private-receipt',p_offset:50});
+ client.session={access_token:'fixture',expires_at:Date.now()/1000+3600};await client.ideaDashboard(17);
+ assert.equal(calls.at(-1).options.headers.Authorization,'Bearer fixture');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{p_after:17});
+ await client.listIdeas(0,'in_progress');assert.match(calls.at(-1).url,/status=eq.in_progress/);
+});
