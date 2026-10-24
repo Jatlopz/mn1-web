@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 20,
-  "versionName": "0.5.15-navigation",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-20-ddc9f340572661b9.apk",
-  "sha256": "ddc9f340572661b9b34ba80e0fa40549d7986cfc32eb8f8479d9a6c7c3f13df1",
-  "sizeBytes": 18018623,
-  "notes": "Atrás vuelve primero a herramientas y equipos. Conserva planta seleccionada, inicio por equipo, accesos rápidos y temas ilustrados de temporada. Mantiene equipos, imágenes y actualizador."
+  "versionCode": 21,
+  "versionName": "0.5.16-identity",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-21-d66cd4aa6e0722fc.apk",
+  "sha256": "d66cd4aa6e0722fcb28a7050d3f436d6f0bfa91b1c1d16c3511795754238c13e",
+  "sizeBytes": 18777310,
+  "notes": "Nueva identidad ST de SuperTools. Reemplaza el proyector en icono, encabezados y animación de entrada. Mantiene firma JT, equipos, imágenes, preferencias y actualizador."
 }
