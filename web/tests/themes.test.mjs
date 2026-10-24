@@ -48,3 +48,14 @@ test('Halloween is the default without storing over personal choices',async()=>{
    assert.equal(writes,0);
  }
 });
+
+test('PayPal usa el enlace público y mantiene el navegador separado de la app',async()=>{
+ const {installCoffeeLink,SUPPORT_PAYPAL_URL}=await import('../public/themes.js');
+ assert.equal(SUPPORT_PAYPAL_URL,'https://paypal.me/Jatlopz90');
+ for(const [native,supported] of [[false,false],[true,false],[true,true]]){
+  const elements=new Map();const root={getElementById:id=>{if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',addEventListener(type,handler){this[type]=handler;}});return elements.get(id);}};
+  installCoffeeLink({native,canOpenExternal:supported},root);const link=elements.get('about-paypal');assert.equal(link.href,SUPPORT_PAYPAL_URL);assert.equal(link.target,native?'_self':'_blank');
+  let prevented=false;link.click({preventDefault(){prevented=true;}});assert.equal(prevented,native&&!supported);
+  assert.equal(elements.get('coffee-compat').hidden,!(native&&!supported));
+ }
+});

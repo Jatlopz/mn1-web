@@ -57,3 +57,10 @@ export function installSettings(nativeMenu, root=document) {
  button.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});
  root.getElementById('close-web-settings').addEventListener('click',()=>dialog.close());
 }
+
+export const SUPPORT_PAYPAL_URL='https://paypal.me/Jatlopz90';
+export function installCoffeeLink({native=false,canOpenExternal=false}={},root=document){
+ const link=root.getElementById('about-paypal'),hint=root.getElementById('coffee-compat');
+ link.href=SUPPORT_PAYPAL_URL;link.target=native?'_self':'_blank';hint.hidden=true;
+ link.addEventListener('click',event=>{if(native&&!canOpenExternal){event.preventDefault();hint.hidden=false;hint.textContent='Abre paypal.me/Jatlopz90 en tu navegador. Para abrirlo directamente desde aquí, actualiza SuperTools desde Settings → Actualizaciones.';}});
+}

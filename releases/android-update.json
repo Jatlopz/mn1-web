@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 22,
-  "versionName": "0.5.17-jt",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-22-8e0052fde3860f8f.apk",
-  "sha256": "8e0052fde3860f8f450e61456ac2c516d4f64fded56722a3950bc7160a229a28",
-  "sizeBytes": 18507694,
-  "notes": "Restaura la insignia del creador: reflector cinematográfico, luz difuminada e iniciales JT proyectadas. Añade murciélagos animados durante octubre y elimina sólo el gráfico previo del arranque. Conserva equipos, imágenes, ajustes y actualizador."
+  "versionCode": 23,
+  "versionName": "0.5.18-support",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-23-b35d2bca4e542e5e.apk",
+  "sha256": "b35d2bca4e542e5ee98520e16c72bc5d6ecfdf8e682dccc11e4a437d92e7ec6c",
+  "sizeBytes": 18425806,
+  "notes": "Buy me a coffee abre el perfil público PayPal fuera de SuperTools. Incluye el retrato pequeño del creador, editable sólo por el administrador y compartido entre teléfonos. Conserva insignia JT, murciélagos de octubre, equipos, imágenes y ajustes."
 }

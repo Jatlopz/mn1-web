@@ -35,7 +35,7 @@ test('index.html carga sólo assets locales versionados y declara CSP', async ()
   assert.match(html, /src="\.\/app\.js\?v=0\.5\.17"/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i);
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
-  assert.doesNotMatch(html.replaceAll('https://wnfqqqorktjiruxlzvlr.supabase.co',''), /https?:\/\//i);
+  assert.doesNotMatch(html.replaceAll('https://wnfqqqorktjiruxlzvlr.supabase.co','').replaceAll('https://paypal.me/Jatlopz90',''), /https?:\/\//i);
 });
 
 test('la interfaz incluye workspace, editor, voz y compatibilidad APK3', async () => {

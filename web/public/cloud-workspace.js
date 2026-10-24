@@ -1,3 +1,4 @@
+import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
 import {
@@ -12,9 +13,10 @@ import {
 } from "./cloud-model.js";
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
+export function isCreatorPhoto(value){return typeof value==='string'&&value.length<=350000&&new RegExp('^data:image/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$').test(value);}
 export function applyAccountVisibility(access,root=document){
  const admin=access?.admin===true;
- for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details']){const node=root.getElementById(id);if(node)node.hidden=!admin;}
+ for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details','creator-photo-change']){const node=root.getElementById(id);if(node)node.hidden=!admin;}
 }
 export function setAdminScreenVisible(screen,visible,root=document) {
  screen.hidden=!visible;
@@ -402,6 +404,32 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       status("Contraseña actualizada.");
     });
   });
+  let creatorRevision=0,creatorBusy=false;const creatorCacheKey='mn1.creator.photo';
+  const defaultCreatorSrc=$('creator-photo').getAttribute('src');
+  function showCreatorPhoto(photo){$('creator-photo').src=photo||defaultCreatorSrc;$('creator-photo').classList.toggle('is-custom',Boolean(photo));}
+  async function loadCreatorPhoto(){
+    if(creatorBusy)return;
+    try{const rows=await client.creatorProfile();const row=rows?.[0];if(creatorBusy||!row||!Number.isSafeInteger(row.revision)||row.revision<creatorRevision||(row.photo!==null&&!isCreatorPhoto(row.photo)))return;creatorRevision=row.revision;showCreatorPhoto(row.photo);await storage.putText(creatorCacheKey,JSON.stringify(row));}catch{/* Conserva la foto anterior cuando no hay conexión. */}
+  }
+  async function saveCreatorPhoto(dataUrl){
+    if(!(await client.access()).admin)throw Error('Sólo el administrador puede cambiar esta foto.');
+    const image=await loadImageElement(dataUrl),canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
+    const ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo preparar la foto.');const side=Math.min(image.naturalWidth,image.naturalHeight);
+    ctx.drawImage(image,(image.naturalWidth-side)/2,(image.naturalHeight-side)/2,side,side,0,0,256,256);
+    const photo=canvas.toDataURL('image/jpeg',.85);if(!isCreatorPhoto(photo))throw Error('La foto es demasiado grande.');
+    creatorRevision=await client.setCreatorPhoto(creatorRevision,photo);showCreatorPhoto(photo);
+    try{await storage.putText(creatorCacheKey,JSON.stringify({revision:creatorRevision,photo}));}catch{/* La publicación ya se confirmó en el servidor. */}
+    $('creator-photo-status').textContent='Foto actualizada para todos los teléfonos.';
+  }
+  async function runCreatorChange(task){if(creatorBusy)return;creatorBusy=true;$('creator-photo-change').disabled=true;$('creator-photo-status').textContent='Preparando tu foto…';try{await task();}catch(e){$('creator-photo-status').textContent=e.code==='conflict'?'La foto cambió en otro teléfono. Cierra y abre Acerca de antes de reintentar.':(e.message||'No se pudo confirmar el cambio; la foto anterior se conserva.');}finally{creatorBusy=false;$('creator-photo-change').disabled=false;}}
+  $('creator-photo-change').addEventListener('click',()=>{
+    const service=getServices();if(service.mode!=='native'){$('creator-photo-input').value='';$('creator-photo-input').click();return;}
+    void runCreatorChange(async()=>{const result=await service.bridge.request('IMPORT_IMAGE',{}, {timeoutMs:300000});if(!result.ok||!result.data?.imageDataUrl)throw Error(result.message||'Selección cancelada.');await saveCreatorPhoto(result.data.imageDataUrl);});
+  });
+  $('creator-photo-input').addEventListener('change',()=>{const file=$('creator-photo-input').files?.[0];if(file)void runCreatorChange(async()=>{const result=await prepareImageFile(file);await saveCreatorPhoto(result.dataUrl);});});
+  if(typeof MutationObserver!=='undefined')new MutationObserver(()=>{if($('about-dialog').open)void loadCreatorPhoto();}).observe($('about-dialog'),{attributes:true,attributeFilter:['open']});
+  async function restoreCreatorPhoto(){try{const row=JSON.parse(await storage.getText(creatorCacheKey)||'null');if(row&&Number.isSafeInteger(row.revision)&&(row.photo===null||isCreatorPhoto(row.photo))){creatorRevision=row.revision;showCreatorPhoto(row.photo);}}catch{}void loadCreatorPhoto();}
+  void restoreCreatorPhoto();
   const ideasDialog=$('ideas-dialog'),ideaStatus=$('ideas-status');
   let ideaBusy=false,ideaRequest=null,ideaOffset=0;
   const ideaDraftKey=id=>'mn1.idea.draft.'+id;

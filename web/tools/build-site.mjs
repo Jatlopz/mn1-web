@@ -26,6 +26,7 @@ export const STARTER_IMAGES = Object.freeze([
   }),
 ]);
 
+export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
   {
     "id": "halloween",
@@ -148,6 +149,11 @@ export async function buildSite(source, destination) {
   for (const image of STARTER_IMAGES) output[image.path] = await readStarterImage(source, sourceReal, image);
 
   for (const art of THEME_ART) output[art.path] = await readThemeArt(source, sourceReal, art);
+  const creatorFile=path.join(source,CREATOR_PHOTO.path),creatorStat=await lstat(creatorFile);
+  if(!creatorStat.isFile()||creatorStat.isSymbolicLink()||creatorStat.size>512*1024||!isWithin(await realpath(creatorFile),sourceReal))throw Error('Invalid creator photo');
+  const creatorBytes=await readFile(creatorFile);
+  if(creatorBytes.length!==CREATOR_PHOTO.size||createHash('sha256').update(creatorBytes).digest('hex')!==CREATOR_PHOTO.sha256||creatorBytes[0]!==255||creatorBytes[1]!==216)throw Error('Creator photo integrity mismatch');
+  output[CREATOR_PHOTO.path]=creatorBytes;
 
   await mkdir(destination, {recursive:true});
   output['index.html'] = html;
