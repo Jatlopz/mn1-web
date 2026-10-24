@@ -102,7 +102,7 @@ export function createMeetingReport(getServices) {
     if(busy)return false;
     if(!root.hidden&&dirty){try{await persist();}catch(e){message(e.message,true);return false;}}
     const s=services();if(s.blocked){message('Espera a que termine la operación actual.',true);return false;}
-    priorTitle=document.title;document.title='Reporte de reunión · Batiseñal';$('app').hidden=true;root.hidden=false;lock(true);message('Preparando estudio…');
+    priorTitle=document.title;document.title='Reporte de reunión · SuperTools';$('app').hidden=true;root.hidden=false;lock(true);message('Preparando estudio…');
     const token=++loadToken;
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
@@ -146,7 +146,7 @@ export function createMeetingReport(getServices) {
       for(let attempt=0;dataUrl.length>8*1024*1024&&attempt<8;attempt++){const small=document.createElement('canvas');small.width=Math.round(out.width*.8);small.height=Math.round(out.height*.8);small.getContext('2d').drawImage(out,0,0,small.width,small.height);out=small;dataUrl=out.toDataURL('image/png');}
       if(!isPngDataUrl(dataUrl))throw Error('La imagen supera el tamaño permitido.');
       const s=services(),team=s.catalog.find(t=>t.id===v.teamId);const text=reportShareMessage(v,team,capture?.localHour??new Date().getHours());
-      if(s.mode!=='native'){if(typeof navigator.share!=='function'||typeof File!=='function')throw Error('Comparte desde Batiseñal Android.');const bytes=Uint8Array.from(atob(pngBase64FromDataUrl(dataUrl)),c=>c.charCodeAt(0));const file=new File([bytes],'reporte-reunion.png',{type:'image/png'});if(!navigator.canShare?.({files:[file]}))throw Error('Este navegador no comparte imágenes.');await navigator.share({files:[file],text});message('Se cerró el selector; la entrega se confirma en WhatsApp.');}
+      if(s.mode!=='native'){if(typeof navigator.share!=='function'||typeof File!=='function')throw Error('Comparte desde SuperTools Android.');const bytes=Uint8Array.from(atob(pngBase64FromDataUrl(dataUrl)),c=>c.charCodeAt(0));const file=new File([bytes],'reporte-reunion.png',{type:'image/png'});if(!navigator.canShare?.({files:[file]}))throw Error('Este navegador no comparte imágenes.');await navigator.share({files:[file],text});message('Se cerró el selector; la entrega se confirma en WhatsApp.');}
       else {const result=await s.bridge.request('SHARE_PNG',{imageDataUrl:dataUrl,message:text},{timeoutMs:300000});if(!result.ok)throw Error(result.message);message(result.message+' Elige y confirma los grupos en WhatsApp.');}
     }catch(e){message(e.message||'No se compartió.',true);}finally{lock(false);}
   });

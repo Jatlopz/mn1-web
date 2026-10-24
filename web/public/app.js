@@ -90,7 +90,7 @@ import {
   parseSpanishCommand,
 } from './voice.js';
 
-export const APP_VERSION = '0.5.7';
+export const APP_VERSION = '0.5.8';
 export const DEFAULT_MESSAGE = getProfileDefinition(DEFAULT_PROFILE_ID).defaultMessage;
 
 /*
@@ -135,10 +135,10 @@ export function workspaceRouteFor(profileId, options = {}) {
 }
 
 export function workspaceDocumentTitle(profileId, options = {}) {
-  if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return 'MN1 · Equipos';
-  if (options.legacy === true) return 'MN1 · Plantilla única (APK3)';
+  if ((options.view ?? WORKSPACE_VIEW_OPEN) !== WORKSPACE_VIEW_OPEN) return 'SuperTools · Equipos';
+  if (options.legacy === true) return 'SuperTools · Plantilla única (APK3)';
   const definition = getProfileDefinition(profileId, options);
-  return definition ? `MN1 · ${definition.name}` : 'MN1 · Equipo';
+  return definition ? `SuperTools · ${definition.name}` : 'SuperTools · Equipo';
 }
 
 /**

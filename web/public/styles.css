@@ -1983,3 +1983,5 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 @media(max-width:480px){.brand-projector{width:38px;height:38px;flex-basis:38px}.brand{gap:.4rem}.brand-name{font-size:1.1rem}.brand-sub{font-size:.58rem;letter-spacing:.07em}.app-header{gap:.3rem}.about-button{width:40px;height:40px;flex-basis:40px}}
 
 .settings-options{display:grid;gap:.65rem}.settings-options .button{min-height:52px;justify-content:flex-start}
+.brand-sub{max-width:260px;letter-spacing:.025em;text-transform:none;line-height:1.3}
+@media(max-width:480px){.brand-sub{font-size:.64rem;max-width:165px;line-height:1.25;letter-spacing:0}}

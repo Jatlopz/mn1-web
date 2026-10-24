@@ -1,5 +1,5 @@
 /*
- * Comportamiento de navegación de equipos (web 0.5.7).
+ * Comportamiento de navegación de equipos (web 0.5.8).
  *
  * Estos tests no levantan un navegador: construyen el mínimo DOM compartido del
  * editor único (#teams-screen, #contenido, HERO y drawer de herramientas) y
@@ -95,8 +95,8 @@ function visibleToolPanels(dom) {
     .map((panel) => panel.tool);
 }
 
-test('APP_VERSION es 0.5.7 y las herramientas del editor son válidas', () => {
-  assert.equal(APP_VERSION, '0.5.7');
+test('APP_VERSION es 0.5.8 y las herramientas del editor son válidas', () => {
+  assert.equal(APP_VERSION, '0.5.8');
   assert.deepEqual([...EDITOR_TOOLS], ['hour', 'message', 'voice']);
   for (const tool of EDITOR_TOOLS) assert.equal(isEditorTool(tool), true);
   assert.equal(isEditorTool('preview'), false);
@@ -110,14 +110,14 @@ test('la ruta y el título reflejan el equipo y la vista', () => {
   assert.equal(workspaceRouteFor('champions'), '#equipo/champions');
   assert.equal(workspaceRouteFor('no-existe'), '#equipos');
   assert.equal(workspaceRouteFor('champions', { view: WORKSPACE_VIEW_TEAMS }), '#equipos');
-  assert.equal(workspaceDocumentTitle('champions'), 'MN1 · Los Champions');
+  assert.equal(workspaceDocumentTitle('champions'), 'SuperTools · Los Champions');
   assert.equal(
     workspaceDocumentTitle('champions', { view: WORKSPACE_VIEW_TEAMS }),
-    'MN1 · Equipos',
+    'SuperTools · Equipos',
   );
   assert.equal(
     workspaceDocumentTitle('indestructibles', { legacy: true }),
-    'MN1 · Plantilla única (APK3)',
+    'SuperTools · Plantilla única (APK3)',
   );
 });
 

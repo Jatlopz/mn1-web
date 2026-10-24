@@ -275,7 +275,7 @@ test('clonar y resolver catálogo/ruta/título incluye los equipos personalizado
   assert.equal(catalog.length, PROFILE_IDS.length + 1);
   assert.equal(isProfileId(created.profileId, { catalog }), true);
   assert.equal(workspaceRouteFor(created.profileId, { catalog }), `#equipo/${created.profileId}`);
-  assert.equal(workspaceDocumentTitle(created.profileId, { catalog }), 'MN1 · Los Búhos');
+  assert.equal(workspaceDocumentTitle(created.profileId, { catalog }), 'SuperTools · Los Búhos');
   assert.equal(workspaceRouteFor('custom-desconocido', { catalog }), '#equipos');
 });
 
