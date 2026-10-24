@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 21,
-  "versionName": "0.5.16-identity",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-21-d66cd4aa6e0722fc.apk",
-  "sha256": "d66cd4aa6e0722fcb28a7050d3f436d6f0bfa91b1c1d16c3511795754238c13e",
-  "sizeBytes": 18777310,
-  "notes": "Nueva identidad ST de SuperTools. Reemplaza el proyector en icono, encabezados y animación de entrada. Mantiene firma JT, equipos, imágenes, preferencias y actualizador."
+  "versionCode": 22,
+  "versionName": "0.5.17-jt",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-22-8e0052fde3860f8f.apk",
+  "sha256": "8e0052fde3860f8f450e61456ac2c516d4f64fded56722a3950bc7160a229a28",
+  "sizeBytes": 18507694,
+  "notes": "Restaura la insignia del creador: reflector cinematográfico, luz difuminada e iniciales JT proyectadas. Añade murciélagos animados durante octubre y elimina sólo el gráfico previo del arranque. Conserva equipos, imágenes, ajustes y actualizador."
 }
