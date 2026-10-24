@@ -14,7 +14,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://wnfqqqorktjiruxlzvlr.supabase.co; font-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>SuperTools · Herramientas para supervisor de planta</title>
-  <link rel="stylesheet" href="./styles.css?v=0.5.10">
+  <link rel="stylesheet" href="./styles.css?v=0.5.11">
 </head>
 <body>
   <a class="skip-link" href="#welcome-screen">Saltar al contenido</a>
@@ -46,7 +46,7 @@
       <div class="teams-intro">
 
         <h1 id="profiles-title">Tus equipos</h1>
-        <p class="teams-copy">Tu equipo. Tu anuncio.</p>
+        <p class="teams-copy">Tu equipo, tus herramientas.</p>
       </div>
 
       <button class="button button-primary add-team-button" id="add-team" type="button">
@@ -348,9 +348,9 @@
     <section id="cloud-admin" hidden><h3>Administración general</h3><form id="cloud-grant"><label class="field">Equipo<select class="select" id="cloud-editor-team"></select></label><label class="field">Correo del responsable<input class="input" id="cloud-editor-email" type="email" maxlength="254" required></label><label class="watermark-toggle"><input id="cloud-editor-enabled" type="checkbox" checked> Puede editar este equipo</label><button class="button button-primary" type="submit">Guardar permisos</button></form><details><summary>Crear cuenta de responsable</summary><p class="hint">Elige una contraseña temporal de al menos 12 caracteres. Compártela directamente con su responsable; podrá cambiarla al entrar. No se envían correos desde aquí.</p><form id="cloud-create-account"><label class="field">Correo<input class="input" id="cloud-new-email" type="email" maxlength="254" required></label><label class="field">Contraseña temporal<input class="input" id="cloud-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><button class="button button-secondary" type="submit">Crear cuenta</button></form></details></section></section>
   </dialog>
 
-  <dialog class="dialog" id="web-settings-dialog" aria-labelledby="web-settings-title">
-    <div class="dialog-head"><h2 id="web-settings-title">Settings</h2><button class="dialog-close" id="close-web-settings" type="button" aria-label="Cerrar Settings">×</button></div>
-    <div class="settings-options"><button class="button button-secondary" id="open-themes" type="button">Temas</button><button class="button button-secondary" id="open-cloud" type="button">Cuenta y nube</button></div>
+  <dialog class="dialog settings-dialog" id="web-settings-dialog" aria-labelledby="web-settings-title">
+    <div class="dialog-head"><div><p class="settings-eyebrow">SUPERTOOLS</p><h2 id="web-settings-title">Settings</h2><p class="hint">Tu espacio, a tu manera.</p></div><button class="dialog-close" id="close-web-settings" type="button" aria-label="Cerrar Settings">×</button></div>
+    <div class="settings-options"><button class="settings-option" id="open-themes" type="button"><span class="settings-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3C7 3 3 7 3 12s4 9 9 9c3 0 2-3 4-4s5 1 5-5c0-5-4-9-9-9Z"/><path d="M7 10h1m3-3h1m4 2h1M7 15h1"/></svg></span><span><strong>Temas</strong><small>Colores y apariencia del estudio</small></span><span aria-hidden="true">›</span></button><button class="settings-option" id="open-cloud" type="button"><span class="settings-symbol cloud-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 18c-7 0-5-9 0-8 1-8 11-7 12 0 6 1 4 8-1 8Z"/></svg></span><span><strong>Cuenta y nube</strong><small>Equipos y plantillas compartidas</small></span><span aria-hidden="true">›</span></button></div>
   </dialog>
   <dialog class="dialog theme-dialog" id="theme-dialog" aria-labelledby="theme-title">
     <div class="dialog-head"><div><h2 id="theme-title">Tu estilo</h2><p class="hint">Elige el ambiente de tu estudio.</p></div><button class="dialog-close" id="close-themes" type="button" aria-label="Cerrar temas">×</button></div>
@@ -452,6 +452,6 @@
     <p class="noscript">SuperTools necesita JavaScript para mostrar el workspace. No se envía nada desde esta página.</p>
   </noscript>
 
-  <script type="module" src="./app.js?v=0.5.10"></script>
+  <script type="module" src="./app.js?v=0.5.11"></script>
 </body>
 </html>
