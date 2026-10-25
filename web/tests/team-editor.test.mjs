@@ -229,3 +229,36 @@ test('el chrome global sólo se oculta dentro del editor', () => {
   assert.equal(dom.main.hidden, false);
   assert.equal(dom.heroPanel.hidden, false);
 });
+
+import { readTeamLogo, saveTeamLogo } from '../public/app.js';
+import { REPORT_PREFS_KEY } from '../public/meeting-report.js';
+const logoPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=';
+function logoVault() {
+  const data = new Map();
+  return {data, getText: async k => data.get(k) ?? null, putText: async(k,v) => data.set(k,v)};
+}
+test('el logo PNG persiste por equipo sin borrar preferencias ni logos anteriores', async () => {
+  const storage = logoVault();
+  storage.data.set(REPORT_PREFS_KEY, JSON.stringify({watermark:false, heading:'Reporte', logoKeys:{}}));
+  await saveTeamLogo(storage, 'indestructibles', logoPng);
+  const previousKey = JSON.parse(storage.data.get(REPORT_PREFS_KEY)).logoKeys.indestructibles;
+  await saveTeamLogo(storage, 'champions', logoPng);
+  assert.equal(await readTeamLogo(storage,'indestructibles'),logoPng);
+  assert.equal(await readTeamLogo(storage,'champions'),logoPng);
+  assert.equal(await readTeamLogo(storage,'espartanos'),'');
+  const prefs = JSON.parse(storage.data.get(REPORT_PREFS_KEY));
+  assert.equal(prefs.watermark,false);
+  assert.equal(prefs.heading,'Reporte');
+  assert.equal(prefs.logoKeys.indestructibles,previousKey);
+  assert.ok(storage.data.has(previousKey));
+});
+test('un PNG inválido o un fallo de escritura no sustituye el logo guardado', async () => {
+  const storage = logoVault();
+  await saveTeamLogo(storage,'indestructibles',logoPng);
+  const before = storage.data.get(REPORT_PREFS_KEY);
+  await assert.rejects(saveTeamLogo(storage,'indestructibles','https://example.invalid/logo.png'));
+  storage.putText = async () => {throw Error('Sin espacio');};
+  await assert.rejects(saveTeamLogo(storage,'indestructibles',logoPng),/Sin espacio/);
+  assert.equal(storage.data.get(REPORT_PREFS_KEY),before);
+  assert.equal(await readTeamLogo(storage,'indestructibles'),logoPng);
+});

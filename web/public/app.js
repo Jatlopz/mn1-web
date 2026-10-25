@@ -84,7 +84,7 @@ import {
   prepareImageFile,
   renderCompositePng,
 } from './renderer.js';
-import { createMeetingReport } from './meeting-report.js';
+import { createMeetingReport, REPORT_PREFS_KEY, reportLogoKey } from './meeting-report.js';
 import { createCloudWorkspace } from './cloud-workspace.js';
 import { recoverPendingReceive } from './cloud-model.js';
 import { seedStarterImages } from './starter-templates.js';
@@ -2181,7 +2181,96 @@ function launchTeamTool(dom,app,id) {
   if(id==='announcement')openWorkspaceFor(dom,app,app.workspace.activeProfileId);
   if(id==='report')void app.reportStudio?.open({teamId:app.workspace.activeProfileId});
 }
+export async function readTeamLogo(storage, teamId, cache = null) {
+  const raw = await storage.getText(REPORT_PREFS_KEY);
+  const prefs = raw ? JSON.parse(raw) : {};
+  const key = prefs.logoKeys?.[teamId];
+  if (!key || !key.startsWith('mn1.report.logo.') || !isValidVaultKey(key)) return '';
+  if (cache?.has(key)) return cache.get(key);
+  const image = pngDataUrlFromBase64(await storage.getText(key));
+  if (!isPngDataUrl(image)) throw Error('No se pudo leer el logo del equipo.');
+  if (cache) { cache.set(key, image); while (cache.size > 8) cache.delete(cache.keys().next().value); }
+  return image;
+}
+
+export async function saveTeamLogo(storage, teamId, dataUrl) {
+  if (!isPngDataUrl(dataUrl)) throw Error('Selecciona una imagen PNG válida.');
+  const raw = await storage.getText(REPORT_PREFS_KEY);
+  const prefs = raw ? JSON.parse(raw) : {};
+  const key = reportLogoKey(teamId);
+  await storage.putText(key, pngBase64FromDataUrl(dataUrl));
+  await storage.putText(REPORT_PREFS_KEY, JSON.stringify({
+    ...prefs, logoKeys: { ...prefs.logoKeys, [teamId]: key },
+  }));
+}
+
+async function renderTeamLogo(app, id) {
+  const image = document.getElementById('team-heading-logo');
+  const button = document.getElementById('team-logo-pick');
+  if (!image || !button) return;
+  const token = app.teamLogoToken = (app.teamLogoToken || 0) + 1;
+  if (image.dataset.teamId !== id) { image.hidden = true; image.removeAttribute('src'); document.getElementById('team-logo-feedback').textContent = ''; }
+  image.dataset.teamId = id || '';
+  button.disabled = app.busy || app.switching || !app.storage;
+  try {
+    app.teamLogoCache ||= new Map();
+    const url = id && app.storage ? await readTeamLogo(app.storage, id, app.teamLogoCache) : '';
+    if (token !== app.teamLogoToken) return;
+    image.hidden = !url;
+    if (url) image.src = url; else image.removeAttribute('src');
+    button.textContent = url ? 'Cambiar logo' : '+ Agregar logo';
+    button.setAttribute('aria-label', (url ? 'Cambiar' : 'Agregar') + ' logo del equipo');
+  } catch {
+    if (token !== app.teamLogoToken) return;
+    image.hidden = true;
+    button.textContent = 'Elegir logo';
+  }
+}
+
+function wireTeamLogo(dom, app) {
+  const button = document.getElementById('team-logo-pick');
+  const input = document.getElementById('team-logo-input');
+  const feedback = document.getElementById('team-logo-feedback');
+  let selectedTeamId = null;
+  const accept = async (dataUrl, id) => {
+    if (!id) throw Error('Vuelve a seleccionar el equipo.');
+    await enqueueStorageTask(app, () => saveTeamLogo(app.storage, id, dataUrl));
+    feedback.textContent = 'Logo guardado para este equipo.';
+  };
+  button.addEventListener('click', async () => {
+    if (app.busy || app.switching) return;
+    selectedTeamId = app.workspace.activeProfileId;
+    const id = selectedTeamId;
+    if (app.mode !== 'native') { input.value = ''; input.click(); return; }
+    setBusy(dom, app, true);
+    button.disabled = true;
+    feedback.textContent = '';
+    try {
+      const result = await app.bridge.request('IMPORT_IMAGE', {}, {timeoutMs:300000});
+      if (!result.ok) throw Error(result.message || 'No se eligió un logo.');
+      await accept(result.data?.imageDataUrl, id);
+    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.'; }
+    finally { setBusy(dom, app, false); void renderTeamLogo(app, app.workspace.activeProfileId); }
+  });
+  input.addEventListener('change', async () => {
+    const id = selectedTeamId;
+    const file = input.files?.[0];
+    if (!file || app.busy || app.switching) return;
+    setBusy(dom, app, true);
+    button.disabled = true;
+    feedback.textContent = '';
+    try {
+      if (file.type !== 'image/png') throw Error('Selecciona un logo en formato PNG.');
+      const prepared = await prepareImageFile(file, {minDimension:1});
+      await accept(prepared.dataUrl, id);
+    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.'; }
+    finally { setBusy(dom, app, false); void renderTeamLogo(app, app.workspace.activeProfileId); }
+  });
+}
+
 function renderTeamTools(dom,app) {
+  if (app.teamToolsOpen) void renderTeamLogo(app, app.workspace?.activeProfileId);
+  else app.teamLogoToken = (app.teamLogoToken || 0) + 1;
   if(!dom.teamToolsHome)return;
   const id=app.workspace?.activeProfileId;
   if(id && app.storage && !Object.hasOwn(app.toolShortcuts,id)) {
@@ -4580,6 +4669,7 @@ async function boot() {
   renderAll(dom,app,{syncFields:true});
   window.mn1HandleBack = () => handleAppBack(dom,app);
   document.getElementById('tools-back-teams').addEventListener('click',()=>{app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();});
+  wireTeamLogo(dom, app);
   document.getElementById('open-announcement').addEventListener('click',()=>launchTeamTool(dom,app,'announcement'));
   const shortcutsDialog=document.getElementById('shortcuts-dialog');
   document.getElementById('manage-shortcuts').addEventListener('click',()=>{

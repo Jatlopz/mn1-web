@@ -271,6 +271,7 @@ async function decodeFile(file, createImageBitmapFn) {
 export async function prepareImageFile(file, options = {}) {
   const {
     maxSide = 2048,
+    minDimension = 64,
     maxDataUrlLength = MN1_LIMITS.IMAGE_DATA_URL_MAX_LENGTH,
     createCanvas = defaultCanvasFactory,
     createImageBitmapFn = typeof createImageBitmap === 'function' ? createImageBitmap : null,
@@ -286,7 +287,7 @@ export async function prepareImageFile(file, options = {}) {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const width = Math.max(1, Math.round(size.width * scale));
     const height = Math.max(1, Math.round(size.height * scale));
-    if (width < 64 || height < 64) break;
+    if (width < minDimension || height < minDimension) break;
     const canvas = createCanvas();
     canvas.width = width;
     canvas.height = height;

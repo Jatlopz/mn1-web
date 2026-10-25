@@ -177,3 +177,13 @@ test('prepareImageFile limita el lado a 2048 y devuelve la copia sin hora', asyn
   assert.equal(canvases[0].height, 1229);
   await assert.rejects(prepareImageFile(null), (error) => error.code === 'invalid_file');
 });
+
+test('prepareImageFile admite logos PNG pequeños sin imponer el mínimo de las fotos', async () => {
+  const result = await prepareImageFile({name:'logo.png'}, {
+    minDimension:1, createCanvas:()=>fakeCanvas(),
+    createImageBitmapFn:async()=>({width:32,height:32}),
+  });
+  assert.equal(result.width,32);
+  assert.equal(result.height,32);
+  assert.equal(result.dataUrl,PNG);
+});
