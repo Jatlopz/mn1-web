@@ -6,6 +6,7 @@
 import {PROFILE_CATALOG,toolShortcutsForTeam} from '../public/profiles.js';
 import {createTeamToolLibrary,syncToolAvailability} from '../public/team-tool-library.js';
 import {createCloudWorkspace} from '../public/cloud-workspace.js';
+if(new URLSearchParams(location.search).has('legacyViewport')){const css=await(await fetch('../public/styles.css')).text();const legacy=document.createElement('style');legacy.textContent=[...css.matchAll(/\.tool-library\s*\{[^}]*\}/g)].map(match=>match[0].replace(/(?:\d+(?:\.\d+)?)dvh/g,'0px')).join('\n');document.head.append(legacy);}
 const result=document.getElementById('catalog-test-status');let passed=0,failed=0;
 const assert=(ok,message)=>{if(!ok)throw Error(message);};
 const wait=async fn=>{const end=Date.now()+2000;while(!fn()){if(Date.now()>end)throw Error('No terminó la operación');await new Promise(resolve=>setTimeout(resolve,10));}};
@@ -43,6 +44,12 @@ await check('borrador largo se conserva entero al solicitar',async()=>{
 await check('equipo asignado no pide adaptación; cambio de equipo rechaza solicitud anterior',async()=>{
  team=PROFILE_CATALOG[0];syncToolAvailability(document,team);library.open();assert(!byText('Solicitar adaptación'),'Solicita lo que ya tiene');assert(!await cloud.requestTool('production',custom.id),'Acepta solicitud para equipo distinto');assert(!await cloud.requestTool('production',team.id),'Solicita herramienta ya asignada');assert(!production.hidden,'No restauró eficiencia');
 });
+await check('ventana completa y desplazable aunque dvh valga cero',async()=>{
+ team=custom;library.open();byText('Exclusivas').click();dialog.querySelector('details').open=true;
+ const bounds=dialog.getBoundingClientRect();assert(bounds.height>240,'El catálogo quedó reducido a una franja de '+Math.round(bounds.height)+' px');assert(bounds.top>=0&&bounds.bottom<=innerHeight+1,'La ventana sale de la pantalla');
+ const request=byText('Solicitar adaptación');request.scrollIntoView({block:'center'});const action=request.getBoundingClientRect(),box=dialog.getBoundingClientRect();assert(action.top>=box.top&&action.bottom<=box.bottom,'La acción queda recortada');
+ dialog.querySelector('details').open=false;dialog.scrollTop=0;
+});
 close();team=custom;syncToolAvailability(document,team);library.open();byText('Exclusivas').click();dialog.querySelector('details').open=false;
-result.textContent=(failed?'FAIL':'PASS')+' · '+passed+'/6 pruebas de catálogo aprobadas · sin nube ni envíos reales';result.dataset.result=failed?'fail':'pass';
+result.textContent=(failed?'FAIL':'PASS')+' · '+passed+'/7 pruebas de catálogo aprobadas · sin nube ni envíos reales';result.dataset.result=failed?'fail':'pass';
 </script></html>

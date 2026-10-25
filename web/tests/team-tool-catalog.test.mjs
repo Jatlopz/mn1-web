@@ -32,3 +32,9 @@ test('solicitud nombra herramienta y equipo; añadirla respeta el borrador y el 
  const large='x'.repeat(1490);assert.equal(mergeToolRequestDraft(large,note),null);assert.equal(large.length,1490);
  assert.throws(()=>toolRequestNote('unknown',custom));
 });
+
+test('altura del catálogo usa el viewport medido de Android y permite desplazamiento',async()=>{
+ const {readFile}=await import('node:fs/promises');const css=await readFile(new URL('../public/styles.css',import.meta.url),'utf8');
+ const rules=[...css.matchAll(/\.tool-library\s*\{([^}]+)\}/g)].map(match=>match[1]);const heightRule=rules.find(rule=>rule.includes('max-height'));
+ assert.match(heightRule,/var\(--mn1-editor-height,\s*100vh\)/);assert.doesNotMatch(heightRule,/\d(?:dvh|svh|lvh)/);assert.match(heightRule,/overflow-y:\s*auto/);
+});
