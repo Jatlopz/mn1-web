@@ -74,7 +74,42 @@
         <div class="team-tool-list"><button class="report-entry" id="open-announcement" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1"/></svg><span><strong>Enviar anuncio</strong><small>Imagen, hora y convocatoria</small></span><span aria-hidden="true">↗</span></button>
       <button class="report-entry" id="open-report" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 5 9.5 3h5L16 5h4v15H4V5Z"/><circle cx="12" cy="12" r="4"/></svg><span><strong>Reportar reunión</strong><small>Foto, marco y membrete del equipo</small></span><span aria-hidden="true">↗</span></button>
         </div>
-      </section><section id="production-tools-section" class="tools-category" aria-labelledby="production-tool-title" hidden><p class="welcome-eyebrow">CONTROL DE PLANTA</p><h2 id="production-tool-title">Producción</h2><button class="report-entry" id="open-production" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 21h18M6 17V9m6 8V3m6 14v-6"/></svg><span><strong>Eficiencias y estatus</strong><small>Captura, catálogo de procesos y reporte PDF</small></span><span aria-hidden="true">↗</span></button></section><button class="report-entry" id="open-ideas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 16c0-3-3-4-3-8a7 7 0 0 1 14 0c0 4-3 5-3 8ZM8 19h8m-7 3h6"/></svg><span><strong>Buzón de ideas</strong><small>Propón la próxima herramienta de tu equipo</small></span><span aria-hidden="true">↗</span></button><button class="report-entry tool-library-entry" id="open-tool-library" type="button"><span aria-hidden="true">＋</span><span><strong>Agregar herramientas</strong><small>Explora las generales y exclusivas</small></span><span aria-hidden="true">↗</span></button><p id="tools-feedback" class="hint" role="status"></p>
+      </section><section id="production-tools-section" class="tools-category" aria-labelledby="production-tool-title" hidden><p class="welcome-eyebrow">CONTROL DE PLANTA</p><h2 id="production-tool-title">Producción</h2><button class="report-entry" id="open-production" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 21h18M6 17V9m6 8V3m6 14v-6"/></svg><span><strong>Eficiencias y estatus</strong><small>Captura, catálogo de procesos y reporte PDF</small></span><span aria-hidden="true">↗</span></button></section><nav class="team-discovery-actions" aria-label="Ideas y nuevas herramientas">
+<button class="discovery-action discovery-ideas" id="open-ideas" type="button" aria-label="Buzón de ideas" title="Propón la próxima herramienta de tu equipo">
+  <span class="discovery-symbol" aria-hidden="true"><svg viewBox="0 0 128 128" fill="none">
+    <defs><linearGradient id="ideas-body" x1="29" y1="51" x2="94" y2="113" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor" stop-opacity=".8"/><stop offset="1" stop-color="currentColor" stop-opacity=".17"/></linearGradient><linearGradient id="ideas-face" x1="47" y1="48" x2="88" y2="100" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor" stop-opacity=".42"/><stop offset="1" stop-color="currentColor" stop-opacity=".08"/></linearGradient></defs>
+    <ellipse cx="64" cy="113" rx="38" ry="6" fill="#000" opacity=".3"/>
+    <ellipse cx="64" cy="64" rx="53" ry="46" transform="rotate(-24 64 64)" stroke="currentColor" stroke-opacity=".18" stroke-dasharray="2 7"/>
+    <path d="m28 48 48-17 25 16v42l-47 17-26-18Z" fill="currentColor" fill-opacity=".08" stroke="currentColor" stroke-opacity=".28"/>
+    <path d="m20 66 42-15 46 18-3 29-43 15-39-17Z" fill="url(#ideas-body)" stroke="currentColor" stroke-opacity=".65" stroke-width="1.5"/>
+    <path d="m26 60 37-13 37 14v27l-37 13-37-14Z" fill="url(#ideas-face)" stroke="currentColor" stroke-width="2"/>
+    <path d="m27 61 36 20 36-19M27 87l22-16m50 17L78 72" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M58 43c0-5-8-6-8-15a15 15 0 0 1 30 0c0 9-8 10-8 15Z" fill="var(--surface)" stroke="currentColor" stroke-width="2.5"/>
+    <path d="m59 27 6 8 7-9m-7 9v8m-7 5h14m-11 5h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path class="discovery-spark" d="M65 3v5M39 13l4 4m-15 16h6m51-19 4-4m7 22h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="m27 64 35 20 37-19" stroke="#fff" stroke-opacity=".56" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="108" cy="45" r="3" fill="currentColor" class="discovery-spark"/>
+  </svg></span><span class="discovery-label">Buzón de ideas</span>
+</button>
+<button class="discovery-action discovery-tools" id="open-tool-library" type="button" aria-label="Agregar herramientas" title="Explora las herramientas generales y exclusivas">
+  <span class="discovery-symbol" aria-hidden="true"><svg viewBox="0 0 128 128" fill="none">
+    <defs><linearGradient id="tools-glass" x1="35" y1="20" x2="95" y2="84" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor" stop-opacity=".75"/><stop offset="1" stop-color="currentColor" stop-opacity=".13"/></linearGradient><linearGradient id="tools-stack" x1="28" y1="55" x2="96" y2="110" gradientUnits="userSpaceOnUse"><stop stop-color="currentColor" stop-opacity=".35"/><stop offset="1" stop-color="currentColor" stop-opacity=".07"/></linearGradient></defs>
+    <ellipse cx="65" cy="113" rx="38" ry="6" fill="#000" opacity=".3"/>
+    <ellipse cx="64" cy="65" rx="54" ry="45" transform="rotate(25 64 65)" stroke="currentColor" stroke-opacity=".18" stroke-dasharray="2 7"/>
+    <path d="m19 69 29-16 29 16v25l-29 17-29-17Z" fill="url(#tools-stack)" stroke="currentColor" stroke-opacity=".65" stroke-width="1.6"/>
+    <path d="m20 69 28 17 28-17M48 86v24" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"/>
+    <path d="m68 66 27-16 20 13v26l-27 16-20-13Z" fill="url(#tools-stack)" stroke="currentColor" stroke-opacity=".55" stroke-width="1.5"/>
+    <path d="m69 66 19 13 26-16m-26 16v25" stroke="currentColor" stroke-opacity=".4" stroke-width="1.5"/>
+    <rect x="35" y="17" width="62" height="63" rx="19" transform="rotate(9 66 48)" fill="var(--surface)"/>
+    <rect x="35" y="17" width="62" height="63" rx="19" transform="rotate(9 66 48)" fill="url(#tools-glass)" stroke="currentColor" stroke-width="2"/>
+    <path d="M65 33v27M51.5 46.5h27" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="m45 21 35 5q12 2 12 13" stroke="#fff" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
+    <path class="discovery-spark" d="m108 19 2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z" fill="currentColor"/>
+    <circle cx="20" cy="45" r="3" fill="currentColor" class="discovery-spark"/>
+    <path d="m29 88 9 5m56-6 10-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+  </svg></span><span class="discovery-label">Agregar herramientas</span>
+</button>
+</nav><p id="tools-feedback" class="hint" role="status"></p>
     </section>
     <dialog class="dialog" id="shortcuts-dialog" aria-labelledby="shortcuts-title"><div class="dialog-head"><h2 id="shortcuts-title">Accesos del equipo</h2><button class="dialog-close" id="shortcuts-close" type="button" aria-label="Cerrar accesos">×</button></div><p class="hint">Elige qué herramientas mostrar en el inicio de este equipo.</p><label class="shortcut-choice"><input type="checkbox" value="announcement" data-shortcut> Enviar anuncio</label><label class="shortcut-choice"><input type="checkbox" value="report" data-shortcut> Reportar reunión</label><label class="shortcut-choice"><input type="checkbox" value="production" data-shortcut> Eficiencias y estatus</label><p id="shortcuts-error" class="hint" role="status"></p><button class="button button-primary" id="shortcuts-save" type="button">Guardar accesos</button></dialog>
 

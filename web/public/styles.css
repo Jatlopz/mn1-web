@@ -2097,3 +2097,18 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 .tool-pdf-sheet{overflow:auto;overscroll-behavior:contain}.tool-pdf-sheet.is-zoomed{max-height:calc(var(--mn1-editor-height,100vh)*.65)}.tool-pdf-sheet.is-zoomed canvas{width:650px;max-width:none}.tool-pdf-preview figure>.button{min-height:44px}
 
 .tool-pdf-sheet:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* Two sculpted discovery icons; transparent buttons let each team's theme breathe. */
+.team-discovery-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr));gap:18px;width:100%;max-width:480px;justify-self:center;margin:4px auto 18px;padding:4px 8px 12px}
+.discovery-action{--discovery-tone:var(--lime);position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-width:0;min-height:172px;padding:10px 5px 14px;border:0;border-radius:24px;background:transparent;color:var(--text);font:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.discovery-action.discovery-tools{--discovery-tone:var(--cyan-text)}
+.discovery-action::before{content:"";position:absolute;z-index:-1;left:8%;right:8%;top:18px;height:110px;background:radial-gradient(ellipse,var(--accent-glow),transparent 67%);opacity:.7;transition:opacity .25s,transform .25s}
+.discovery-symbol{display:block;width:clamp(108px,29vw,132px);height:clamp(108px,29vw,132px);color:var(--discovery-tone);transition:transform .28s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 9px 9px #0005)}
+.discovery-symbol svg{display:block;width:100%;height:100%;overflow:visible}.discovery-label{display:block;max-width:15ch;font-size:clamp(.86rem,2.6vw,1rem);font-weight:750;line-height:1.35;letter-spacing:-.02em;overflow-wrap:anywhere;text-shadow:0 2px 9px #0008}
+.discovery-action:focus-visible{outline:2px solid var(--focus);outline-offset:3px;background:var(--accent-glow)}
+.discovery-action:focus-visible .discovery-symbol{transform:translateY(-5px)}.discovery-action:active .discovery-symbol{transform:translateY(-1px) scale(.95)}
+.discovery-spark{animation:discovery-spark 3.8s ease-in-out infinite}.discovery-tools .discovery-spark{animation-delay:1.2s}
+@keyframes discovery-spark{0%,100%{opacity:.4}50%{opacity:1}}
+@media(hover:hover){.discovery-action:hover .discovery-symbol{transform:translateY(-6px) rotate(-3deg)}.discovery-action:hover::before{opacity:1;transform:scale(1.12)}}
+@media(prefers-reduced-motion:reduce){.discovery-action::before,.discovery-symbol{transition:none}.discovery-spark{animation:none}.discovery-action:hover .discovery-symbol,.discovery-action:focus-visible .discovery-symbol,.discovery-action:active .discovery-symbol{transform:none}}
+@media(forced-colors:active){.discovery-action{color:ButtonText}.discovery-symbol{color:ButtonText;filter:none}.discovery-action::before{display:none}.discovery-label{text-shadow:none}}
