@@ -38,3 +38,13 @@ test('altura del catálogo usa el viewport medido de Android y permite desplazam
  const rules=[...css.matchAll(/\.tool-library\s*\{([^}]+)\}/g)].map(match=>match[1]);const heightRule=rules.find(rule=>rule.includes('max-height'));
  assert.match(heightRule,/var\(--mn1-editor-height,\s*100vh\)/);assert.doesNotMatch(heightRule,/\d(?:dvh|svh|lvh)/);assert.match(heightRule,/overflow-y:\s*auto/);
 });
+
+test('reporte de ejemplo usa datos ficticios válidos e independientes de los equipos',async()=>{
+ const {createProductionExample}=await import('../public/team-tool-library.js');
+ const {validateProductionReport}=await import('../public/production-model.js');
+ const first=createProductionExample(),second=createProductionExample();
+ assert.deepEqual(validateProductionReport(first.report,first.catalog),[]);
+ assert.equal(first.report.teamId,'example-only');assert.match(first.report.teamName,/ejemplo/);
+ assert.equal(Object.values(first.report.rows).filter(row=>row.includeEfficiency&&row.target).length,5);
+ first.report.rows.extrusion.actual='1';assert.equal(second.report.rows.extrusion.actual,'79');
+});

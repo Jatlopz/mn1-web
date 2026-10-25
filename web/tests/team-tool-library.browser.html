@@ -19,8 +19,8 @@ const cloud=createCloudWorkspace(()=>({catalog:[...PROFILE_CATALOG,custom],activ
 const library=createTeamToolLibrary({getTeam:()=>team,onRequest:(toolId,teamId)=>cloud.requestTool(toolId,teamId)});
 const dialog=document.getElementById('tool-library-dialog'),production=document.getElementById('production-tools-section');
 const byText=(text,scope=dialog)=>[...scope.querySelectorAll('button')].find(el=>el.textContent===text);
-const close=()=>{for(const d of document.querySelectorAll('dialog[open]'))d.close();};
-async function check(name,fn){close();try{await fn();passed++;console.log('PASS '+name);}catch(error){failed++;console.error('FAIL '+name+': '+error.message);}}
+const close=()=>Promise.all([...document.querySelectorAll('dialog[open]')].map(dialog=>new Promise(resolve=>{dialog.addEventListener('close',resolve,{once:true});dialog.close();})));
+async function check(name,fn){await close();try{await fn();passed++;console.log('PASS '+name);}catch(error){failed++;console.error('FAIL '+name+': '+error.message);}}
 await check('cuatro equipos con eficiencia; otro equipo sin la herramienta',async()=>{
  for(const original of PROFILE_CATALOG){syncToolAvailability(document,original);assert(!production.hidden,'Falta eficiencia en equipo original');}
  syncToolAvailability(document,custom);assert(production.hidden,'Eficiencia visible en equipo nuevo');
@@ -50,6 +50,19 @@ await check('ventana completa y desplazable aunque dvh valga cero',async()=>{
  const request=byText('Solicitar adaptación');request.scrollIntoView({block:'center'});const action=request.getBoundingClientRect(),box=dialog.getBoundingClientRect();assert(action.top>=box.top&&action.bottom<=box.bottom,'La acción queda recortada');
  dialog.querySelector('details').open=false;dialog.scrollTop=0;
 });
-close();team=custom;syncToolAvailability(document,team);library.open();byText('Exclusivas').click();dialog.querySelector('details').open=false;
-result.textContent=(failed?'FAIL':'PASS')+' · '+passed+'/7 pruebas de catálogo aprobadas · sin nube ni envíos reales';result.dataset.result=failed?'fail':'pass';
+await check('ver PDF de ejemplo muestra dos páginas sin guardar ni enviar',async()=>{
+ team=custom;library.open();dialog.querySelector('details').open=true;const before=writeCount,sent=submissions;
+ const button=byText('Ver reporte de ejemplo');button.click();await wait(()=>!button.disabled);const preview=dialog.querySelector('.tool-pdf-preview');
+ assert(!preview.hidden&&preview.querySelectorAll('canvas').length===2,'Faltan las páginas del PDF');assert([...preview.querySelectorAll('canvas')].every(canvas=>canvas.width===1190&&canvas.height===1684),'Resolución incorrecta');assert(writeCount===before&&submissions===sent,'La vista escribió o envió datos');
+ byText('Ampliar página 1').click();assert(preview.querySelector('.tool-pdf-sheet').classList.contains('is-zoomed'),'No amplía la página');assert(preview.querySelector('.tool-pdf-sheet').tabIndex===0&&preview.querySelector('.tool-pdf-sheet').getAttribute('role')==='region','Falta acceso por teclado a la página');byText('Ajustar página 1').click();assert(!preview.querySelector('.tool-pdf-sheet').classList.contains('is-zoomed'),'No vuelve al tamaño normal');
+ byText('Ocultar reporte de ejemplo').click();assert(preview.hidden,'No oculta el reporte');byText('Ver reporte de ejemplo').click();await wait(()=>!button.disabled);assert(preview.querySelectorAll('canvas').length===2,'Duplicó las páginas');
+});
+await check('fallo de Canvas informa el error y permite reintentar',async()=>{
+ library.open();dialog.querySelector('details').open=true;const original=HTMLCanvasElement.prototype.getContext,button=byText('Ver reporte de ejemplo');
+ try{HTMLCanvasElement.prototype.getContext=()=>null;button.click();await wait(()=>!button.disabled);assert(byText('Reintentar reporte de ejemplo'),'No ofrece reintento');}finally{HTMLCanvasElement.prototype.getContext=original;}
+ byText('Reintentar reporte de ejemplo').click();await wait(()=>!button.disabled);assert(dialog.querySelectorAll('.tool-pdf-preview canvas').length===2,'No se recupera del fallo');
+});
+await close();team=custom;syncToolAvailability(document,team);library.open();byText('Exclusivas').click();dialog.querySelector('details').open=false;
+if(new URLSearchParams(location.search).has('showPdfExample')){dialog.querySelector('details').open=true;const sampleButton=byText('Ver reporte de ejemplo');sampleButton.click();await wait(()=>!sampleButton.disabled);sampleButton.scrollIntoView({block:'start'});}
+result.textContent=(failed?'FAIL':'PASS')+' · '+passed+'/9 pruebas de catálogo aprobadas · sin nube ni envíos reales';result.dataset.result=failed?'fail':'pass';
 </script></html>
