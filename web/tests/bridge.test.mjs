@@ -407,3 +407,14 @@ test('capacidades y helpers PNG del contrato', () => {
   assert.equal(pngDataUrlFromBase64('iVBORw0KGgo='), 'data:image/png;base64,iVBORw0KGgo=');
   assert.equal(pngDataUrlFromBase64('AAAA'), null);
 });
+
+test('PDF requiere tipo, nombre seguro, estructura completa y no relaja otras acciones',async()=>{
+ const {validatePdfPayload}=await import('../public/bridge.js');
+ const valid={fileName:'reporte-2026.pdf',message:'Reporte de prueba',pdfDataUrl:'data:application/pdf;base64,'+btoa('%PDF-1.4\n1 0 obj <<>> endobj\n%%EOF\n')};
+ assert.equal(validatePdfPayload(valid).ok,true);
+ for(const fileName of ['../x.pdf','a/b.pdf','/x.pdf','x.exe','x..pdf'])assert.equal(validatePdfPayload({...valid,fileName}).ok,false);
+ for(const content of ['%PDF-1.4','not a document','%PDF-1.4\n%%EOF\nextra'])assert.equal(validatePdfPayload({...valid,pdfDataUrl:'data:application/pdf;base64,'+btoa(content)}).ok,false);
+ assert.equal(validatePdfPayload({...valid,extra:'x'}).ok,false);
+ assert.equal(maxEnvelopeBytesForAction('SHARE_PDF'),MAX_GLOBAL_ENVELOPE_BYTES);
+ assert.equal(maxEnvelopeBytesForAction('GET_STATE'),MAX_ENVELOPE_BYTES);
+});

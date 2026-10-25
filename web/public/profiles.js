@@ -880,6 +880,7 @@ export async function rememberSelectedPlant(storage, plantId) {
 export const TEAM_TOOLS = Object.freeze([
   {id:'announcement',name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
   {id:'report',name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
+  {id:'production',name:'Eficiencias y estatus',description:'Calcula eficiencias y comparte el reporte de planta en PDF'},
 ]);
 export const normalizeToolShortcuts = value => Array.isArray(value) ? [...new Set(value.filter(id=>TEAM_TOOLS.some(tool=>tool.id===id)))] : TEAM_TOOLS.map(tool=>tool.id);
 export const teamShortcutsKey = id => 'mn1.tools.'+id;

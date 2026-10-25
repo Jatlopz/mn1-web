@@ -354,14 +354,14 @@ test('Atrás prioriza diálogo, luego reporte o herramienta; en bienvenida permi
 
 test('accesos rápidos sólo admiten herramientas reales y se guardan por equipo',async()=>{
  const {TEAM_TOOLS,normalizeToolShortcuts,teamShortcutsKey}=await import('../public/profiles.js');
- assert.deepEqual(TEAM_TOOLS.map(t=>t.id),['announcement','report']);
- assert.deepEqual(normalizeToolShortcuts(null),['announcement','report']);
+ assert.deepEqual(TEAM_TOOLS.map(t=>t.id),['announcement','report','production']);
+ assert.deepEqual(normalizeToolShortcuts(null),['announcement','report','production']);
  assert.deepEqual(normalizeToolShortcuts(['report','fake','report']),['report']);
  assert.deepEqual(normalizeToolShortcuts([]),[]);
  assert.notEqual(teamShortcutsKey('champions'),teamShortcutsKey('espartanos'));
  const saved=new Map([[teamShortcutsKey('champions'),JSON.stringify(['report'])]]);
  assert.deepEqual(normalizeToolShortcuts(JSON.parse(saved.get(teamShortcutsKey('champions')))),['report']);
- assert.deepEqual(normalizeToolShortcuts(saved.get(teamShortcutsKey('espartanos'))),['announcement','report']);
+ assert.deepEqual(normalizeToolShortcuts(saved.get(teamShortcutsKey('espartanos'))),['announcement','report','production']);
 });
 
 test('Atrás sale de Administración hacia la vista de usuario',()=>{let clicked=0;const root={querySelectorAll:()=>[],getElementById:id=>id==='admin-dashboard'?{hidden:false}:id==='admin-close'?{click:()=>clicked++}:null};assert.equal(handleAppBack({}, {}, root),true);assert.equal(clicked,1);});

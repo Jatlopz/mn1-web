@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 23,
-  "versionName": "0.5.18-support",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-23-b35d2bca4e542e5e.apk",
-  "sha256": "b35d2bca4e542e5ee98520e16c72bc5d6ecfdf8e682dccc11e4a437d92e7ec6c",
-  "sizeBytes": 18425806,
-  "notes": "Buy me a coffee abre el perfil público PayPal fuera de SuperTools. Incluye el retrato pequeño del creador, editable sólo por el administrador y compartido entre teléfonos. Conserva insignia JT, murciélagos de octubre, equipos, imágenes y ajustes."
+  "versionCode": 24,
+  "versionName": "0.6.0-production",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-24-d20c841923888069.apk",
+  "sha256": "d20c8419238880695ae50952a0800f814a1e407172ef91105cec052df7bf7ee0",
+  "sizeBytes": 18429611,
+  "notes": "Nueva herramienta de eficiencias y estatus de planta con catálogo editable, unidades configurables, borrador por equipo y reporte PDF compartible con confirmación. Conserva equipos, imágenes y ajustes. Captura manual; datos de producción locales."
 }

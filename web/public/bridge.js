@@ -41,6 +41,7 @@ export const WORKSPACE_ACTIONS = Object.freeze([
   'CAPTURE_PHOTO',
   'GET_LEGACY_IMAGE',
   'SHARE_PNG',
+  'SHARE_PDF',
   'RECOGNIZE_SPEECH',
   'CANCEL_SPEECH',
 ]);
@@ -52,11 +53,12 @@ export const CAPABILITIES = Object.freeze({
   RAW_IMAGE: 'raw-image-v1',
   CAMERA: 'camera-capture-v1',
   SHARE_PNG: 'share-png-v1',
+  SHARE_PDF: 'share-pdf-v1',
   SPEECH: 'speech-input-v1',
 });
 
 /** Acciones que admiten el sobre ampliado de 12 MiB. Las demás siguen en 32 KiB. */
-const LARGE_ENVELOPE_ACTIONS = new Set(['VAULT_PUT', 'SHARE_PNG']);
+const LARGE_ENVELOPE_ACTIONS = new Set(['VAULT_PUT', 'SHARE_PNG', 'SHARE_PDF']);
 
 const ALLOWED_ACTIONS = new Set(ACTIONS);
 const HOUR_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -261,6 +263,21 @@ function validateSharePng(payload) {
   return { ok: true };
 }
 
+export function validatePdfPayload(payload) {
+  if (!hasOnlyKeys(payload, ['pdfDataUrl', 'fileName', 'message'])) return failure('invalid_payload', 'SHARE_PDF sólo admite pdfDataUrl, fileName y message.');
+  if (typeof payload.fileName !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,90}\.pdf$/.test(payload.fileName) || payload.fileName.includes('..')) return failure('invalid_payload', 'El nombre PDF no es válido.');
+  if (typeof payload.message !== 'string' || textLength(payload.message.trim()) < 1 || textLength(payload.message.trim()) > MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH) return failure('invalid_payload', 'Mensaje PDF no válido.');
+  const prefix = 'data:application/pdf;base64,';
+  if (typeof payload.pdfDataUrl !== 'string' || !payload.pdfDataUrl.startsWith(prefix)) return failure('invalid_payload', 'Selecciona un PDF base64 válido.');
+  const raw = payload.pdfDataUrl.slice(prefix.length);
+  if (!raw.length || raw.length > Math.ceil(8 * 1024 * 1024 / 3) * 4 || raw.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) return failure('invalid_payload', 'PDF vacío, demasiado grande o codificación inválida.');
+  try {
+    const bytes = atob(raw);
+    if (bytes.length > 8 * 1024 * 1024 || !/^%PDF-(?:1\.[0-7]|2\.0)[\r\n]/.test(bytes) || !/%%EOF\s*$/.test(bytes.slice(-1024))) return failure('invalid_payload', 'El archivo PDF está incompleto o no es válido.');
+  } catch { return failure('invalid_payload', 'No se pudo leer el PDF.'); }
+  return {ok:true};
+}
+
 function validateSpeech(payload) {
   if (!hasOnlyKeys(payload, ['language'])) {
     return failure('invalid_payload', 'RECOGNIZE_SPEECH sólo admite language.');
@@ -343,6 +360,7 @@ function validateActionPayload(action, payload) {
   if (action === 'VAULT_PUT') return validateVaultPut(payload);
   if (action === 'VAULT_REMOVE') return validateVaultRemove(payload);
   if (action === 'SHARE_PNG') return validateSharePng(payload);
+  if (action === 'SHARE_PDF') return validatePdfPayload(payload);
   if (action === 'RECOGNIZE_SPEECH') return validateSpeech(payload);
 
   return failure('unsupported_action', 'Acción no admitida por el contrato v1.');
