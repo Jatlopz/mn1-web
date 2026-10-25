@@ -686,6 +686,8 @@ export function handleAppBack(dom, app, root = document) {
     if (dialog.dispatchEvent(event)) dialog.close();
     return true;
   }
+  const teamSettings = root.getElementById('team-settings');
+  if (teamSettings?.open) { teamSettings.open = false; teamSettings.querySelector('summary')?.focus(); return true; }
   const admin=root.getElementById('admin-dashboard');if(admin&&!admin.hidden){root.getElementById('admin-close')?.click();return true;}
   const report = root.getElementById('report-studio');
   if (report && !report.hidden) {
@@ -2170,6 +2172,8 @@ async function seedStarterImagesOnBoot(dom, app) {
 }
 
 function openTeamTools(dom, app, profileId) {
+  const settings = document.getElementById('team-settings');
+  if (settings) settings.open = false;
   app.selectedPlantId=plantForTeam(getProfileDefinition(profileId,{catalog:app.catalog}));
   app.teamToolsOpen=true;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;
   renderAll(dom,app,{syncFields:true});dom.teamToolsHome?.focus();
@@ -2231,6 +2235,13 @@ function wireTeamLogo(dom, app) {
   const button = document.getElementById('team-logo-pick');
   const input = document.getElementById('team-logo-input');
   const feedback = document.getElementById('team-logo-feedback');
+  const settings = document.getElementById('team-settings');
+  document.addEventListener('click', event => {
+    if (settings.open && !settings.contains(event.target)) settings.open = false;
+  });
+  settings.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { settings.open = false; settings.querySelector('summary').focus(); event.preventDefault(); }
+  });
   let selectedTeamId = null;
   const accept = async (dataUrl, id) => {
     if (!id) throw Error('Vuelve a seleccionar el equipo.');

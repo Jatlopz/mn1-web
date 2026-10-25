@@ -365,3 +365,14 @@ test('accesos rápidos sólo admiten herramientas reales y se guardan por equipo
 });
 
 test('Atrás sale de Administración hacia la vista de usuario',()=>{let clicked=0;const root={querySelectorAll:()=>[],getElementById:id=>id==='admin-dashboard'?{hidden:false}:id==='admin-close'?{click:()=>clicked++}:null};assert.equal(handleAppBack({}, {}, root),true);assert.equal(clicked,1);});
+
+test('Atrás cierra configuración del equipo y conserva su pantalla',()=>{
+  let focused = false;
+  const menu = {open:true,querySelector:()=>({focus:()=>{focused=true;}})};
+  const app = {teamToolsOpen:true};
+  const root = {querySelectorAll:()=>[],getElementById:id=>id==='team-settings'?menu:null};
+  assert.equal(handleAppBack({},app,root),true);
+  assert.equal(menu.open,false);
+  assert.equal(app.teamToolsOpen,true);
+  assert.equal(focused,true);
+});
