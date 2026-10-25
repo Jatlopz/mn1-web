@@ -23,6 +23,14 @@ export function setAdminScreenVisible(screen,visible,root=document) {
  const app=root.getElementById('app');if(app)app.hidden=visible;
  if(visible)screen.focus();
 }
+export function applyAdminDashboardView(dashboard, view) {
+  if (!['overview', 'tools', 'inbox'].includes(view)) return false;
+  dashboard.dataset.view = view;
+  for (const panel of dashboard.querySelectorAll('[data-admin-panel]')) panel.hidden = panel.dataset.adminPanel !== view;
+  for (const button of dashboard.querySelectorAll('[data-admin-view]')) button.setAttribute('aria-pressed', String(button.dataset.adminView === view));
+  dashboard.scrollTop = 0;
+  return true;
+}
 export async function leaveAdminDashboard(dashboard,openSpace) {
  const restored=await openSpace();
  if(restored===false)return false;
@@ -481,7 +489,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');};
   const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
   const screenCloser={close:hideAdmin};
-  function selectAdminView(view){for(const panel of adminDashboard.querySelectorAll('[data-admin-panel]'))panel.hidden=panel.dataset.adminPanel!==view;for(const button of adminDashboard.querySelectorAll('[data-admin-view]'))button.setAttribute('aria-pressed',String(button.dataset.adminView===view));adminDashboard.scrollTop=0;}
+  function selectAdminView(view){return applyAdminDashboardView(adminDashboard,view);}
   function renderAdminTeams(){
     const all=definitions(),plant=$('admin-plant').value;
     $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=String(rows.filter(row=>row.revision).length);
@@ -496,6 +504,8 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     const toolsHost=$('admin-tool-list');toolsHost.replaceChildren();for(const tool of TEAM_TOOLS){const card=document.createElement('article');card.className='admin-team-card';const title=document.createElement('h3');title.textContent=tool.name;const text=document.createElement('p');text.textContent=tool.description;const note=document.createElement('p');note.className='hint';note.textContent='Reuniones MN1 · Disponible en los equipos';const button=document.createElement('button');button.className='button button-secondary';button.textContent='Elegir equipo';button.addEventListener('click',()=>selectAdminView('overview'));card.append(title,text,note,button);toolsHost.append(card);}
   }
   for(const button of adminDashboard.querySelectorAll('[data-admin-view]'))button.addEventListener('click',()=>selectAdminView(button.dataset.adminView));
+  for(const button of adminDashboard.querySelectorAll('[data-admin-jump]'))button.addEventListener('click',()=>{selectAdminView(button.dataset.adminJump);adminDashboard.querySelector('[data-admin-view="'+button.dataset.adminJump+'"]')?.focus();});
+  $('admin-to-themes').addEventListener('click',()=>window.dispatchEvent(new Event('mn1:open-themes')));
   $('admin-plant').addEventListener('change',renderAdminTeams);let adminOffered=false,adminBusy=false,adminOffset=0,seenCursor=0,myOffset=0;
   const seenKey='mn1.ideas.seen';
   function incoming(summary){

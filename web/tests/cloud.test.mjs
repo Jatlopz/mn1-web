@@ -453,3 +453,20 @@ test('usuarios normales no ven accesos administrativos ni controles de sincroniz
 
 test('la foto del creador se lee sin cuenta y sólo se cambia con sesión y revisión esperada',async()=>{const calls=[];const client=new CloudClient(vault(),{fetcher:async(url,options)=>{calls.push({url,options});return {ok:true,text:async()=>'[]'};}});await client.creatorProfile();assert.equal(calls[0].options.headers.Authorization,undefined);assert.match(calls[0].url,/mn1_creator_profile/);await assert.rejects(()=>client.setCreatorPhoto(0,null),/Inicia sesión/);client.session={access_token:'fixture',expires_at:Date.now()/1000+3600};await client.setCreatorPhoto(4,'photo');assert.equal(calls.at(-1).options.headers.Authorization,'Bearer fixture');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{p_expected:4,p_photo:'photo'});});
 test('el retrato compartido rechaza SVG, URLs remotas y tamaño excesivo',async()=>{const {isCreatorPhoto,applyAccountVisibility}=await import('../public/cloud-workspace.js');assert.equal(isCreatorPhoto('data:image/jpeg;base64,/9j/AA=='),true);for(const value of ['https://example.invalid/a.jpg','data:image/svg+xml;base64,AAAA','data:image/jpeg;base64,'+'A'.repeat(350000),null])assert.equal(isCreatorPhoto(value),false);const photo={};applyAccountVisibility({admin:false},{getElementById:id=>id==='creator-photo-change'?photo:null});assert.equal(photo.hidden,true);applyAccountVisibility({admin:true},{getElementById:id=>id==='creator-photo-change'?photo:null});assert.equal(photo.hidden,false);});
+
+test('la consola abre un solo panel y rechaza rutas desconocidas',async()=>{
+ const {applyAdminDashboardView}=await import('../public/cloud-workspace.js');
+ const panels=['overview','tools','inbox'].map(id=>({dataset:{adminPanel:id},hidden:false}));
+ const buttons=panels.map(p=>({dataset:{adminView:p.dataset.adminPanel},setAttribute(k,v){this[k]=v;}}));
+ const dashboard={dataset:{},scrollTop:250,querySelectorAll:selector=>selector==='[data-admin-panel]'?panels:buttons};
+ for(const view of ['inbox','tools','overview']){
+   assert.equal(applyAdminDashboardView(dashboard,view),true);
+   assert.deepEqual(panels.filter(p=>!p.hidden).map(p=>p.dataset.adminPanel),[view]);
+   assert.equal(buttons.find(b=>b['aria-pressed']==='true').dataset.adminView,view);
+   assert.equal(dashboard.dataset.view,view);
+   assert.equal(dashboard.scrollTop,0);
+ }
+ dashboard.scrollTop=80;
+ assert.equal(applyAdminDashboardView(dashboard,'unknown'),false);
+ assert.equal(dashboard.dataset.view,'overview');assert.equal(dashboard.scrollTop,80);
+});
