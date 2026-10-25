@@ -58,3 +58,14 @@ test('el resumen compacto conserva productos, acciones y cantidades sin modifica
  assert.equal(productionRowSummary({product:'',action:'',runningCount:'',totalCount:'',comment:''}),'Sin producto ni comentario');
  assert.equal(JSON.stringify(row),before);
 });
+
+test('iniciar un nuevo turno respalda antes de reemplazar y no arrastra producción del anterior',async()=>{
+ const {beginNextProductionReport}=await import('../public/production-studio.js');
+ const old=createProductionReport(defaultCatalog('sacos'),context);old.rows.extrusion.target='100';old.rows.extrusion.actual='80';old.rows.extrusion.unit='lb';old.rows.extrusion.efficiencyComment='Paro';
+ const before=JSON.stringify(old),data=new Map([[productionDraftKey(old.teamId),before]]),writes=[];
+ const next=await beginNextProductionReport({putText:async(k,v)=>{writes.push(k);data.set(k,v);}},old,{...context,teamId:old.teamId,teamName:old.teamName,plantId:'sacos'},new Date('2026-10-25T19:00:00'));
+ assert.match(writes[0],/^mn1\.production\.history\./);assert.equal(data.get(writes[0]),before);assert.equal(JSON.stringify(old),before);
+ assert.equal(next.timingMode,'automatic');assert.equal(next.efficiencyShift,'TA');assert.equal(next.statusShift,'TC');assert.equal(next.date,'2026-10-25');
+ assert.equal(next.rows.extrusion.target,'');assert.equal(next.rows.extrusion.actual,'');assert.equal(next.rows.extrusion.active,null);assert.equal(next.rows.extrusion.efficiencyComment,'');assert.equal(next.rows.extrusion.unit,'lb');
+ await assert.rejects(beginNextProductionReport({putText:async()=>{throw Error('Sin espacio');}},old,context),/Sin espacio/);assert.equal(JSON.stringify(old),before);
+});

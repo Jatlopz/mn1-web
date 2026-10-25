@@ -27,3 +27,20 @@ test('no se genera un PDF con datos incompletos y el nombre no admite rutas',()=
  assert.throws(()=>createProductionPdf({version:1,rows:{}},null),/Selecciona|Agrega/);
  assert.equal(productionReportFileName({plantId:'../sacos',date:'2026-10-24'}),'reporte-sacos-2026-10-24.pdf');
 });
+
+test('PDF y mensaje conservan las fechas separadas y exportan sólo las eficiencias capturadas',async()=>{
+ const {defaultCatalog}=await import('../public/plant-catalog.js');
+ const {createProductionReport}=await import('../public/production-model.js');
+ const {productionShareMessage}=await import('../public/production-pdf.js');
+ const c=defaultCatalog('sacos'),r=createProductionReport(c,{teamId:'fixture',teamName:'Equipo ficticio',now:new Date('2026-10-25T07:00:00')});
+ for(const row of Object.values(r.rows))row.active=false;
+ Object.assign(r.rows.extrusion,{target:'100',actual:'80',efficiencyComment:'Paro de prueba'});
+ const drawn=[];
+ const createCanvas=()=>{const lines=[];drawn.push(lines);const ctx={scale(){},fillRect(){},fillText:t=>lines.push(String(t)),measureText:t=>({width:String(t).length*4})};return {getContext:()=>ctx,toDataURL:()=> 'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};};
+ const pdf=createProductionPdf(r,c,{createCanvas});
+ assert.match(new TextDecoder().decode(pdf),/\/Count 2/);
+ assert.ok(drawn[0].includes('Extrusión (kg)'));assert.ok(drawn[0].includes('Paro de prueba'));
+ assert.ok(!drawn[0].includes('Imprenta (m)'));assert.ok(!drawn[0].includes('Conversión 1 (sacos)'));
+ assert.ok(drawn[0].includes('Totales por unidad'));assert.ok(drawn[0].some(t=>t.includes('24/10/2026')&&t.includes('25/10/2026')));
+ assert.match(productionShareMessage(r),/TC del 24\/10\/2026.*TA del 25\/10\/2026/);
+});

@@ -72,3 +72,73 @@ test('normalizar conserva fecha, valores incompletos y contexto de equipo y no m
  assert.ok(productionDraftKey('custom-12345678-1234-1234-1234-123456789abc').length<=64);
  assert.throws(()=>productionDraftKey('../unsafe'));
 });
+
+test('eficiencias vacías se omiten; una captura parcial exige completarse y cero real sí cuenta',async()=>{
+ const {efficiencyRows}=await import('../public/production-model.js');
+ const c=defaultCatalog('sacos'),r=createProductionReport(c,context);
+ for(const row of Object.values(r.rows))row.active=false;
+ assert.deepEqual(efficiencyRows(r),[]);
+ assert.deepEqual(validateProductionReport(r,c),[]);
+ r.rows.extrusion.target='100';
+ assert.equal(efficiencyRows(r).length,1);
+ assert.ok(validateProductionReport(r,c).some(e=>/producción real/i.test(e)));
+ r.rows.extrusion.actual='0';r.rows.extrusion.efficiencyComment='Sin producción por avería';
+ assert.equal(efficiencyRows(r)[0][1].actual,'0');assert.deepEqual(validateProductionReport(r,c),[]);
+});
+
+test('se exige una razón al obtener 90% o menos y se conserva al guardar',()=>{
+ const {c,r}=completed();r.rows.mixing.target='100';
+ for(const actual of ['0','89','90']){r.rows.mixing.actual=actual;r.rows.mixing.efficiencyComment='  ';assert.ok(validateProductionReport(r,c).some(e=>/razón|comentario/i.test(e)));}
+ r.rows.mixing.actual='90.01';assert.deepEqual(validateProductionReport(r,c),[]);
+ r.rows.mixing.actual='90';r.rows.mixing.efficiencyComment='Cambio de producto';
+ assert.deepEqual(validateProductionReport(r,c),[]);
+ assert.equal(normalizeProductionReport(r,c,context).rows.mixing.efficiencyComment,'Cambio de producto');
+});
+
+test('totales en vivo agrupan unidades y ponderan real/meta sin mezclar kg, metros y sacos',async()=>{
+ const {productionTotals}=await import('../public/production-model.js');
+ const r=createProductionReport(defaultCatalog('sacos'),context);
+ Object.assign(r.rows['conversion-1'],{target:'100',actual:'50'});
+ Object.assign(r.rows['conversion-3'],{target:'300',actual:'300'});
+ Object.assign(r.rows.extrusion,{target:'1000',actual:'1100'});
+ Object.assign(r.rows.laminado,{target:'200',actual:''});
+ const totals=productionTotals(r);
+ assert.deepEqual(totals.find(t=>t.unit==='sacos'),{unit:'sacos',target:400,actual:350,efficiency:87.5,processes:2,pending:0});
+ assert.ok(Math.abs(totals.find(t=>t.unit==='kg').efficiency-110)<1e-10);
+ assert.equal(totals.find(t=>t.unit==='m').pending,1);
+ assert.equal(totals.find(t=>t.unit==='m').efficiency,null);
+});
+
+
+test('el reloj asigna turnos y fechas en los límites, medianoche y cambio de mes',async()=>{
+ const {productionTimingFor}=await import('../public/production-model.js');
+ const timing=iso=>productionTimingFor(new Date(iso));
+ assert.deepEqual(timing('2026-10-25T06:00:00'),{date:'2026-10-25',efficiencyDate:'2026-10-24',efficiencyShift:'TC',statusShift:'TA',period:'day'});
+ assert.equal(timing('2026-10-25T17:59:59').statusShift,'TA');
+ assert.deepEqual(timing('2026-10-25T18:00:00'),{date:'2026-10-25',efficiencyDate:'2026-10-25',efficiencyShift:'TA',statusShift:'TC',period:'night'});
+ assert.deepEqual(timing('2026-11-01T00:00:00'),{date:'2026-10-31',efficiencyDate:'2026-10-31',efficiencyShift:'TA',statusShift:'TC',period:'night'});
+ assert.equal(timing('2026-11-01T05:59:59').date,'2026-10-31');
+ assert.equal(timing('2028-03-01T07:00:00').efficiencyDate,'2028-02-29');
+ assert.throws(()=>productionTimingFor(new Date('invalid')));
+});
+
+test('un reporte nuevo usa la hora; recuperar uno existente conserva fechas, turnos y captura',()=>{
+ const c=catalog(),r=createProductionReport(c,{teamId:'fixture-team',teamName:'Prueba',now:new Date('2026-10-25T08:00:00')});
+ assert.equal(r.timingMode,'automatic');assert.equal(r.efficiencyShift,'TC');assert.equal(r.statusShift,'TA');assert.equal(r.efficiencyDate,'2026-10-24');
+ r.rows.mixing.target='100';r.rows.mixing.actual='101';
+ const loaded=normalizeProductionReport(r,c,{teamId:r.teamId,now:new Date('2026-10-27T19:00:00')});
+ assert.equal(loaded.efficiencyDate,'2026-10-24');assert.equal(loaded.date,'2026-10-25');assert.equal(loaded.efficiencyShift,'TC');assert.equal(loaded.rows.mixing.actual,'101');
+ const old={...r};delete old.efficiencyDate;delete old.timingMode;
+ const legacy=normalizeProductionReport(old,c,{teamId:r.teamId});assert.equal(legacy.efficiencyDate,r.date);assert.equal(legacy.timingMode,'manual');
+});
+
+
+test('el umbral obligatorio usa decimales exactos aunque el porcentaje binario quede encima de90',async()=>{
+ const {requiresEfficiencyReason}=await import('../public/production-model.js');
+ const {c,r}=completed();Object.assign(r.rows.mixing,{target:'0.3',actual:'0.27',efficiencyComment:''});
+ assert.equal(requiresEfficiencyReason(r.rows.mixing),true);assert.ok(validateProductionReport(r,c).some(e=>/razón|comentario/i.test(e)));
+ assert.equal(requiresEfficiencyReason({target:'0,3',actual:'0,27'}),true);
+ assert.equal(requiresEfficiencyReason({target:'1',actual:'0.9000000000000000000001'}),false);
+ assert.equal(requiresEfficiencyReason({target:'1',actual:'0.8999999999999999999999'}),true);
+ assert.equal(requiresEfficiencyReason({target:'',actual:''}),false);
+});

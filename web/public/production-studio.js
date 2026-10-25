@@ -1,5 +1,5 @@
 import { defaultCatalog, normalizeCatalog, catalogKey } from './plant-catalog.js';
-import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey } from './production-model.js';
+import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason } from './production-model.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const fmt = value => value === null ? 'Sin datos' : new Intl.NumberFormat('es-HN', {maximumFractionDigits:2}).format(value);
@@ -15,7 +15,7 @@ export function reconcileProductionCatalog(report, catalog) {
   return next;
 }
 export function productionPreviewRows(report) {
-  return Object.entries(report.rows).map(([id,row]) => ({id,name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency,unit:row.unit,target:row.target,actual:row.actual}));
+  return Object.entries(report.rows).map(([id,row]) => ({id,name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
 }
 export function productionRowSummary(row) {
   const counts = row.runningCount !== '' || row.totalCount !== '' ? (row.runningCount || '—')+'/'+(row.totalCount || '—') : '';
@@ -26,6 +26,15 @@ export async function saveProductionDraft(storage, report) {
   const next = {...clone(report),updatedAt:new Date().toISOString()};
   await storage.putText(productionDraftKey(next.teamId),JSON.stringify(next));
   return next;
+}
+
+/** Starts a new shift without relabelling or losing the previous capture. */
+export async function beginNextProductionReport(storage, previous, context, now=new Date()) {
+ const next=createProductionReport(previous.catalogSnapshot,{teamId:context.teamId,teamName:context.teamName,plantId:context.plantId,now});
+ for(const [id,row] of Object.entries(next.rows))if(previous.rows[id]){row.unit=previous.rows[id].unit;row.includeEfficiency=previous.rows[id].includeEfficiency;}
+ await storage.putText('mn1.production.history.'+crypto.randomUUID().replaceAll('-',''),JSON.stringify(previous));
+ await storage.putText(productionDraftKey(next.teamId),JSON.stringify(next));
+ return next;
 }
 
 export function createProductionStudio(getServices) {
@@ -41,8 +50,13 @@ export function createProductionStudio(getServices) {
   const context=node('p','prod-context');
   const metadata=node('div','prod-metadata');
   function field(label,type='text') {const wrap=node('label','prod-field');wrap.append(node('span','',label));const input=node('input');input.type=type;wrap.append(input);return {wrap,input};}
-  const date=field('Fecha del reporte','date'),effShift=field('Turno de eficiencias'),statusShift=field('Turno de estatus');effShift.input.maxLength=16;statusShift.input.maxLength=16;
-  metadata.append(date.wrap,effShift.wrap,statusShift.wrap);
+  const date=field('Fecha de estatus','date'),effDate=field('Fecha de eficiencias','date'),effShift=field('Turno de eficiencias'),statusShift=field('Turno de estatus');effShift.input.maxLength=16;statusShift.input.maxLength=16;
+  metadata.append(effDate.wrap,effShift.wrap,date.wrap,statusShift.wrap);
+  const timingCard=node('div','prod-timing-card'),timingCopy=node('div'),timingTitle=node('strong'),timingDescription=node('p','prod-hint');timingCopy.append(timingTitle,timingDescription);
+  const fresh=button('Nuevo reporte','prod-secondary',()=>newReportDialog.showModal());timingCard.append(timingCopy,fresh);
+  const timingEditor=node('details','prod-timing-editor');timingEditor.append(node('summary','','Fechas y turnos'),node('p','prod-hint','Se detectan al iniciar un nuevo reporte. Puedes corregirlos aquí sin cambiar la captura.'),metadata);
+  const newReportDialog=node('dialog','prod-catalog-dialog');newReportDialog.setAttribute('aria-labelledby','prod-new-title');const newTitle=node('h2','','Nuevo reporte del turno actual');newTitle.id='prod-new-title';
+  newReportDialog.append(newTitle,node('p','prod-hint','Se guardará una copia del borrador anterior. La nueva captura tendrá los turnos y fechas detectados por la hora del teléfono, sin producción precargada.'),button('Cancelar','prod-secondary',()=>newReportDialog.close()),button('Iniciar nuevo reporte','prod-primary',()=>void newReport()));doc.body.append(newReportDialog);
   const tabs=node('nav','prod-tabs');tabs.setAttribute('aria-label','Secciones del reporte');
   const panels={};const tabButtons={};
   const statusPanel=node('section','prod-panel'),effPanel=node('section','prod-panel'),previewPanel=node('section','prod-panel');
@@ -60,7 +74,7 @@ export function createProductionStudio(getServices) {
   const share=button('Compartir PDF','prod-primary',()=>void exportReport('onShare'));
   footer.append(save,download,share);
   const privacy=node('p','prod-privacy','Captura manual de Sysprod. Borrador y catálogo guardados en este teléfono; el envío se confirma al compartir.');
-  shell.append(header,context,metadata,tabs,catalogNotice,feedback,errors,statusPanel,effPanel,previewPanel,footer,privacy);root.append(shell);doc.body.append(root);
+  shell.append(header,context,timingCard,timingEditor,tabs,catalogNotice,feedback,errors,statusPanel,effPanel,previewPanel,footer,privacy);root.append(shell);doc.body.append(root);
   let report=null,catalog=null,contextValue=null,busy=false,dirty=false,tab='status',priorAppHidden=false,queue=Promise.resolve(),catalogChanged=false;
   const expandedProcesses=new Set(),expandedCounts=new Set();
   const app=doc.getElementById('app');
@@ -86,7 +100,7 @@ export function createProductionStudio(getServices) {
   function serial(operation){const task=queue.then(operation);queue=task.catch(()=>{});return task;}
   const stamp=()=>{dirty=true;report.updatedAt=new Date().toISOString();};
   function selectTab(id){tab=id;for(const [key,panel] of Object.entries(panels)){panel.hidden=key!==id;tabButtons[key].setAttribute('aria-pressed',String(key===id));}if(id==='preview')renderPreview();}
-  for(const [input,key] of [[date.input,'date'],[effShift.input,'efficiencyShift'],[statusShift.input,'statusShift']])input.addEventListener('input',()=>{if(!report)return;report[key]=input.value;stamp();if(tab==='preview')renderPreview();});
+  for(const [input,key] of [[date.input,'date'],[effDate.input,'efficiencyDate'],[effShift.input,'efficiencyShift'],[statusShift.input,'statusShift']])input.addEventListener('input',()=>{if(!report)return;report[key]=input.value;report.timingMode='manual';stamp();renderTiming();if(tab==='preview')renderPreview();});
   function selectInput(label,value,options,onChange){const wrap=node('label','prod-field');wrap.append(node('span','',label));const select=node('select');const values=[...new Set(['',...options,value])];for(const item of values){const option=node('option','',item||'Sin indicar');option.value=item;select.append(option);}select.value=value;select.addEventListener('change',()=>onChange(select.value));wrap.append(select);return wrap;}
   function inputField(label,value,onChange,{numeric=false,list=null,multiline=false,max=200}={}){
     const wrap=node('label','prod-field');wrap.append(node('span','',label));const input=node(multiline?'textarea':'input');if(!multiline){input.type='text';if(numeric)input.inputMode='decimal';}else input.rows=2;input.value=value;input.maxLength=max;
@@ -115,29 +129,53 @@ export function createProductionStudio(getServices) {
       editor.append(fields,counts,inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(editor);statusPanel.append(card);
     }
   }
+  function renderTotals(target){
+    target.replaceChildren(node('h3','','Totales capturados por unidad'));
+    const totals=productionTotals(report);
+    if(!totals.length){target.append(node('p','prod-hint','Los totales aparecerán al ingresar meta y producción real. Las máquinas vacías no se incluirán.'));return;}
+    for(const total of totals){const item=node('div','prod-total-row');item.append(node('strong','',total.unit),node('span','','Meta '+fmt(total.target)+' · Real '+fmt(total.actual)),node('output','',total.efficiency===null?'Sin datos':fmt(total.efficiency)+' %'));target.append(item);if(total.pending)target.append(node('p','prod-hint',total.pending+' proceso(s) con captura incompleta; todavía no se suman.'));}
+  }
   function renderEfficiency(){
-    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),node('p','prod-hint','Ingresa meta y producción real sin separadores de miles: 15000 o 1250.5. Eficiencia = real ÷ meta × 100. En desperdicio, 0.25 equivale a 0.25 %.'));
+    const summary=node('div','prod-totals');summary.setAttribute('aria-live','polite');
+    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),summary,node('p','prod-hint','Ingresa meta y producción real sin separadores de miles. Las máquinas sin captura se omiten del reporte. Si falta uno de los dos datos, debes completarlo. En desperdicio, 0.25 equivale a 0.25 %.'));
+    const updateTotals=()=>renderTotals(summary);
     for(const [id,row] of Object.entries(report.rows)){
       const card=node('article','prod-efficiency-card'),head=node('div','prod-process-head'),label=node('label','prod-check'),check=node('input');check.type='checkbox';check.checked=row.includeEfficiency;label.append(check,node('strong','',row.name||id));head.append(label);card.append(head);
       const content=node('div','prod-efficiency-fields');content.hidden=!row.includeEfficiency;
       const outcome=node('output','prod-efficiency-result');outcome.setAttribute('aria-label','Eficiencia de '+(row.name||id));
-      const update=()=>{const result=calculateEfficiency(row);outcome.textContent=result.efficiency===null?'Sin datos':fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':result.efficiency>=100?'met':'below';};
-      check.addEventListener('change',()=>{row.includeEfficiency=check.checked;content.hidden=!check.checked;stamp();});
-      const grid=node('div','prod-two-fields');grid.append(inputField('Meta',row.target,v=>{rowEdit(id,'target',v);update();},{numeric:true,max:32}),inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}),inputField('Unidad',row.unit,v=>rowEdit(id,'unit',v),{list:['sacos','m','kg','unidades'],max:24}));
-      const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome);grid.append(resultWrap);content.append(grid);
-      const waste=node('details','prod-waste');waste.append(node('summary','','Desperdicio (porcentaje)'));const wasteFields=node('div','prod-two-fields');wasteFields.append(inputField('Meta desperdicio %',row.wasteTarget,v=>rowEdit(id,'wasteTarget',v),{numeric:true,max:32}),inputField('Real desperdicio %',row.wasteActual,v=>rowEdit(id,'wasteActual',v),{numeric:true,max:32}));waste.append(wasteFields);content.append(waste);card.append(content);effPanel.append(card);update();
+      const reason=inputField('Razón / comentario de eficiencia',row.efficiencyComment??row.comment??'',v=>rowEdit(id,'efficiencyComment',v),{multiline:true,max:2000});
+      const reasonHint=node('p','prod-hint','Obligatorio cuando la eficiencia es de 90 % o menos.');reason.append(reasonHint);
+      const update=()=>{const result=calculateEfficiency(row),required=requiresEfficiencyReason(row);outcome.textContent=result.efficiency===null?(hasEfficiencyInput(row)?'Completa la captura':'No se incluirá'):fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':required?'below':'met';reason.hidden=!required&&!(row.efficiencyComment??row.comment??'').trim();reason.querySelector('textarea').required=required;reasonHint.hidden=!required;updateTotals();};
+      check.addEventListener('change',()=>{row.includeEfficiency=check.checked;content.hidden=!check.checked;stamp();updateTotals();});
+      const grid=node('div','prod-two-fields');grid.append(inputField('Meta',row.target,v=>{rowEdit(id,'target',v);update();},{numeric:true,max:32}),inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}),inputField('Unidad',row.unit,v=>{rowEdit(id,'unit',v);updateTotals();},{list:['sacos','m','kg','unidades'],max:24}));
+      const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome);grid.append(resultWrap);content.append(grid,reason);
+      const waste=node('details','prod-waste');waste.append(node('summary','','Desperdicio (porcentaje)'));const wasteFields=node('div','prod-two-fields');wasteFields.append(inputField('Meta desperdicio %',row.wasteTarget,v=>{rowEdit(id,'wasteTarget',v);update();},{numeric:true,max:32}),inputField('Real desperdicio %',row.wasteActual,v=>{rowEdit(id,'wasteActual',v);update();},{numeric:true,max:32}));waste.append(wasteFields);content.append(waste);card.append(content);effPanel.append(card);update();
     }
+    updateTotals();
   }
   function table(headers,rows){const wrap=node('div','prod-table-scroll'),t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const values of rows){const r=node('tr');for(const value of values)r.append(node('td','',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
   function renderPreview(){
-    previewPanel.replaceChildren();const rows=productionPreviewRows(report);previewPanel.append(node('p','prod-eyebrow','VISTA PREVIA'),node('h2','prod-panel-title','Reporte de '+plantName(report.plantId)),node('p','prod-hint',report.teamName+' · '+dateLabel(report.date)),node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));
+    previewPanel.replaceChildren();const rows=productionPreviewRows(report);previewPanel.append(node('p','prod-eyebrow','VISTA PREVIA'),node('h2','prod-panel-title','Reporte de '+plantName(report.plantId)),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)),node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));
     const efficiency=rows.filter(row=>row.includeEfficiency);
-    if(efficiency.length)previewPanel.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desperdicio meta','Desperdicio real'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %')])));else previewPanel.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
+    if(efficiency.length)previewPanel.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desperdicio meta','Desperdicio real','Comentario'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %'),row.efficiencyComment||'—'])));else previewPanel.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
+    const totals=node('div','prod-totals');renderTotals(totals);previewPanel.append(totals);
     previewPanel.append(node('h3','','Estatus de planta · '+report.statusShift),table(['Proceso','Estatus','Producto / acción','Comentario'],rows.map(row=>[row.name,row.status,[row.product,row.action,row.counts].filter(Boolean).join(' · '),row.comment||'—'])));
     const issues=validateProductionReport(report,catalog);if(issues.length)previewPanel.append(node('p','prod-hint',issues.length+' datos pendientes antes de compartir. Puedes guardar el borrador aunque esté incompleto.'));
   }
+  function renderTiming(){
+    const current=productionTimingFor();
+    const same=current.date===report.date&&current.efficiencyDate===(report.efficiencyDate??report.date)&&current.efficiencyShift===report.efficiencyShift&&current.statusShift===report.statusShift;
+    timingTitle.textContent=report.timingMode==='automatic'?'Turnos automáticos':'Fechas y turnos ajustados';
+    timingDescription.textContent='Eficiencias '+report.efficiencyShift+' · '+dateLabel(report.efficiencyDate??report.date)+' → Estatus '+report.statusShift+' · '+dateLabel(report.date)+(same?'':' · Borrador de otro turno. Inicia un nuevo reporte para usar la hora actual.');
+  }
+  async function newReport(){
+    if(busy||!report)return;lock(true);
+    try{report=await serial(()=>beginNextProductionReport(getServices().storage,report,contextValue));dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);newReportDialog.close();errors.hidden=true;expandedProcesses.clear();expandedCounts.clear();render();message('Nuevo reporte con turnos automáticos. El borrador anterior quedó respaldado.');}
+    catch(error){message(error.message||'No se pudo iniciar el reporte. El borrador anterior se conserva.',true);}
+    finally{lock(false);}
+  }
   function render(){
-    context.textContent=report.teamName+' · Planta '+plantName(report.plantId);date.input.value=report.date;effShift.input.value=report.efficiencyShift;statusShift.input.value=report.statusShift;
+    context.textContent=report.teamName+' · Planta '+plantName(report.plantId);date.input.value=report.date;effDate.input.value=report.efficiencyDate??report.date;renderTiming();effShift.input.value=report.efficiencyShift;statusShift.input.value=report.statusShift;
     renderStatus();renderEfficiency();renderPreview();selectTab(tab);catalogNotice.hidden=!catalogChanged;
   }
   async function persist(){report=await serial(()=>saveProductionDraft(getServices().storage,report));dirty=false;return report;}
@@ -153,7 +191,7 @@ export function createProductionStudio(getServices) {
     download.hidden=typeof services.onDownload!=='function';priorAppHidden=app?.hidden??false;if(app)app.hidden=true;root.hidden=false;root.focus();lock(true);report=null;catalog=null;catalogChanged=false;errors.hidden=true;for(const panel of Object.values(panels))panel.replaceChildren();context.textContent=contextValue.teamName+' · Planta '+plantName(contextValue.plantId);message('Abriendo reporte…');
     try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message('');return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
   }
-  async function close(){if(busy)return false;if(root.hidden)return true;if(report&&dirty&&!(await guardedSave()))return false;catalogDialog.close();root.hidden=true;if(app)app.hidden=priorAppHidden;getServices().onClose?.();return true;}
+  async function close(){if(busy)return false;if(root.hidden)return true;if(report&&dirty&&!(await guardedSave()))return false;catalogDialog.close();newReportDialog.close();root.hidden=true;if(app)app.hidden=priorAppHidden;getServices().onClose?.();return true;}
   function openCatalog(){if(busy||!catalog)return;catalogError.textContent='';processSelect.replaceChildren();for(const p of catalog.processes){const option=node('option','',p.name+(p.enabled?'':' (archivado)'));option.value=p.id;processSelect.append(option);}loadProcess(catalog.processes[0]?.id||null);catalogDialog.showModal();}
   function loadProcess(id){editedProcessId=id;const process=catalog.processes.find(p=>p.id===id);processSelect.value=process?.id||'';processName.input.value=process?.name||'';unit.input.value=process?.unit||'unidades';efficiencyInput.checked=process?.efficiency===true;products.value=(process?.products||[]).join('\n');actions.value=(process?.actions||['Producción','Arranque','Cambio de orden','Mantenimiento','Sin orden']).join('\n');archive.hidden=!process;archive.textContent=process?.enabled===false?'Restaurar proceso':'Quitar proceso';catalogSave.textContent=process?'Guardar cambios':'Agregar proceso';catalogError.textContent='';}
   const lines=value=>value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
