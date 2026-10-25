@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es" data-theme="halloween"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Regresión: porcentaje después de guardar</title>
+<link rel="stylesheet" href="../public/styles.css"><link rel="stylesheet" href="../public/production.css">
+<style>#browser-test-report{position:fixed;bottom:0;left:0;right:0;z-index:1000;padding:8px 12px;background:#10251c;color:#edfff2;border-top:2px solid #61de9a;font:12px/1.4 system-ui}#browser-test-report details{max-height:150px;overflow:auto}#browser-test-report[data-result=fail]{background:#451a1a;color:#fff;border-color:#ff8070}</style>
+<div id="app">Aplicación ficticia para pruebas aisladas.</div><aside id="browser-test-report" role="status"><strong id="test-status">Ejecutando pruebas DOM…</strong><details><summary>Resultados</summary><ol id="test-results"></ol></details></aside>
+<script type="module">
+import {createProductionStudio} from '../public/production-studio.js';
+import {normalizeCatalog,catalogKey} from '../public/plant-catalog.js';
+import {createProductionReport,productionDraftKey} from '../public/production-model.js';
+const context={teamId:'browser-fixture',teamName:'Equipo de prueba',plantId:'sacos'};
+const catalog=normalizeCatalog({processes:[{id:'conversion-1',name:'Conversión 1',unit:'sacos',efficiency:true},{id:'conversion-3',name:'Conversión 3',unit:'sacos',efficiency:true}]},'sacos');
+const data=new Map([[catalogKey('sacos'),JSON.stringify(catalog)]]);let failSave=false,lastShared=null;
+const storage={getText:async key=>data.get(key)??null,putText:async(key,value)=>{if(failSave)throw Error('Fallo ficticio de almacenamiento');data.set(key,value);}};
+const studio=createProductionStudio(()=>({storage,onShare:async report=>{lastShared=report;return 'Prueba: no se envió nada.';}}));
+const root=document.getElementById('production-studio'),results=document.getElementById('test-results');let passed=0,failed=0;
+const assert=(condition,message)=>{if(!condition)throw Error(message);};
+const wait=async predicate=>{const end=Date.now()+2000;while(!predicate()){if(Date.now()>end)throw Error('La operación no terminó');await new Promise(r=>setTimeout(r,10));}};
+const button=text=>[...root.querySelectorAll('button')].find(e=>e.textContent===text);
+const card=()=>root.querySelector('.prod-efficiency-card');
+const field=label=>[...card().querySelectorAll('label')].find(e=>e.querySelector('span')?.textContent===label).querySelector('input,textarea');
+const type=(label,value)=>{const e=field(label);e.value=value;e.dispatchEvent(new Event('input',{bubbles:true}));};
+const percentage=()=>card().querySelector('.prod-efficiency-result').textContent;
+const click=async text=>{button(text).click();await wait(()=>root.getAttribute('aria-busy')==='false');};
+async function reset(){failSave=false;if(studio.isOpen())await studio.close();const report=createProductionReport(catalog,context);for(const row of Object.values(report.rows))row.active=false;data.set(productionDraftKey(context.teamId),JSON.stringify(report));lastShared=null;await studio.open(context);button('Eficiencias').click();}
+async function check(name,run){await reset();const item=document.createElement('li');try{await run();passed++;item.textContent='PASS: '+name;}catch(error){failed++;item.textContent='FAIL: '+name+' — '+error.message;}results.append(item);}
+try{
+ await check('Guardar vacío y escribir 15000/15000 muestra100%',async()=>{await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');assert(/^100\s*%$/.test(percentage()),'Resultado visible: '+percentage());});
+ await check('Seguir editando después de guardar recalcula y solicita razón al90%',async()=>{type('Meta','15000');type('Producción real','15000');await click('Guardar borrador');type('Producción real','13500');assert(/^90\s*%$/.test(percentage()),'Resultado visible: '+percentage());assert(card().querySelector('textarea').required,'No pidió razón al90%');});
+ await check('Seguir editando después de compartir recalcula110%',async()=>{type('Meta','15000');type('Producción real','15000');await click('Compartir PDF');assert(lastShared,'No preparó el reporte ficticio');type('Producción real','16500');assert(/^110\s*%$/.test(percentage()),'Resultado visible: '+percentage());});
+ await check('Desmarcar un proceso después de guardar se conserva en el reporte',async()=>{type('Meta','15000');type('Producción real','15000');await click('Guardar borrador');card().querySelector('input[type=checkbox]').click();await click('Compartir PDF');assert(lastShared?.rows['conversion-1'].includeEfficiency===false,'El reporte conservó la casilla anterior');});
+ await check('Cambiar estatus después de guardar se persiste',async()=>{await click('Guardar borrador');button('Estatus').click();root.querySelector('[role=switch]').click();await click('Guardar borrador');assert(JSON.parse(data.get(productionDraftKey(context.teamId))).rows['conversion-1'].active===true,'Se guardó el estado anterior');});
+ await check('Fallo de guardado conserva la captura y permite reintentar',async()=>{failSave=true;await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');assert(/^100\s*%$/.test(percentage()),'La captura dejó de responder');failSave=false;await click('Guardar borrador');type('Producción real','16500');assert(/^110\s*%$/.test(percentage()),'El reintento dejó controles desactualizados');});
+ await reset();await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');
+ document.getElementById('test-status').textContent=(failed?'FAIL':'PASS')+' · '+passed+'/6 pruebas DOM aprobadas';document.getElementById('browser-test-report').dataset.result=failed?'fail':'pass';
+}catch(error){document.getElementById('test-status').textContent='FAIL: '+error.message;document.getElementById('browser-test-report').dataset.result='fail';}
+</script></html>

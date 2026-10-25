@@ -178,7 +178,7 @@ export function createProductionStudio(getServices) {
     context.textContent=report.teamName+' · Planta '+plantName(report.plantId);date.input.value=report.date;effDate.input.value=report.efficiencyDate??report.date;renderTiming();effShift.input.value=report.efficiencyShift;statusShift.input.value=report.statusShift;
     renderStatus();renderEfficiency();renderPreview();selectTab(tab);catalogNotice.hidden=!catalogChanged;
   }
-  async function persist(){report=await serial(()=>saveProductionDraft(getServices().storage,report));dirty=false;return report;}
+  async function persist(){const stored=await serial(()=>saveProductionDraft(getServices().storage,report));report.updatedAt=stored.updatedAt;dirty=false;return report;}
   async function guardedSave(){if(busy||!report)return false;lock(true);try{await persist();message('Borrador guardado en este teléfono.');return true;}catch(error){message(error.message||'No se pudo guardar. Tus datos siguen en esta pantalla.',true);return false;}finally{lock(false);}}
   async function exportReport(callback){
     if(busy||!report)return;const issues=validateProductionReport(report,catalog);errors.replaceChildren();errors.hidden=!issues.length;
