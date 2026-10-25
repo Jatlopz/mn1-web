@@ -878,9 +878,30 @@ export async function rememberSelectedPlant(storage, plantId) {
 }
 
 export const TEAM_TOOLS = Object.freeze([
-  {id:'announcement',name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
-  {id:'report',name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
-  {id:'production',name:'Eficiencias y estatus',description:'Calcula eficiencias y comparte el reporte de planta en PDF'},
+  {id:'announcement',scope:'general',includedByDefault:true,name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
+  {id:'report',scope:'general',includedByDefault:true,name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
+  {id:'production',scope:'exclusive',plantId:'sacos',teamIds:Object.freeze(['champions','espartanos','super-guerreros','indestructibles']),name:'Eficiencias y estatus',description:'Calcula eficiencias y comparte el reporte de planta en PDF'},
 ]);
 export const normalizeToolShortcuts = value => Array.isArray(value) ? [...new Set(value.filter(id=>TEAM_TOOLS.some(tool=>tool.id===id)))] : TEAM_TOOLS.map(tool=>tool.id);
 export const teamShortcutsKey = id => 'mn1.tools.'+id;
+
+/** Availability is approved in the application catalogue, never granted by a shortcut or team name. */
+export function isToolEnabledForTeam(toolId, team) {
+  const tool=TEAM_TOOLS.find(item=>item.id===toolId);
+  if(!tool||!team?.id)return false;
+  return (tool.scope==='general'&&tool.includedByDefault===true)||(plantForTeam(team)===tool.plantId&&tool.teamIds?.includes(team.id)===true);
+}
+export const toolsForTeam = team => TEAM_TOOLS.filter(tool=>isToolEnabledForTeam(tool.id,team));
+export const toolShortcutsForTeam = (value,team) => normalizeToolShortcuts(value).filter(id=>isToolEnabledForTeam(id,team));
+export function toolRequestNote(toolId,team) {
+  const tool=TEAM_TOOLS.find(item=>item.id===toolId);
+  if(!tool||!team?.id)throw Error('Herramienta o equipo no encontrado.');
+  const plant=PLANTS.find(item=>item.id===plantForTeam(team));
+  return 'Solicitud de adaptación: '+tool.name+'\nEquipo: '+team.name+' · Planta '+plant.name+'\nMe gustaría integrar esta herramienta en mi equipo. Cambios que necesitamos: ';
+}
+/** Null means the original draft must remain untouched; never silently truncate it. */
+export function mergeToolRequestDraft(existing,note) {
+  if(existing.includes(note))return existing;
+  const next=existing?existing+'\n\n'+note:note;
+  return next.length<=1500?next:null;
+}

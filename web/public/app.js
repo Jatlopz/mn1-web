@@ -1,4 +1,5 @@
-import { TEAM_TOOLS, normalizeToolShortcuts, teamShortcutsKey } from './profiles.js';
+import {createTeamToolLibrary,syncToolAvailability} from './team-tool-library.js';
+import { TEAM_TOOLS, normalizeToolShortcuts, teamShortcutsKey, isToolEnabledForTeam, toolShortcutsForTeam } from './profiles.js';
 import { readSelectedPlant, rememberSelectedPlant } from './profiles.js';
 /*
  * MN1 híbrido · app web del workspace.
@@ -2183,11 +2184,14 @@ function openTeamTools(dom, app, profileId) {
   return true;
 }
 
-function launchTeamTool(dom,app,id) {
-  if(app.busy||app.switching)return;
+export function launchTeamTool(dom,app,id) {
+  if(app.busy||app.switching)return false;
+  const team=getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog});
+  if(!isToolEnabledForTeam(id,team))return false;
   if(id==='announcement')openWorkspaceFor(dom,app,app.workspace.activeProfileId);
   if(id==='report')void app.reportStudio?.open({teamId:app.workspace.activeProfileId});
   if(id==='production'){const definition=getProfileDefinition(app.workspace.activeProfileId,{catalog:app.catalog});void app.productionStudio?.open({teamId:definition.id,teamName:definition.name,plantId:plantForTeam(definition)});}
+  return true;
 }
 export async function readTeamLogo(storage, teamId, cache = null) {
   const raw = await storage.getText(REPORT_PREFS_KEY);
@@ -2294,9 +2298,11 @@ function renderTeamTools(dom,app) {
       app.toolShortcuts[id]=normalizeToolShortcuts(raw?JSON.parse(raw):null);renderTeamTools(dom,app);
     }).catch(()=>{document.getElementById('tools-feedback').textContent='No se pudieron leer los accesos guardados.';});
   }
-  document.getElementById('team-tools-title').textContent=getProfileDefinition(id,{catalog:app.catalog})?.name||'Tu equipo';
+  const definition=getProfileDefinition(id,{catalog:app.catalog});
+  syncToolAvailability(document,definition);
+  document.getElementById('team-tools-title').textContent=definition?.name||'Tu equipo';
   const grid=document.getElementById('team-shortcuts');grid.replaceChildren();
-  const chosen=normalizeToolShortcuts(app.toolShortcuts?.[id]);
+  const chosen=toolShortcutsForTeam(app.toolShortcuts?.[id],definition);
   document.getElementById('shortcuts-empty').hidden=chosen.length>0;
   for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='production'?'M3 21h18M6 17V9m6 8V3m6 14v-6':toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);button.setAttribute('aria-label',tool.name);button.title=tool.name;button.append(icon);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
 }
@@ -4685,17 +4691,22 @@ async function boot() {
   window.mn1HandleBack = () => handleAppBack(dom,app);
   document.getElementById('tools-back-teams').addEventListener('click',()=>{app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();});
   wireTeamLogo(dom, app);
+  const toolLibrary=createTeamToolLibrary({getTeam:()=>getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}),onRequest:(toolId,teamId)=>app.cloud?.requestTool(toolId,teamId)});
+  document.getElementById('open-tool-library').addEventListener('click',()=>{if(!app.busy&&!app.switching)toolLibrary.open();});
   document.getElementById('open-announcement').addEventListener('click',()=>launchTeamTool(dom,app,'announcement'));
   const shortcutsDialog=document.getElementById('shortcuts-dialog');
   document.getElementById('manage-shortcuts').addEventListener('click',()=>{
-    const chosen=normalizeToolShortcuts(app.toolShortcuts[app.workspace.activeProfileId]);
+    const definition=getProfileDefinition(app.workspace.activeProfileId,{catalog:app.catalog});
+    syncToolAvailability(document,definition);
+    const chosen=toolShortcutsForTeam(app.toolShortcuts[app.workspace.activeProfileId],definition);
     for(const input of shortcutsDialog.querySelectorAll('[data-shortcut]'))input.checked=chosen.includes(input.value);
     document.getElementById('shortcuts-error').textContent='';shortcutsDialog.showModal();
   });
   document.getElementById('shortcuts-close').addEventListener('click',()=>shortcutsDialog.close());
   document.getElementById('shortcuts-save').addEventListener('click',async()=>{
     const id=app.workspace.activeProfileId,button=document.getElementById('shortcuts-save');button.disabled=true;
-    const selected=normalizeToolShortcuts([...shortcutsDialog.querySelectorAll('[data-shortcut]:checked')].map(input=>input.value));
+    const definition=getProfileDefinition(id,{catalog:app.catalog});
+    const selected=toolShortcutsForTeam([...shortcutsDialog.querySelectorAll('[data-shortcut]:checked')].map(input=>input.value),definition);
     try{await app.storage.putText(teamShortcutsKey(id),JSON.stringify(selected));app.toolShortcuts[id]=selected;renderTeamTools(dom,app);shortcutsDialog.close();}
     catch{document.getElementById('shortcuts-error').textContent='No se pudieron guardar los accesos. Inténtalo de nuevo.';}
     finally{button.disabled=false;}

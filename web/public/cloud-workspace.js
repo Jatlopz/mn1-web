@@ -1,5 +1,5 @@
 import {loadImageElement,prepareImageFile} from './renderer.js';
-import { TEAM_TOOLS } from './profiles.js';
+import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
 import {
   CLOUD_META_KEY,
@@ -439,22 +439,32 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   async function restoreCreatorPhoto(){try{const row=JSON.parse(await storage.getText(creatorCacheKey)||'null');if(row&&Number.isSafeInteger(row.revision)&&(row.photo===null||isCreatorPhoto(row.photo))){creatorRevision=row.revision;showCreatorPhoto(row.photo);}}catch{}void loadCreatorPhoto();}
   void restoreCreatorPhoto();
   const ideasDialog=$('ideas-dialog'),ideaStatus=$('ideas-status');
-  let ideaBusy=false,ideaRequest=null,ideaOffset=0;
+  let ideaBusy=false,ideaRequest=null,ideaOffset=0,ideaDraftLoaded=false,ideaTeamId=null;
   const ideaDraftKey=id=>'mn1.idea.draft.'+id;
   const ideaRequestKey=id=>'mn1.idea.req.'+id;
   const ideasLock=value=>{ideaBusy=value;for(const control of ideasDialog.querySelectorAll('button,input,select,textarea'))control.disabled=value;$('idea-send').disabled=value||!IDEAS_ENABLED;};
   $('ideas-close').addEventListener('click',()=>{if(!ideaBusy)ideasDialog.close();});
   ideasDialog.addEventListener('cancel',event=>{if(ideaBusy)event.preventDefault();});
-  $('open-ideas').addEventListener('click',async()=>{
+  async function openIdeas({toolId=null,teamId=null}={}) {
+    if(ideaBusy||ideasDialog.open)return false;
     const services=getServices(),team=services.catalog.find(t=>t.id===services.activeProfileId);
-    if(!team)return;ideaStatus.textContent=IDEAS_ENABLED?'':'Buzón preparado. El envío estará disponible cuando se active la nube de ideas.';ideaRequest=null;
+    if(!team||(teamId&&teamId!==team.id))return false;
+    const requestNote=toolId?toolRequestNote(toolId,team):null;
+    ideaStatus.textContent=IDEAS_ENABLED?'':'Buzón preparado. El envío estará disponible cuando se active la nube de ideas.';ideaRequest=null;ideaDraftLoaded=false;ideaTeamId=team.id;
     $('my-ideas-panel').hidden=true;$('ideas-form').hidden=false;$('ideas-inbox').hidden=true;$('ideas-team').textContent='Equipo: '+team.name;
     $('idea-note').value='';ideasDialog.showModal();ideasLock(true);
-    try{$('idea-note').value=await services.storage.getText(ideaDraftKey(team.id))||'';}catch{ideaStatus.textContent='No se pudo leer tu borrador anterior.';}finally{ideasLock(false);}
-  });
+    try{
+      const existing=await services.storage.getText(ideaDraftKey(team.id))||'';
+      const merged=requestNote?mergeToolRequestDraft(existing,requestNote):existing;
+      $('idea-note').value=merged??existing;ideaDraftLoaded=true;
+      if(merged===null)ideaStatus.textContent='Tu borrador anterior se conserva. Hay que acortarlo para añadir la solicitud de adaptación.';
+    }catch{ideaStatus.textContent='No se pudo leer tu borrador anterior. No se reemplazará al cerrar.';}finally{ideasLock(false);}
+    return true;
+  }
+  $('open-ideas').addEventListener('click',()=>void openIdeas());
   $('idea-note').addEventListener('input',()=>{ideaRequest=null;});
   ideasDialog.addEventListener('close',()=>{
-    if(!$('ideas-form').hidden){const id=getServices().activeProfileId;void getServices().storage.putText(ideaDraftKey(id),$('idea-note').value).catch(()=>{});}
+    if(!$('ideas-form').hidden&&ideaDraftLoaded){const id=ideaTeamId;void getServices().storage.putText(ideaDraftKey(id),$('idea-note').value).catch(()=>{});}
   });
   $('ideas-form').addEventListener('submit',async event=>{
     event.preventDefault();if(ideaBusy||!IDEAS_ENABLED)return;
@@ -497,11 +507,11 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     for(const team of all.filter(t=>!plant||(t.plantId||'sacos')===plant)){
       const card=document.createElement('article');card.className='admin-team-card';const name=document.createElement('h3');name.textContent=team.name;
       const detail=document.createElement('p'),row=rows.find(r=>r.id===team.id);detail.className='hint';detail.textContent=((team.plantId||'sacos')==='polietileno'?'Polietileno':'Sacos')+' · '+(row?.revision?'Publicación '+row.revision:'Copia local');
-      const tools=document.createElement('p');tools.textContent=TEAM_TOOLS.map(t=>t.name).join(' · ');
+      const tools=document.createElement('p');tools.textContent=toolsForTeam(team).map(t=>t.name).join(' · ');
       const button=document.createElement('button');button.className='button button-secondary';button.textContent='Abrir vista del equipo';button.addEventListener('click',async()=>{button.disabled=true;try{if(!(await client.access()).admin)throw Error('Vuelve a iniciar sesión como administrador.');if(await getServices().openTeamSpace(team.id))hideAdmin();else throw Error('Guarda la edición pendiente antes de cambiar de equipo.');}catch(e){$('admin-status').textContent=e.message;selectAdminView('inbox');}finally{button.disabled=false;}});const badge=document.createElement('span');badge.className='admin-team-avatar';badge.textContent=team.name.replace(/^Los /i,'').split(' ').slice(0,2).map(word=>word[0]).join('').toUpperCase();card.append(badge,name,detail,tools,button);host.append(card);
     }
     $('admin-team-empty').hidden=host.childElementCount>0;
-    const toolsHost=$('admin-tool-list');toolsHost.replaceChildren();for(const tool of TEAM_TOOLS){const card=document.createElement('article');card.className='admin-team-card';const title=document.createElement('h3');title.textContent=tool.name;const text=document.createElement('p');text.textContent=tool.description;const note=document.createElement('p');note.className='hint';note.textContent='Reuniones MN1 · Disponible en los equipos';const button=document.createElement('button');button.className='button button-secondary';button.textContent='Elegir equipo';button.addEventListener('click',()=>selectAdminView('overview'));card.append(title,text,note,button);toolsHost.append(card);}
+    const toolsHost=$('admin-tool-list');toolsHost.replaceChildren();for(const tool of TEAM_TOOLS){const card=document.createElement('article');card.className='admin-team-card';const title=document.createElement('h3');title.textContent=tool.name;const text=document.createElement('p');text.textContent=tool.description;const note=document.createElement('p');note.className='hint';note.textContent=tool.scope==='general'?'General · Todos los equipos':'Exclusiva · Cuatro equipos originales de Sacos';const button=document.createElement('button');button.className='button button-secondary';button.textContent='Elegir equipo';button.addEventListener('click',()=>selectAdminView('overview'));card.append(title,text,note,button);toolsHost.append(card);}
   }
   for(const button of adminDashboard.querySelectorAll('[data-admin-view]'))button.addEventListener('click',()=>selectAdminView(button.dataset.adminView));
   for(const button of adminDashboard.querySelectorAll('[data-admin-jump]'))button.addEventListener('click',()=>{selectAdminView(button.dataset.adminJump);adminDashboard.querySelector('[data-admin-view="'+button.dataset.adminJump+'"]')?.focus();});
@@ -590,5 +600,5 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     });
     void tick();
   }
-  return { start, tick };
+  return { start, tick, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
 }

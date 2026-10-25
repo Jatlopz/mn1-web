@@ -1,0 +1,48 @@
+<!doctype html><html lang="es" data-theme="halloween"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Catálogo de herramientas · prueba aislada</title>
+<link rel="stylesheet" href="../public/styles.css"><link rel="stylesheet" href="../public/production.css">
+<style>#catalog-test-status{position:fixed;bottom:0;left:0;right:0;z-index:9000;padding:8px;background:#10251c;color:#fff;font:12px system-ui}#catalog-test-status[data-result=fail]{background:#652323}</style>
+<aside id="catalog-test-status" role="status">Ejecutando pruebas…</aside>
+<script type="module">
+import {PROFILE_CATALOG,toolShortcutsForTeam} from '../public/profiles.js';
+import {createTeamToolLibrary,syncToolAvailability} from '../public/team-tool-library.js';
+import {createCloudWorkspace} from '../public/cloud-workspace.js';
+const result=document.getElementById('catalog-test-status');let passed=0,failed=0;
+const assert=(ok,message)=>{if(!ok)throw Error(message);};
+const wait=async fn=>{const end=Date.now()+2000;while(!fn()){if(Date.now()>end)throw Error('No terminó la operación');await new Promise(resolve=>setTimeout(resolve,10));}};
+const parsed=new DOMParser().parseFromString(await(await fetch('../public/index.html')).text(),'text/html');for(const script of parsed.querySelectorAll('script'))script.remove();for(const child of [...parsed.body.children])document.body.append(child);
+const custom={id:'custom-11111111-1111-4111-8111-111111111111',name:'Equipo de ejemplo',plantId:'sacos'};
+let team=custom,submissions=0,writeCount=0,lastNote='';const values=new Map([['mn1.idea.draft.'+custom.id,'Mi idea anterior']]);
+const storage={getText:async key=>values.get(key)??null,putText:async(key,value)=>{writeCount++;values.set(key,value);}};
+const client={creatorProfile:async()=>[],submitIdea:async(id,device,teamId,note)=>{assert(teamId===custom.id,'Equipo de solicitud incorrecto');lastNote=note;submissions++;}};
+const cloud=createCloudWorkspace(()=>({catalog:[...PROFILE_CATALOG,custom],activeProfileId:team.id,storage}),{client});
+const library=createTeamToolLibrary({getTeam:()=>team,onRequest:(toolId,teamId)=>cloud.requestTool(toolId,teamId)});
+const dialog=document.getElementById('tool-library-dialog'),production=document.getElementById('production-tools-section');
+const byText=(text,scope=dialog)=>[...scope.querySelectorAll('button')].find(el=>el.textContent===text);
+const close=()=>{for(const d of document.querySelectorAll('dialog[open]'))d.close();};
+async function check(name,fn){close();try{await fn();passed++;console.log('PASS '+name);}catch(error){failed++;console.error('FAIL '+name+': '+error.message);}}
+await check('cuatro equipos con eficiencia; otro equipo sin la herramienta',async()=>{
+ for(const original of PROFILE_CATALOG){syncToolAvailability(document,original);assert(!production.hidden,'Falta eficiencia en equipo original');}
+ syncToolAvailability(document,custom);assert(production.hidden,'Eficiencia visible en equipo nuevo');
+ const input=document.querySelector('[data-shortcut][value=production]');assert(input.disabled&&input.closest('label').hidden,'Acceso exclusivo seleccionable');
+ const legacy=['announcement','production','report'];assert(toolShortcutsForTeam(legacy,custom).join(',')==='announcement,report','Acceso antiguo sin filtrar');assert(legacy.length===3,'Se alteró la preferencia guardada');
+});
+await check('catálogo distingue generales y exclusivas',async()=>{
+ library.open();byText('Generales').click();assert(dialog.querySelectorAll('[data-tool-id]').length===2,'Generales incorrectas');assert(!dialog.querySelector('[data-tool-id=production]'),'Exclusiva en generales');byText('Exclusivas').click();assert(dialog.querySelectorAll('[data-tool-id]').length===1,'Exclusivas incorrectas');assert(byText('Solicitar adaptación'),'Falta solicitud');
+});
+await check('demostración interactiva sin almacenamiento ni envíos',async()=>{
+ library.open();const before=writeCount,details=dialog.querySelector('.tool-demo');details.open=true;const input=details.querySelectorAll('input')[1];input.value='79';input.dispatchEvent(new Event('input'));assert(details.querySelector('output').textContent==='79 %','No calcula 79%');assert(details.querySelector('[data-band=critical]'),'No cambia el indicador');const toggle=details.querySelector('[type=checkbox]');toggle.click();assert(details.querySelector('.tool-demo-state').dataset.active==='false','No cambia estatus');assert(writeCount===before&&submissions===0,'La demostración escribió o envió datos');
+});
+await check('solicitud al buzón conserva el borrador y espera confirmación',async()=>{
+ library.open();byText('Solicitar adaptación').click();await wait(()=>document.getElementById('idea-note').value.includes('Solicitud de adaptación'));
+ assert(!dialog.open,'Se superpusieron los diálogos');assert(document.getElementById('idea-note').value.startsWith('Mi idea anterior'),'Se borró el borrador');assert(submissions===0,'Envío sin confirmación');
+ document.getElementById('idea-send').click();await wait(()=>submissions===1);assert(lastNote.includes('Eficiencias y estatus')&&lastNote.includes('Equipo de ejemplo'),'Solicitud incompleta');
+});
+await check('borrador largo se conserva entero al solicitar',async()=>{
+ values.set('mn1.idea.draft.'+custom.id,'x'.repeat(1490));library.open();byText('Solicitar adaptación').click();await wait(()=>!document.getElementById('idea-send').disabled);assert(document.getElementById('idea-note').value.length===1490,'Borrador truncado');assert(document.getElementById('ideas-status').textContent.includes('acortarlo'),'Falta explicar el límite');assert(submissions===1,'Envío inesperado');
+});
+await check('equipo asignado no pide adaptación; cambio de equipo rechaza solicitud anterior',async()=>{
+ team=PROFILE_CATALOG[0];syncToolAvailability(document,team);library.open();assert(!byText('Solicitar adaptación'),'Solicita lo que ya tiene');assert(!await cloud.requestTool('production',custom.id),'Acepta solicitud para equipo distinto');assert(!await cloud.requestTool('production',team.id),'Solicita herramienta ya asignada');assert(!production.hidden,'No restauró eficiencia');
+});
+close();team=custom;syncToolAvailability(document,team);library.open();byText('Exclusivas').click();dialog.querySelector('details').open=false;
+result.textContent=(failed?'FAIL':'PASS')+' · '+passed+'/6 pruebas de catálogo aprobadas · sin nube ni envíos reales';result.dataset.result=failed?'fail':'pass';
+</script></html>
