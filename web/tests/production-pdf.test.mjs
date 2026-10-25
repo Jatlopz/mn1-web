@@ -41,7 +41,7 @@ test('PDF y mensaje conservan las fechas separadas y exportan sólo las eficienc
  assert.match(new TextDecoder().decode(pdf),/\/Count 2/);
  assert.ok(drawn[0].includes('Extrusión (kg)'));assert.ok(drawn[0].includes('Paro de prueba'));
  assert.ok(!drawn[0].includes('Imprenta (m)'));assert.ok(!drawn[0].includes('Conversión 1 (sacos)'));
- assert.ok(drawn[0].includes('Totales por unidad'));assert.ok(drawn[0].some(t=>t.includes('24/10/2026')&&t.includes('25/10/2026')));
+ assert.ok(!drawn[0].includes('Totales por unidad'));assert.ok(!drawn[0].includes('Meta total'));assert.ok(!drawn[0].includes('Real total'));assert.ok(drawn[0].some(t=>t.includes('24/10/2026')&&t.includes('25/10/2026')));
  assert.match(productionShareMessage(r),/TC del 24\/10\/2026.*TA del 25\/10\/2026/);
 });
 

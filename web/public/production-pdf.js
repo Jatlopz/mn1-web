@@ -1,5 +1,5 @@
 /** PDF local de alta resolución; el mismo snapshot produce tablas y gráfico. */
-import {calculateEfficiency,validateProductionReport,efficiencyRows,productionTotals,efficiencyBand,productionStatusDisplay,PRODUCTION_REPORT_TITLE} from './production-model.js';
+import {calculateEfficiency,validateProductionReport,efficiencyRows,efficiencyBand,productionStatusDisplay,PRODUCTION_REPORT_TITLE} from './production-model.js';
 const W=595,H=842,SCALE=2,M=32;
 const encoder=new TextEncoder();
 const ascii=s=>encoder.encode(s);
@@ -51,7 +51,6 @@ export function createProductionPdf(report,catalog,{createCanvas=()=>document.cr
  text('Datos capturados manualmente · Real / Meta × 100',M,y,9,'#536b79');y+=23;
  if(eff.length)table(['Proceso / unidad','Meta','Real','Eficiencia','Meta desp.','Real desp.','Comentarios'],[94,58,58,60,51,51,159],eff.map(([,r])=>{const c=calculateEfficiency(r);return [r.name+' ('+r.unit+')',fmt(r.target),fmt(r.actual),pct(c.efficiency),pct(c.wasteTarget),pct(c.wasteActual),(r.efficiencyComment??r.comment)||'Sin comentario'];}));
  else{text('No se incluyeron procesos para eficiencia.',M,y);y+=28;}
- const totals=productionTotals(report);if(totals.length){room(62);text('Totales por unidad',M,y,13,'#102e3f',700);y+=24;table(['Unidad','Meta total','Real total','Eficiencia'],[110,140,140,141],totals.map(t=>[t.unit,fmt(t.target),fmt(t.actual),pct(t.efficiency)]));}
  if(eff.length){room(60);text('Cumplimiento de la meta',M,y,15,'#102e3f',700);y+=28;const maximum=Math.max(100,...eff.map(([,r])=>calculateEfficiency(r).efficiency||0));const max=Math.ceil(maximum/25)*25;for(const [,r] of eff){room(45);text(r.name,M,y,9,'#536b79');y+=15;const width=W-2*M-60;rect(M,y,width,10,'#e6edf0');rect(M,y,width*(calculateEfficiency(r).efficiency/max),10,efficiencyBand(r)==='critical'?'#c92532':efficiencyBand(r)==='warning'?'#d97706':'#237b80');const target=M+width*100/max;rect(target,y-2,1,14,'#607584');text(pct(calculateEfficiency(r).efficiency),M+width+8,y-1,9,'#183142',700);y+=24;}room(40);ctx.font='400 8px Arial';const legend=wrapReportText(ctx,'Naranja: 80 % a menos de 90 %. Rojo: menos de 80 %. Marca vertical: 100 % de la meta.',W-2*M);legend.forEach((line,i)=>text(line,M,y+i*11,8,'#687b87'));y+=legend.length*11+14;}
  page('Estatus de planta');const active=entries.filter(([,r])=>r.active).length;text(active+' procesos en funcionamiento · '+(entries.length-active)+' inactivos',M,y,10,'#176a69',700);y+=26;
  table(['Proceso','Estatus','Producto / acción','Observaciones'],[108,97,155,171],entries.map(([,r])=>{const display=productionStatusDisplay(r);return [r.name,display.status,display.productAction,display.observations];}),entries.map(([,r])=>r.active===true));

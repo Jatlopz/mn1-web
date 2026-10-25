@@ -36,7 +36,9 @@ try{
   set('Producto (elige o escribe)','Producto de prueba retenido');set('Comentario','Nota de prueba retenida');root.querySelectorAll('[role=switch]')[1].click();button('Reporte').click();
   const tables=root.querySelectorAll('#prod-panel-preview table'),rows=tables[tables.length-1].querySelectorAll('tbody tr');
   assert(rows[0].cells[2].textContent===''&&rows[0].cells[3].textContent==='','Aparecen datos del proceso inactivo');assert(rows[1].dataset.active==='true','Falta la marca de activo');assert(getComputedStyle(rows[1].cells[1]).backgroundColor==='rgb(223, 243, 231)','Falta el fondo verde');
+  assert(!root.querySelector('#prod-panel-preview .prod-totals'),'El reporte contiene totales por unidad');
   await click('Compartir PDF');assert(lastShared.rows['conversion-1'].product==='Producto de prueba retenido'&&lastShared.rows['conversion-1'].comment==='Nota de prueba retenida','Se borraron datos del inactivo');
+  button('Eficiencias').click();assert(root.querySelector('#prod-panel-efficiency .prod-totals')?.textContent.includes('Meta 100'),'Faltan los totales en vivo del editor');
  });
  await reset();await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');
  document.getElementById('test-status').textContent=(failed?'FAIL':'PASS')+' · '+passed+'/7 pruebas DOM aprobadas';document.getElementById('browser-test-report').dataset.result=failed?'fail':'pass';
