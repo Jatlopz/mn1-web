@@ -1,0 +1,16 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDF de estatus y eficiencias · prueba ficticia</title>
+<style>body{margin:0;background:#e6ecef;color:#183142;font:16px/1.5 system-ui}header{padding:22px;max-width:850px;margin:auto}h1{font-size:22px}button{background:#176a69;color:white;border:0;padding:14px 22px;border-radius:12px;cursor:pointer}canvas{display:block;width:min(95%,595px);height:auto;margin:20px auto;box-shadow:0 3px 15px #0002}</style>
+<header><h1>Reporte de estatus y eficiencias de planta</h1><p>Ejemplo ficticio. Barras en79%,80%,89%,90% y100%. Inactivos conservan sus datos, pero el reporte los deja en blanco.</p><button id="pdf-download" disabled>Descargar PDF de prueba</button><p id="pdf-result" role="status">Generando…</p></header><main id="pdf-pages"></main>
+<script type="module">
+import {defaultCatalog} from '../public/plant-catalog.js';import {createProductionReport} from '../public/production-model.js';import {createProductionPdf} from '../public/production-pdf.js';
+try{
+ const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,{teamId:'fixture',teamName:'Equipo de prueba',date:'2026-10-25',efficiencyDate:'2026-10-25',efficiencyShift:'TA',statusShift:'TC'});
+ let i=0;for(const [id,row] of Object.entries(report.rows)){row.active=['extrusion','telares','conversion-3'].includes(id);row.product=row.active?'Producto de prueba':'Producto oculto de prueba';row.action=row.active?'Producción':'Mantenimiento';row.comment=row.active?'Operando':'Nota conservada';if(row.includeEfficiency){row.target='100';row.actual=String([79,80,89,90,100][i++]);row.efficiencyComment='Razón de prueba';}}
+ report.rows.telares.runningCount='2';report.rows.telares.totalCount='3';
+ const before=JSON.stringify(report),pages=[];const bytes=createProductionPdf(report,catalog,{createCanvas:()=>{const page=document.createElement('canvas');pages.push(page);return page;}});
+ if(JSON.stringify(report)!==before)throw Error('El render modificó datos');
+ for(const page of pages)document.getElementById('pdf-pages').append(page);
+ document.getElementById('pdf-result').textContent='PASS · '+pages.length+' páginas · datos originales conservados';
+ const button=document.getElementById('pdf-download');button.disabled=false;button.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const link=document.createElement('a');link.href=url;link.download='ejemplo-reporte-planta-colores.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+}catch(error){document.getElementById('pdf-result').textContent='FAIL · '+error.message;}
+</script></html>

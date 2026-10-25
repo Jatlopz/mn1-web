@@ -110,11 +110,27 @@ export function productionTotals(report) {
  return [...groups.values()].map(group=>({...group,efficiency:group.target>0?group.actual/group.target*100:null}));
 }
 
-/** Exact decimal comparison avoids accepting 90.00000000000001 from a true 90%. */
-export function requiresEfficiencyReason(row={}) {
+/** Decimal comparison keeps the colour bands and required reason exact at their boundaries. */
+function compareEfficiencyTo(row,percent) {
  const target=decimal(row.target),actual=decimal(row.actual);
- if(target.kind!=='number'||target.value<=0||actual.kind!=='number')return false;
+ if(target.kind!=='number'||target.value<=0||actual.kind!=='number')return null;
  const parts=value=>{const [whole,fraction='']=String(value).trim().replace(',','.').split('.');return {integer:BigInt((whole||'0')+fraction),scale:fraction.length};};
  const t=parts(row.target),a=parts(row.actual),scale=Math.max(t.scale,a.scale);
- return a.integer*10n**BigInt(scale-a.scale)*100n<=t.integer*10n**BigInt(scale-t.scale)*90n;
+ const left=a.integer*10n**BigInt(scale-a.scale)*100n,right=t.integer*10n**BigInt(scale-t.scale)*BigInt(percent);
+ return left<right?-1:left>right?1:0;
+}
+export function requiresEfficiencyReason(row={}) {
+ const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<=0;
+}
+export function efficiencyBand(row={}) {
+ const lower=compareEfficiencyTo(row,80);if(lower===null)return 'empty';
+ if(lower<0)return 'critical';return compareEfficiencyTo(row,90)<0?'warning':'normal';
+}
+export const PRODUCTION_REPORT_TITLE='Reporte de estatus y eficiencias de planta';
+/** Presentation only: inactive values remain in the draft for later use. */
+export function productionStatusDisplay(row={}) {
+ const active=row.active===true;
+ return {active,status:active?'En funcionamiento':row.active===false?'Inactivo':'Sin confirmar',
+  productAction:active?[row.product,row.action].filter(Boolean).join(' · '):'',
+  observations:active?[row.runningCount!==''&&row.runningCount!=null&&row.totalCount!==''&&row.totalCount!=null?row.runningCount+'/'+row.totalCount+' unidades activas':'',row.comment].filter(Boolean).join(' · '):''};
 }

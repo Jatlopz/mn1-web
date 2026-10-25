@@ -44,3 +44,19 @@ test('PDF y mensaje conservan las fechas separadas y exportan sólo las eficienc
  assert.ok(drawn[0].includes('Totales por unidad'));assert.ok(drawn[0].some(t=>t.includes('24/10/2026')&&t.includes('25/10/2026')));
  assert.match(productionShareMessage(r),/TC del 24\/10\/2026.*TA del 25\/10\/2026/);
 });
+
+test('el PDF usa el encabezado solicitado, barras por umbral y resalta activos sin mostrar datos inactivos',async()=>{
+ const {normalizeCatalog}=await import('../public/plant-catalog.js');const {createProductionReport}=await import('../public/production-model.js');
+ const c=normalizeCatalog({processes:[79,80,89,90,100].map(n=>({id:'p'+n,name:'Proceso '+n,unit:'kg',efficiency:true}))},'sacos');
+ const r=createProductionReport(c,{teamId:'fixture',teamName:'Equipo ficticio',date:'2026-10-25'});
+ for(const [id,row] of Object.entries(r.rows)){row.active=id==='p100';row.target='100';row.actual=id.slice(1);row.efficiencyComment='Razón ficticia';row.product=row.active?'Producto activo':'PRODUCTO_OCULTO';row.action=row.active?'Producción':'ACCION_OCULTA';row.comment=row.active?'En operación':'COMENTARIO_OCULTO';row.runningCount='2';row.totalCount='3';}
+ const before=JSON.stringify(r),drawn=[],rectangles=[];
+ const createCanvas=()=>{const lines=[];drawn.push(lines);const ctx={scale(){},fillRect(x,y,w,h){rectangles.push({x,y,w,h,color:this.fillStyle,page:drawn.length});},fillText(t){lines.push({text:String(t),color:this.fillStyle,font:this.font});},measureText:t=>({width:String(t).length*4})};return {getContext:()=>ctx,toDataURL:()=> 'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};};
+ createProductionPdf(r,c,{createCanvas});
+ for(const page of drawn)assert.ok(page.map(t=>t.text).join(' ').includes('Reporte de estatus y eficiencias de planta'));
+ const bars=rectangles.filter(r=>r.h===10&&['#c92532','#d97706','#237b80'].includes(r.color));assert.deepEqual(bars.map(r=>r.color),['#c92532','#d97706','#d97706','#237b80','#237b80']);
+ const status=drawn.at(-1);assert.ok(status.some(t=>t.text==='En funcionamiento'&&t.color==='#17633e'));
+ assert.ok(rectangles.some(r=>r.page===drawn.length&&r.color==='#dff3e7'));
+ for(const token of ['PRODUCTO_OCULTO','ACCION_OCULTA','COMENTARIO_OCULTO','Sin indicar','Sin observaciones'])assert.ok(!status.some(t=>t.text.includes(token)),token);
+ assert.ok(status.some(t=>t.text.includes('Producto activo')));assert.equal(JSON.stringify(r),before);
+});

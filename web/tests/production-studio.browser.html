@@ -30,7 +30,15 @@ try{
  await check('Desmarcar un proceso después de guardar se conserva en el reporte',async()=>{type('Meta','15000');type('Producción real','15000');await click('Guardar borrador');card().querySelector('input[type=checkbox]').click();await click('Compartir PDF');assert(lastShared?.rows['conversion-1'].includeEfficiency===false,'El reporte conservó la casilla anterior');});
  await check('Cambiar estatus después de guardar se persiste',async()=>{await click('Guardar borrador');button('Estatus').click();root.querySelector('[role=switch]').click();await click('Guardar borrador');assert(JSON.parse(data.get(productionDraftKey(context.teamId))).rows['conversion-1'].active===true,'Se guardó el estado anterior');});
  await check('Fallo de guardado conserva la captura y permite reintentar',async()=>{failSave=true;await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');assert(/^100\s*%$/.test(percentage()),'La captura dejó de responder');failSave=false;await click('Guardar borrador');type('Producción real','16500');assert(/^110\s*%$/.test(percentage()),'El reintento dejó controles desactualizados');});
+ await check('Vista previa deja inactivos en blanco y marca activos en verde sin borrar datos',async()=>{
+  type('Meta','100');type('Producción real','100');button('Estatus').click();
+  const first=root.querySelector('.prod-process'),set=(label,value)=>{const wrap=[...first.querySelectorAll('label')].find(e=>e.querySelector('span')?.textContent===label),input=wrap.querySelector('input,textarea');input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
+  set('Producto (elige o escribe)','Producto de prueba retenido');set('Comentario','Nota de prueba retenida');root.querySelectorAll('[role=switch]')[1].click();button('Reporte').click();
+  const tables=root.querySelectorAll('#prod-panel-preview table'),rows=tables[tables.length-1].querySelectorAll('tbody tr');
+  assert(rows[0].cells[2].textContent===''&&rows[0].cells[3].textContent==='','Aparecen datos del proceso inactivo');assert(rows[1].dataset.active==='true','Falta la marca de activo');assert(getComputedStyle(rows[1].cells[1]).backgroundColor==='rgb(223, 243, 231)','Falta el fondo verde');
+  await click('Compartir PDF');assert(lastShared.rows['conversion-1'].product==='Producto de prueba retenido'&&lastShared.rows['conversion-1'].comment==='Nota de prueba retenida','Se borraron datos del inactivo');
+ });
  await reset();await click('Guardar borrador');type('Meta','15000');type('Producción real','15000');
- document.getElementById('test-status').textContent=(failed?'FAIL':'PASS')+' · '+passed+'/6 pruebas DOM aprobadas';document.getElementById('browser-test-report').dataset.result=failed?'fail':'pass';
+ document.getElementById('test-status').textContent=(failed?'FAIL':'PASS')+' · '+passed+'/7 pruebas DOM aprobadas';document.getElementById('browser-test-report').dataset.result=failed?'fail':'pass';
 }catch(error){document.getElementById('test-status').textContent='FAIL: '+error.message;document.getElementById('browser-test-report').dataset.result='fail';}
 </script></html>

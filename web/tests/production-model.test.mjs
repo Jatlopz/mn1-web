@@ -142,3 +142,19 @@ test('el umbral obligatorio usa decimales exactos aunque el porcentaje binario q
  assert.equal(requiresEfficiencyReason({target:'1',actual:'0.8999999999999999999999'}),true);
  assert.equal(requiresEfficiencyReason({target:'',actual:''}),false);
 });
+
+test('bandas de gráfica respetan exactamente los límites80 y90',async()=>{
+ const {efficiencyBand}=await import('../public/production-model.js');
+ for(const [actual,expected] of [['0','critical'],['79.99','critical'],['80','warning'],['89.99','warning'],['90','normal'],['100','normal'],['125','normal']])assert.equal(efficiencyBand({target:'100',actual}),expected,actual);
+ assert.equal(efficiencyBand({target:'0.3',actual:'0.27'}),'normal');
+ assert.equal(efficiencyBand({target:'0.7',actual:'0.56'}),'warning');
+ assert.equal(efficiencyBand({target:'',actual:''}),'empty');
+});
+
+test('estatus inactivo oculta campos auxiliares sin borrar valores guardados',async()=>{
+ const {productionStatusDisplay}=await import('../public/production-model.js');
+ const row={active:false,product:'Producto ficticio',action:'Producción',comment:'Nota conservada',runningCount:'2',totalCount:'3'};const before=JSON.stringify(row);
+ assert.deepEqual(productionStatusDisplay(row),{active:false,status:'Inactivo',productAction:'',observations:''});
+ assert.equal(JSON.stringify(row),before);
+ const active=productionStatusDisplay({...row,active:true});assert.equal(active.active,true);assert.equal(active.status,'En funcionamiento');assert.equal(active.productAction,'Producto ficticio · Producción');assert.equal(active.observations,'2/3 unidades activas · Nota conservada');
+});

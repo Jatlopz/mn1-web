@@ -1,5 +1,5 @@
 import { defaultCatalog, normalizeCatalog, catalogKey } from './plant-catalog.js';
-import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason } from './production-model.js';
+import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, PRODUCTION_REPORT_TITLE } from './production-model.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const fmt = value => value === null ? 'Sin datos' : new Intl.NumberFormat('es-HN', {maximumFractionDigits:2}).format(value);
@@ -15,7 +15,7 @@ export function reconcileProductionCatalog(report, catalog) {
   return next;
 }
 export function productionPreviewRows(report) {
-  return Object.entries(report.rows).map(([id,row]) => ({id,name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
+  return Object.entries(report.rows).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
 }
 export function productionRowSummary(row) {
   const counts = row.runningCount !== '' || row.totalCount !== '' ? (row.runningCount || '—')+'/'+(row.totalCount || '—') : '';
@@ -153,13 +153,13 @@ export function createProductionStudio(getServices) {
     }
     updateTotals();
   }
-  function table(headers,rows){const wrap=node('div','prod-table-scroll'),t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const values of rows){const r=node('tr');for(const value of values)r.append(node('td','',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
+  function table(headers,rows,highlightRows=[]){const wrap=node('div','prod-table-scroll'),t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const [index,values] of rows.entries()){const r=node('tr');if(highlightRows[index]===true)r.dataset.active='true';for(const value of values)r.append(node('td','',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
   function renderPreview(){
-    previewPanel.replaceChildren();const rows=productionPreviewRows(report);previewPanel.append(node('p','prod-eyebrow','VISTA PREVIA'),node('h2','prod-panel-title','Reporte de '+plantName(report.plantId)),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)),node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));
+    previewPanel.replaceChildren();const rows=productionPreviewRows(report);previewPanel.append(node('p','prod-eyebrow','VISTA PREVIA'),node('h2','prod-panel-title',PRODUCTION_REPORT_TITLE),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)),node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));
     const efficiency=rows.filter(row=>row.includeEfficiency);
     if(efficiency.length)previewPanel.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desperdicio meta','Desperdicio real','Comentario'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %'),row.efficiencyComment||'—'])));else previewPanel.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
     const totals=node('div','prod-totals');renderTotals(totals);previewPanel.append(totals);
-    previewPanel.append(node('h3','','Estatus de planta · '+report.statusShift),table(['Proceso','Estatus','Producto / acción','Comentario'],rows.map(row=>[row.name,row.status,[row.product,row.action,row.counts].filter(Boolean).join(' · '),row.comment||'—'])));
+    previewPanel.append(node('h3','','Estatus de planta · '+report.statusShift),table(['Proceso','Estatus','Producto / acción','Comentario'],rows.map(row=>[row.name,row.statusDisplay.status,row.statusDisplay.productAction,row.statusDisplay.observations]),rows.map(row=>row.statusDisplay.active)));
     const issues=validateProductionReport(report,catalog);if(issues.length)previewPanel.append(node('p','prod-hint',issues.length+' datos pendientes antes de compartir. Puedes guardar el borrador aunque esté incompleto.'));
   }
   function renderTiming(){
