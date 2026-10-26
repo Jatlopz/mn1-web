@@ -1,4 +1,55 @@
 export const THEME_KEY = 'mn1.appearance.theme';
+export const APPEARANCE_KEY = 'mn1.appearance.surfaces.v1';
+export const DEFAULT_APPEARANCE = Object.freeze({wallpaper:'original',cards:18,windows:8});
+export function normalizeAppearance(value) {
+ const source=value&&typeof value==='object'?value:{};
+ const transparency=(key,max)=>typeof source[key]==='number'&&Number.isFinite(source[key])?Math.round(Math.max(0,Math.min(max,source[key]))):DEFAULT_APPEARANCE[key];
+ return {wallpaper:source.wallpaper==='moon'?'moon':'original',cards:transparency('cards',60),windows:transparency('windows',40)};
+}
+
+export async function installAppearance(storage,root=document) {
+ const controls=root.getElementById('appearance-controls');
+ if(!controls)return;
+ const status=root.getElementById('appearance-status');
+ const buttons=[...controls.querySelectorAll('[data-wallpaper-choice]')];
+ const cards=root.getElementById('appearance-cards'),windows=root.getElementById('appearance-windows');
+ const reset=root.getElementById('appearance-reset');
+ const inputs=[cards,windows,reset,...buttons];
+ let saved=normalizeAppearance(null),draft=saved,revision=0,writes=Promise.resolve();
+ const apply=value=>{
+  draft=normalizeAppearance(value);
+  root.documentElement.dataset.wallpaper=draft.wallpaper;
+  root.documentElement.style.setProperty('--ui-card-opacity',(100-draft.cards)+'%');
+  root.documentElement.style.setProperty('--ui-window-opacity',(100-draft.windows)+'%');
+  for(const key of ['cards','windows']){
+   root.getElementById('appearance-'+key).value=String(draft[key]);
+   root.getElementById('appearance-'+key+'-value').textContent=draft[key]+' %';
+  }
+  for(const button of buttons)button.setAttribute('aria-pressed',String(button.dataset.wallpaperChoice===draft.wallpaper));
+ };
+ apply(saved);
+ for(const input of inputs)input.disabled=true;
+ try{const raw=await storage.getText(APPEARANCE_KEY);saved=normalizeAppearance(raw?JSON.parse(raw):null);apply(saved);}
+ catch{status.textContent='No se pudo leer la apariencia guardada. Tus equipos se conservan.';}
+ finally{for(const input of inputs)input.disabled=false;}
+ const save=value=>{
+  const next=normalizeAppearance(value),current=++revision;
+  status.textContent='';apply(next);
+  // Serialize writes without disabling a focused slider or dropping rapid edits.
+  writes=writes.then(async()=>{
+   try{await storage.putText(APPEARANCE_KEY,JSON.stringify(next));saved=next;if(current===revision)status.textContent='Apariencia guardada en este teléfono.';}
+   catch{if(current===revision){apply(saved);status.textContent='No se pudo guardar la apariencia. Se restauró el ajuste anterior.';}}
+  });
+  return writes;
+ };
+ for(const key of ['cards','windows']){
+  const input=root.getElementById('appearance-'+key);
+  input.addEventListener('input',()=>{revision++;apply({...draft,[key]:Number(input.value)});});
+  input.addEventListener('change',()=>save({...draft,[key]:Number(input.value)}));
+ }
+ for(const button of buttons)button.addEventListener('click',()=>save({...draft,wallpaper:button.dataset.wallpaperChoice}));
+ reset.addEventListener('click',()=>save(DEFAULT_APPEARANCE));
+}
 export const DEFAULT_THEME = 'halloween';
 export const THEMES = Object.freeze([
  {id:'ice',name:'Azul hielo',accent:'#8dd8ff'},
@@ -15,6 +66,7 @@ export async function installThemes(storage, root=document, events=window) {
  let selected=DEFAULT_THEME,saving=false;
  const apply=id=>{
   selected=normalizeTheme(id);root.documentElement.dataset.theme=selected;
+  const backgrounds=root.getElementById('halloween-backgrounds');if(backgrounds)backgrounds.hidden=selected!=='halloween';
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
  apply(DEFAULT_THEME);
@@ -48,6 +100,7 @@ export async function installThemes(storage, root=document, events=window) {
   catch {apply(previous);error.textContent='No se pudo guardar el tema. Tus equipos no se modificaron.';}
   finally {saving=false;}
  });
+ await installAppearance(storage,root);
 }
 
 export function installSettings(nativeMenu, root=document) {

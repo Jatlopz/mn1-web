@@ -29,6 +29,14 @@ export const STARTER_IMAGES = Object.freeze([
 export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
   {
+    "id": "halloween-moon",
+    "path": "themes/halloween-moon.8fbffa02c070af42.webp",
+    "sha256": "8fbffa02c070af42c3659edbd2b45de13ba923050b1ba59d3fc2207209c68fdf",
+    "size": 312308,
+    "width": 1024,
+    "height": 1536
+  },
+  {
     "id": "halloween",
     "path": "themes/halloween.270bd76a04c0f76c.webp",
     "sha256": "270bd76a04c0f76cff9b44f8b9522f4b57a71a886b2e221e15a0765b7435e894",
@@ -93,7 +101,7 @@ export async function buildSite(source, destination) {
   if (path.resolve(source) === path.resolve(destination)) throw new Error('Use a separate output directory');
   const sourceFiles = Object.fromEntries(await Promise.all(MODULES.map(async name => [name, await readFile(path.join(source, name), 'utf8')])));
   const htmlSource = await readFile(path.join(source, 'index.html'), 'utf8');
-  const css = await readFile(path.join(source, 'styles.css'), 'utf8')+'\n'+await readFile(path.join(source, 'production.css'), 'utf8');
+  const css = await readFile(path.join(source, 'styles.css'), 'utf8')+'\n'+await readFile(path.join(source, 'production.css'), 'utf8')+'\n'+await readFile(path.join(source, 'premium.css'), 'utf8');
   const version = JSON.parse(await readFile(path.join(source, 'version.json'), 'utf8'));
   if (version.protocol !== 1 || !/^\d+\.\d+\.\d+$/.test(version.version)) throw new Error('Invalid version/protocol');
 
@@ -139,6 +147,7 @@ export async function buildSite(source, destination) {
   const appName = outputNames.get('app.js');
   if (!appName) throw new Error('app.js was not built');
   const html = htmlSource.replace(/\s*<link rel="stylesheet" href="\.\/production\.css">/,'')
+    .replace(/\s*<link rel="stylesheet" href="\.\/premium\.css">/,'')
     .replace(/\.\/app\.js(?:\?v=[\d.]+)?/, `./${appName}`)
     .replace(/\.\/styles\.css(?:\?v=[\d.]+)?/, `./${cssName}`);
   if (html === htmlSource || html.includes('./app.js?') || html.includes('./styles.css?')) {

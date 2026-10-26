@@ -16,6 +16,7 @@
   <title>SuperTools · Herramientas para equipos y administración</title>
   <link rel="stylesheet" href="./styles.css?v=0.5.17">
   <link rel="stylesheet" href="./production.css">
+  <link rel="stylesheet" href="./premium.css">
 </head>
 <body>
   <a class="skip-link" href="#welcome-screen">Saltar al contenido</a>
@@ -416,7 +417,22 @@
     </div></div><section class="seasonal-themes" id="seasonal-themes" role="tabpanel" aria-labelledby="theme-tab-season" hidden><p class="welcome-eyebrow">AMBIENTES ESPECIALES</p><h3 id="seasonal-title">Temas de temporada</h3><p class="hint">Escenarios inmersivos, luz ambiental y superficies de cristal.</p><div class="theme-grid">
       <button type="button" class="theme-option theme-halloween" data-theme-choice="halloween" aria-pressed="false"><span class="season-art halloween-art" aria-hidden="true"><img src="./themes/halloween.270bd76a04c0f76c.webp" width="1024" height="1536" alt="" loading="lazy" decoding="async"></span><strong>Halloween</strong><small>Noche de fábrica · Cristal ahumado</small></button>
       <button type="button" class="theme-option theme-winter" data-theme-choice="winter" aria-pressed="false"><span class="season-art winter-art" aria-hidden="true"><img src="./themes/winter.2b84eaa69482468d.webp" width="1024" height="1536" alt="" loading="lazy" decoding="async"></span><strong>Fin de año</strong><small>Aurora boreal · Cristal helado</small></button>
-      </div></section><p id="theme-error" class="hint" role="status" aria-live="polite"></p><p class="hint">Sólo cambia la apariencia de este teléfono. Tus imágenes y anuncios quedan iguales.</p>
+      </div></section>
+    <section id="appearance-controls" class="appearance-controls" aria-labelledby="appearance-title">
+      <h3 id="appearance-title">Fondos y transparencias</h3>
+      <section id="halloween-backgrounds" aria-labelledby="halloween-backgrounds-title">
+        <h4 id="halloween-backgrounds-title">Tu noche de Halloween</h4>
+        <div class="wallpaper-options" role="group" aria-label="Fondo de Halloween">
+          <button type="button" class="wallpaper-option" data-wallpaper-choice="original" aria-pressed="true"><span class="wallpaper-preview wallpaper-original" aria-hidden="true"></span><strong>Noche de fábrica</strong><small>Fondo original</small></button>
+          <button type="button" class="wallpaper-option" data-wallpaper-choice="moon" aria-pressed="false"><span class="wallpaper-preview wallpaper-moon" aria-hidden="true"></span><strong>Luna y murciélagos</strong><small>Una nueva noche</small></button>
+        </div>
+      </section>
+      <label class="transparency-control" for="appearance-cards"><span>Transparencia de cuadros <output id="appearance-cards-value" for="appearance-cards">18 %</output></span><input id="appearance-cards" type="range" min="0" max="60" step="1" value="18"><small>De sólido a más transparente. Ve el fondo a través de las tarjetas.</small></label>
+      <label class="transparency-control" for="appearance-windows"><span>Transparencia de ventanas <output id="appearance-windows-value" for="appearance-windows">8 %</output></span><input id="appearance-windows" type="range" min="0" max="40" step="1" value="8"><small>Ajusta los menús y diálogos. Los campos de edición conservan su contraste.</small></label>
+      <button id="appearance-reset" type="button" class="button button-secondary">Restablecer apariencia</button>
+      <p id="appearance-status" class="hint" role="status" aria-live="polite"></p>
+    </section>
+    <p id="theme-error" class="hint" role="status" aria-live="polite"></p><p class="hint">Sólo cambia la apariencia de este teléfono. Tus imágenes y anuncios quedan iguales.</p>
   </dialog>
   <dialog class="dialog about-dialog" id="about-dialog" aria-labelledby="about-title">
     <div class="dialog-head"><div><p class="about-eyebrow">HECHA PARA EVOLUCIONAR CONTIGO</p><h2 id="about-title">SuperTools</h2></div><button class="dialog-close" id="close-about" type="button" aria-label="Cerrar Acerca de">×</button></div>

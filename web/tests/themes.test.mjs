@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {THEMES,THEME_KEY,normalizeTheme,installThemes,installSettings} from '../public/themes.js';
+import {THEMES,THEME_KEY,normalizeTheme,installThemes,installSettings,APPEARANCE_KEY,DEFAULT_APPEARANCE,normalizeAppearance,installAppearance} from '../public/themes.js';
 function page(){const handlers={},buttons=THEMES.map(t=>({dataset:{themeChoice:t.id},setAttribute(k,v){this[k]=v}}));const elements=new Map();
  for(const id of ['theme-dialog','theme-error','open-themes','close-themes'])elements.set(id,{open:false,textContent:'',addEventListener(type,fn){handlers[id+':'+type]=fn},querySelectorAll(){return buttons},showModal(){this.open=true},close(){this.open=false}});
  return {root:{documentElement:{dataset:{}},getElementById:id=>elements.get(id)},events:{addEventListener(type,fn){handlers[type]=fn}},handlers,buttons,elements};}
@@ -47,6 +47,37 @@ test('Halloween is the default without storing over personal choices',async()=>{
    assert.equal(ui.root.documentElement.dataset.theme,THEMES.some(t=>t.id===saved)?saved:'halloween');
    assert.equal(writes,0);
  }
+});
+function appearancePage(){
+ const elements=new Map(),styles=new Map();
+ const node=id=>{const result={value:'',textContent:'',disabled:false,dataset:{},addEventListener(type,fn){this[type]=fn;},setAttribute(k,v){this[k]=v;}};elements.set(id,result);return result;};
+ for(const id of ['appearance-controls','appearance-status','appearance-cards','appearance-windows','appearance-cards-value','appearance-windows-value','appearance-reset'])node(id);
+ const buttons=['original','moon'].map(value=>{const b=node('wallpaper-'+value);b.dataset.wallpaperChoice=value;return b;});
+ elements.get('appearance-controls').querySelectorAll=()=>buttons;
+ return {elements,styles,root:{getElementById:id=>elements.get(id),documentElement:{dataset:{theme:'halloween'},style:{setProperty:(key,value)=>styles.set(key,value)}}}};
+}
+test('appearance validates stored values and limits transparency without accepting CSS',()=>{
+ assert.deepEqual(normalizeAppearance(null),DEFAULT_APPEARANCE);
+ assert.deepEqual(normalizeAppearance({wallpaper:'url(evil)',cards:Infinity,windows:'40'}),DEFAULT_APPEARANCE);
+ assert.deepEqual(normalizeAppearance({wallpaper:'moon',cards:100,windows:-4}),{wallpaper:'moon',cards:60,windows:0});
+});
+test('appearance previews live, persists independently, restores on reopen and rolls back failed writes',async()=>{
+ const values=new Map([['team-original','KEEP'],[THEME_KEY,'halloween']]);let fail=false,writes=0;
+ const storage={getText:async key=>values.get(key),putText:async(key,value)=>{if(fail)throw Error('full');writes++;values.set(key,value);}};
+ const ui=appearancePage();await installAppearance(storage,ui.root);assert.equal(writes,0);
+ const slider=ui.elements.get('appearance-cards');slider.value='46';slider.input();
+ assert.equal(ui.styles.get('--ui-card-opacity'),'54%');assert.equal(writes,0);
+ await slider.change();assert.equal(JSON.parse(values.get(APPEARANCE_KEY)).cards,46);
+ await ui.elements.get('wallpaper-moon').click();assert.equal(ui.root.documentElement.dataset.wallpaper,'moon');
+ const next=appearancePage();await installAppearance(storage,next.root);assert.equal(next.styles.get('--ui-card-opacity'),'54%');assert.equal(next.root.documentElement.dataset.wallpaper,'moon');
+ fail=true;await next.elements.get('wallpaper-original').click();assert.equal(next.root.documentElement.dataset.wallpaper,'moon');assert.match(next.elements.get('appearance-status').textContent,/No se pudo guardar/);
+ fail=false;await next.elements.get('appearance-reset').click();assert.deepEqual(JSON.parse(values.get(APPEARANCE_KEY)),DEFAULT_APPEARANCE);
+ assert.equal(values.get('team-original'),'KEEP');assert.equal(values.get(THEME_KEY),'halloween');
+});
+test('unreadable appearance keeps defaults and remains editable',async()=>{
+ const ui=appearancePage();await installAppearance({getText:async()=>'{invalid',putText:async()=>{}},ui.root);
+ assert.equal(ui.root.documentElement.dataset.wallpaper,'original');assert.equal(ui.elements.get('appearance-cards').disabled,false);
+ assert.match(ui.elements.get('appearance-status').textContent,/No se pudo leer/);
 });
 
 test('PayPal usa el enlace público y mantiene el navegador separado de la app',async()=>{
