@@ -2579,22 +2579,29 @@
 :root[data-theme] .tools-heading{margin:12px 0 4px}
 :root[data-theme] .team-shortcuts{margin:4px 0 12px}
 :root[data-theme] #manage-shortcuts{display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;font-size:28px;font-weight:500;line-height:1;background:transparent;border:0;box-shadow:none}
-:root[data-theme] .plant-navigation{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-:root[data-theme] .plant-navigation>.iso-calendar-card{flex:0 0 3.35rem;width:3.35rem;margin:0 0 0 auto}
+:root[data-theme] .plant-navigation{display:grid;grid-template-columns:minmax(0,1fr) minmax(7rem,max-content);align-items:center;column-gap:16px;row-gap:4px}
+:root[data-theme] .plant-navigation>#back-to-plants{grid-column:1;grid-row:1/span 2;justify-self:start}
+:root[data-theme] .plant-navigation>#plant-clock{grid-column:2;grid-row:2;justify-self:center}
 /* Independent Fin de año wallpapers preserve the existing Halloween choice. */
 :root[data-theme=winter][data-winter-wallpaper=gold]{--scene-art:url('./themes/winter-gold.5ddd3ec92bde6765.webp')}
 :root[data-theme=winter][data-winter-wallpaper=snow]{--scene-art:url('./themes/winter-snow.42fca70e703ce4c0.webp')}
 :root[data-theme] .wallpaper-aurora{background-image:url('./themes/winter.2b84eaa69482468d.webp')}
 :root[data-theme] .wallpaper-gold{background-image:url('./themes/winter-gold.5ddd3ec92bde6765.webp')}
 :root[data-theme] .wallpaper-snow{background-image:url('./themes/winter-snow.42fca70e703ce4c0.webp')}
-/* The team-selection calendar is 15% larger; the live clock balances its side. */
-:root[data-theme] .plant-navigation>.iso-calendar-card{flex-basis:3.8525rem;width:3.8525rem;min-height:3.68rem;padding:5.75px 3.45px 4.6px;border-top-width:3.45px;margin:0 auto}
+/* A wider calendar sits above the clock, both centered in the right column. */
+:root[data-theme] .plant-navigation>.iso-calendar-card{grid-column:2;grid-row:1;justify-self:center;width:7rem;max-width:100%;min-height:3.68rem;padding:5.75px 8px 4.6px;border-top-width:3.45px;margin:0}
 :root[data-theme] .plant-navigation .iso-calendar-copy strong{font-size:.46rem}
 :root[data-theme] .plant-navigation .iso-calendar-week-number{font-size:1.15rem}
-:root[data-theme] .plant-navigation .iso-calendar-copy time{font-size:.391rem}
+:root[data-theme] .plant-navigation .iso-calendar-copy time{font-size:.5rem;white-space:nowrap;overflow-wrap:normal}
 :root[data-theme] .plant-navigation>.iso-calendar-card::before,:root[data-theme] .plant-navigation>.iso-calendar-card::after{top:-5.75px;width:2.3px;height:6.9px}
 :root[data-theme] .plant-navigation>.iso-calendar-card::before{left:10.35px}
 :root[data-theme] .plant-navigation>.iso-calendar-card::after{right:10.35px}
+@media(max-width:360px){
+ :root[data-theme] .plant-navigation{grid-template-columns:minmax(0,1fr)}
+ :root[data-theme] .plant-navigation>#back-to-plants{grid-column:1;grid-row:1;margin-bottom:8px}
+ :root[data-theme] .plant-navigation>.iso-calendar-card{grid-column:1;grid-row:2;justify-self:end}
+ :root[data-theme] .plant-navigation>#plant-clock{grid-column:1;grid-row:3;justify-self:end;width:7rem}
+}
 :root[data-theme] .plant-clock{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;max-width:100%;min-height:44px;padding:8px 4px;background:transparent;border:0;box-shadow:none;color:var(--text);font:600 .82rem var(--mono);font-variant-numeric:tabular-nums;cursor:pointer;text-shadow:0 1px 5px #0009;touch-action:manipulation}
 :root[data-theme] .plant-clock[hidden],:root[data-theme] .plant-clock-icon[hidden]{display:none}
 :root[data-theme] .plant-clock time{white-space:nowrap}
