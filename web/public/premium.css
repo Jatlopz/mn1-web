@@ -2439,7 +2439,7 @@
 :root[data-theme=halloween][data-wallpaper=moon]{--scene-art:url('./themes/halloween-moon.8fbffa02c070af42.webp')}
 :root[data-theme] :is(.admin-dashboard,.production-studio)::before{opacity:1}
 :root[data-theme] :is(.admin-dashboard,.production-studio)::after{background:linear-gradient(90deg,#06091350,transparent 50%,#06091318),linear-gradient(0deg,#06091330,transparent 60%)}
-:root[data-theme] :is(.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.admin-summary article,.idea-card,.admin-welcome,.admin-stat,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card,.discovery-action){background:color-mix(in srgb,var(--ui-panel) var(--ui-card-opacity,82%),transparent)}
+:root[data-theme] :is(.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.idea-card,.admin-welcome,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card){background:color-mix(in srgb,var(--ui-panel) var(--ui-card-opacity,82%),transparent)}
 :root[data-theme] :is(.dialog,.prod-catalog-dialog,.registry-editor,.tool-drawer){background:color-mix(in srgb,var(--ui-panel) var(--ui-window-opacity,92%),transparent)}
 :root[data-theme] .appearance-controls{border-top:1px solid var(--ui-edge);margin-top:24px;padding-top:16px}
 :root[data-theme] .appearance-controls h3{margin:0 0 16px;font-size:1.1rem}
@@ -2459,5 +2459,101 @@
 :root[data-theme] .transparency-control output{color:var(--lime);font-variant-numeric:tabular-nums}
 :root[data-theme] .transparency-control input[type=range]{width:100%;min-width:0;min-height:44px;accent-color:var(--lime);padding:0;touch-action:pan-y}
 :root[data-theme] .transparency-control small{color:var(--text-muted)}
-@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){:root[data-theme] :is(.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.admin-summary article,.idea-card,.admin-welcome,.admin-stat,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card,.discovery-action,.dialog,.prod-catalog-dialog,.registry-editor,.tool-drawer){background:var(--ui-panel)}}
-@media(forced-colors:active){:root[data-theme] :is(.wallpaper-option,.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.admin-summary article,.idea-card,.admin-welcome,.admin-stat,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card,.discovery-action,.dialog,.prod-catalog-dialog,.registry-editor,.tool-drawer){background:Canvas;color:CanvasText;border-color:ButtonText}:root[data-theme] .wallpaper-option[aria-pressed=true]{outline:2px solid Highlight}}
+@media(prefers-reduced-transparency:reduce),(prefers-contrast:more){:root[data-theme] :is(.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.idea-card,.admin-welcome,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card,.dialog,.prod-catalog-dialog,.registry-editor,.tool-drawer){background:var(--ui-panel)}}
+@media(forced-colors:active){:root[data-theme] :is(.wallpaper-option,.plant-card,.tools-category,.profile-card-wrap:not([data-has-cover=true]) .profile-card,.idea-card,.admin-welcome,.admin-overview,.admin-team-card,.registry-process,.registry-overview,.prod-process,.prod-efficiency-card,.dialog,.prod-catalog-dialog,.registry-editor,.tool-drawer){background:Canvas;color:CanvasText;border-color:ButtonText}:root[data-theme] .wallpaper-option[aria-pressed=true]{outline:2px solid Highlight}}
+/* Airier interface: icons remain free, groups use spacing rather than nested frames.
+   Field boundaries and keyboard-only focus indicators remain visible. */
+:root[data-theme] :is(.about-button,.admin-entry,.admin-icon-button,.team-settings>summary,.dialog-close,.dialog-head .dialog-close){background:transparent;border-color:transparent;box-shadow:none;color:var(--lime)}
+:root[data-theme] .app-header>.about-button{background:transparent;border-color:transparent;box-shadow:none}
+:root[data-theme] .team-shortcut{background:none;border:0;border-radius:0;box-shadow:none}
+:root[data-theme] .team-shortcut svg{width:32px;height:32px}
+:root[data-theme] .team-discovery-actions{border:0;gap:24px;padding:20px 0;margin:8px auto;grid-template-columns:repeat(2,minmax(0,1fr))}
+:root[data-theme] .discovery-action{background:transparent;border:0;border-radius:0;box-shadow:none;padding:8px 0;gap:8px;min-height:140px}
+:root[data-theme] .discovery-symbol{width:108px;height:108px;filter:drop-shadow(0 5px 10px #0005)}
+:root[data-theme] .discovery-label{font-size:.86rem;text-shadow:0 2px 8px #000a}
+:root[data-theme] .tools-category{border:0;box-shadow:none}
+:root[data-theme] .team-tools-home .report-entry{background:transparent;border:0;border-radius:0;box-shadow:none;padding:18px 0;margin:0}
+:root[data-theme] .team-tool-list{gap:0}
+:root[data-theme] :is(.button-secondary,.button-ghost,.back-button,.prod-secondary,.prod-back,.contact-copy,.team-logo-pick){background:transparent;border-color:transparent;box-shadow:none;color:var(--lime)}
+:root[data-theme] :is(.button-secondary,.button-ghost):hover:not(:disabled){background:transparent;border-color:transparent}
+:root[data-theme] .settings-dialog .settings-option{background:transparent;border:0;border-radius:0;box-shadow:none;padding:16px 0}
+:root[data-theme] .settings-symbol{background:none;border:0;box-shadow:none;border-radius:0}
+:root[data-theme] .settings-options{gap:4px}
+:root[data-theme] .dialog-close{width:44px;min-width:44px;height:44px;min-height:44px;border-radius:50%;font-size:1.4rem}
+:root[data-theme] .about-dialog{width:min(460px,calc(100vw - 28px));padding:24px}
+:root[data-theme] .about-dialog .dialog-head{align-items:flex-start;margin:0 0 24px}
+:root[data-theme] .about-dialog .dialog-head h2{font-size:1.85rem;line-height:1.15;margin:8px 0 0;letter-spacing:-.035em}
+:root[data-theme] .about-dialog>.dialog-head .about-eyebrow{font-size:.62rem!important;letter-spacing:.09em}
+:root[data-theme] .about-dialog>p{font-size:.9rem;line-height:1.7;margin:12px 0;color:var(--text-muted)}
+:root[data-theme] .about-dialog>p:first-of-type{font-size:1rem;line-height:1.65;color:var(--text)}
+:root[data-theme] .about-creator{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:16px;background:none;border:0;border-radius:0;padding:12px 0;margin:22px 0 14px;box-shadow:none}
+:root[data-theme] .creator-photo-frame{width:52px;height:56px;border:0;border-radius:10px;box-shadow:none}
+:root[data-theme] .about-creator>div{min-width:0}
+:root[data-theme] .about-creator strong{display:block;font-size:1rem;line-height:1.4;margin:4px 0}
+:root[data-theme] .about-creator .about-eyebrow{font-size:.58rem!important;letter-spacing:.06em}
+:root[data-theme] .about-creator p{font-size:.75rem;line-height:1.5;margin:0}
+:root[data-theme] .about-contact{background:none;border:0;border-radius:0;padding:0;margin:20px 0 8px}
+:root[data-theme] .about-contact summary{min-height:44px;padding:10px 0;font-size:.86rem}
+:root[data-theme] .contact-row{align-items:start;gap:12px;padding:12px 0;border:0}
+:root[data-theme] .contact-copy{min-width:44px;padding:8px;font-size:.72rem}
+:root[data-theme] .coffee-compact{margin:12px 0 20px}
+:root[data-theme] .coffee-compact .coffee-button{background:none;border:0;border-radius:0;box-shadow:none;padding:8px 0;min-height:44px;font-size:.76rem;color:var(--text-muted)}
+:root[data-theme] .about-meta{border:0;padding:0;margin:0;gap:0}
+:root[data-theme] .version-badge{background:none;border:0;padding:0;border-radius:0}
+:root[data-theme] .about-dialog .copyright-note{font-size:.66rem;line-height:1.6;margin-top:24px;color:var(--text-muted)}
+@media(max-width:600px){:root[data-theme] .team-identity h1{font-size:clamp(1.3rem,5.5vw,2rem)}}
+@media(hover:hover) and (pointer:fine){:root[data-theme] .team-settings>summary:hover,:root[data-theme] .app-header>.about-button:hover{color:var(--text);background:transparent}}
+@media(forced-colors:active){:root[data-theme] :is(.discovery-action,.settings-option,.team-shortcut,.about-creator,.about-contact,.coffee-button){background:Canvas;color:ButtonText}:root[data-theme] :is(.team-settings>summary,.dialog-close){color:ButtonText}}
+/* Whole-app refinement: one surface per task, no ornamental nested containers. */
+:root[data-theme] .plant-card{border:0;box-shadow:none;border-radius:20px}
+:root[data-theme] .plant-card::after{display:none}
+:root[data-theme] .plant-symbol,:root[data-theme] .plant-badge{background:none;border:0;box-shadow:none;padding:0}
+:root[data-theme] .plant-open{border:0;padding-top:8px}
+:root[data-theme] .profile-card-wrap .profile-card{border-color:transparent;box-shadow:none}
+:root[data-theme] .profile-card-wrap .profile-card.is-active{border-color:transparent;box-shadow:inset 0 -3px var(--lime)}
+:root[data-theme] .profile-cover-edit{background:transparent;border-color:transparent;box-shadow:none}
+:root[data-theme] .welcome-eyebrow,:root[data-theme] .settings-eyebrow{letter-spacing:.09em}
+:root[data-theme] .hero-panel{border:0;background:transparent;box-shadow:none;padding:0}
+:root[data-theme] .hero-hour{background:none;border:0;padding:0}
+:root[data-theme] .image-frame{border:0;box-shadow:none;border-radius:12px}
+:root[data-theme] .editor-tools{border:0;box-shadow:none;border-radius:16px;padding:6px 2px}
+:root[data-theme] .editor-tool[aria-expanded=true]{border-color:transparent;box-shadow:inset 0 -2px var(--lime);border-radius:0;background:transparent}
+:root[data-theme] .lock-toggle{background:none;border:0;box-shadow:none;color:var(--text)}
+:root[data-theme] .lock-toggle[aria-pressed=true]{background:var(--ui-accent-soft);border:0;color:var(--lime)}
+:root[data-theme] .tool-drawer{border:0;box-shadow:0 -8px 32px #0003}
+:root[data-theme] .report-preview,:root[data-theme] .report-options{border:0;box-shadow:none}
+:root[data-theme] .report-watermark-settings{border:0;border-radius:0;background:none;padding:12px 0}
+:root[data-theme] .prod-process,:root[data-theme] .prod-efficiency-card{border:0;border-radius:18px;padding:22px;margin-bottom:20px}
+:root[data-theme] .prod-process[data-state=on]{border-left:3px solid #8fd6a8}
+:root[data-theme] .prod-tabs,:root[data-theme] .theme-tabs,:root[data-theme] .tool-library-tabs,:root[data-theme] .admin-nav,:root[data-theme] .registry-flows{border:0;border-radius:0;background:transparent;padding:0;box-shadow:none;gap:4px}
+:root[data-theme] .prod-tab,:root[data-theme] .theme-tabs button,:root[data-theme] .tool-library-tabs button,:root[data-theme] .admin-nav button,:root[data-theme] .registry-flows button{border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--text-muted)}
+:root[data-theme] .prod-tab[aria-pressed=true],:root[data-theme] .theme-tabs [aria-selected=true],:root[data-theme] .tool-library-tabs [aria-pressed=true],:root[data-theme] .admin-nav button[aria-pressed=true],:root[data-theme] .registry-flows [aria-pressed=true]{background:transparent;color:var(--lime);border:0;box-shadow:inset 0 -2px var(--lime)}
+:root[data-theme] .tool-library-card{border:0;border-radius:0;background:transparent;padding:24px 0;border-bottom:1px solid var(--ui-edge-subtle)}
+:root[data-theme] .tool-demo{border:0;border-radius:0;background:transparent;padding:16px 0 0}
+:root[data-theme] .admin-welcome{border:0;box-shadow:none;padding:28px}
+:root[data-theme] .admin-orbit{display:none}
+:root[data-theme] .admin-nav button{min-height:64px;font-size:.8rem}
+:root[data-theme] .admin-top .admin-header-actions #admin-close{background:transparent;border-color:transparent;box-shadow:none;color:var(--lime)}
+:root[data-theme] .action-bar{display:flex;flex-wrap:wrap;background:transparent;border:0;border-radius:0;padding:8px 0;gap:8px}
+:root[data-theme] .action-bar .button{min-width:min(100%,7rem);flex:1 1 7rem;font-size:.85rem;padding:12px;white-space:normal;overflow-wrap:normal}
+:root[data-theme] .action-bar #save-template{background:transparent;border-color:transparent;color:var(--lime)}
+:root[data-theme] .action-bar #download-png{flex:1 1 100%;padding:6px 12px}
+:root[data-theme] .admin-summary article,:root[data-theme] .admin-stat{border:0;border-radius:0;background:transparent;box-shadow:none;padding:16px 4px}
+:root[data-theme] .admin-team-card,:root[data-theme] .admin-overview,:root[data-theme] .admin-inbox .idea-card{border:0;box-shadow:none}
+:root[data-theme] .admin-team-avatar,:root[data-theme] .registry-process-symbol{border:0;border-radius:0;background:none;box-shadow:none}
+:root[data-theme] .registry-metrics{border:0;border-radius:0;background:transparent;box-shadow:none;padding:16px 0}
+:root[data-theme] .registry-process{border:0;box-shadow:none;border-radius:16px}
+:root[data-theme] .registry-resource .button{background:transparent;border-color:transparent;color:var(--lime)}
+:root[data-theme] .registry-process-body{border:0}
+:root[data-theme] .theme-option{border-color:transparent;box-shadow:none}
+:root[data-theme] .theme-option[aria-pressed=true]{border-color:transparent;box-shadow:inset 0 -3px var(--lime)}
+:root[data-theme] .cloud-team,:root[data-theme] .cloud-dialog details{border:0;border-radius:0;background:transparent;padding:16px 0}
+:root[data-theme] .wallpaper-option{border-color:transparent;box-shadow:none}
+:root[data-theme] .wallpaper-option[aria-pressed=true]{border:1px solid transparent;padding:8px;box-shadow:inset 0 -3px var(--lime)}
+@media(prefers-contrast:more){:root[data-theme] :is(.plant-card,.profile-card,.prod-process,.prod-efficiency-card,.registry-process){outline:1px solid var(--ui-edge)}}
+@media(forced-colors:active){:root[data-theme] :is(.prod-tab[aria-pressed=true],.theme-tabs [aria-selected=true],.tool-library-tabs [aria-pressed=true],.admin-nav [aria-pressed=true],.registry-flows [aria-pressed=true],.profile-card.is-active,.theme-option[aria-pressed=true],.wallpaper-option[aria-pressed=true]){outline:2px solid Highlight;outline-offset:-2px}:root[data-theme] .prod-process[data-state=on]{border-left:3px solid Highlight}}
+:root[data-theme] .admin-top .admin-header-actions .admin-icon-button{background:transparent;border-color:transparent;box-shadow:none}
+:root[data-theme] .hero-head{padding:0 8px 10px;min-width:0}
+:root[data-theme] .hero-hour{flex:0 0 auto}
+:root[data-theme] .plant-card strong{font-weight:680;letter-spacing:-.035em}
+:root[data-theme] .teams-intro h1,:root[data-theme] .team-identity h1{font-weight:680}
