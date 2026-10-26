@@ -28,6 +28,8 @@ export const STARTER_IMAGES = Object.freeze([
 
 export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
+  {"id":"winter-gold","path":"themes/winter-gold.5ddd3ec92bde6765.webp","sha256":"5ddd3ec92bde6765c5c7d095e93fff7202aa2943a9b6b5ae42e59843bfaa090f","size":359112,"width":1024,"height":1536},
+  {"id":"winter-snow","path":"themes/winter-snow.42fca70e703ce4c0.webp","sha256":"42fca70e703ce4c054c1a6cf684390a8ffd2860d241402895063926ea131ffb8","size":299506,"width":1024,"height":1536},
   {
     "id": "halloween-moon",
     "path": "themes/halloween-moon.8fbffa02c070af42.webp",

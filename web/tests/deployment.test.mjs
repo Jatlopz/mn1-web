@@ -16,7 +16,7 @@ const MODULE_PATTERN = /^(registry-model|registry-admin|iso-calendar|team-tool-l
 test('published bundle contains every module with coherent content hashes', async () => {
   const out = await mkdtemp(path.join(tmpdir(), 'mn1-pages-'));
   const files = await buildSite(publicPath, out);
-  assert.equal(files.length, 30);
+  assert.equal(files.length, 32);
   assert.deepEqual((await readdir(path.join(out, 'templates'))).sort(), ['indestructibles.c9e3d4ac8d3d6f3f.png', 'super-guerreros.8200d4c6f9ede505.png']);
 
   const html = await readFile(path.join(out, 'index.html'), 'utf8');

@@ -1,10 +1,10 @@
 export const THEME_KEY = 'mn1.appearance.theme';
 export const APPEARANCE_KEY = 'mn1.appearance.surfaces.v1';
-export const DEFAULT_APPEARANCE = Object.freeze({wallpaper:'original',cards:18,windows:8});
+export const DEFAULT_APPEARANCE = Object.freeze({wallpaper:'original',winterWallpaper:'aurora',cards:18,windows:8});
 export function normalizeAppearance(value) {
  const source=value&&typeof value==='object'?value:{};
  const transparency=(key,max)=>typeof source[key]==='number'&&Number.isFinite(source[key])?Math.round(Math.max(0,Math.min(max,source[key]))):DEFAULT_APPEARANCE[key];
- return {wallpaper:source.wallpaper==='moon'?'moon':'original',cards:transparency('cards',60),windows:transparency('windows',40)};
+ return {wallpaper:source.wallpaper==='moon'?'moon':'original',winterWallpaper:['gold','snow'].includes(source.winterWallpaper)?source.winterWallpaper:'aurora',cards:transparency('cards',60),windows:transparency('windows',40)};
 }
 
 export async function installAppearance(storage,root=document) {
@@ -12,13 +12,15 @@ export async function installAppearance(storage,root=document) {
  if(!controls)return;
  const status=root.getElementById('appearance-status');
  const buttons=[...controls.querySelectorAll('[data-wallpaper-choice]')];
+ const winterButtons=[...controls.querySelectorAll('[data-winter-wallpaper-choice]')];
  const cards=root.getElementById('appearance-cards'),windows=root.getElementById('appearance-windows');
  const reset=root.getElementById('appearance-reset');
- const inputs=[cards,windows,reset,...buttons];
+ const inputs=[cards,windows,reset,...buttons,...winterButtons];
  let saved=normalizeAppearance(null),draft=saved,revision=0,writes=Promise.resolve();
  const apply=value=>{
   draft=normalizeAppearance(value);
   root.documentElement.dataset.wallpaper=draft.wallpaper;
+  root.documentElement.dataset.winterWallpaper=draft.winterWallpaper;
   root.documentElement.style.setProperty('--ui-card-opacity',(100-draft.cards)+'%');
   root.documentElement.style.setProperty('--ui-window-opacity',(100-draft.windows)+'%');
   for(const key of ['cards','windows']){
@@ -26,6 +28,7 @@ export async function installAppearance(storage,root=document) {
    root.getElementById('appearance-'+key+'-value').textContent=draft[key]+' %';
   }
   for(const button of buttons)button.setAttribute('aria-pressed',String(button.dataset.wallpaperChoice===draft.wallpaper));
+  for(const button of winterButtons)button.setAttribute('aria-pressed',String(button.dataset.winterWallpaperChoice===draft.winterWallpaper));
  };
  apply(saved);
  for(const input of inputs)input.disabled=true;
@@ -48,6 +51,7 @@ export async function installAppearance(storage,root=document) {
   input.addEventListener('change',()=>save({...draft,[key]:Number(input.value)}));
  }
  for(const button of buttons)button.addEventListener('click',()=>save({...draft,wallpaper:button.dataset.wallpaperChoice}));
+ for(const button of winterButtons)button.addEventListener('click',()=>save({...draft,winterWallpaper:button.dataset.winterWallpaperChoice}));
  reset.addEventListener('click',()=>save(DEFAULT_APPEARANCE));
 }
 export const DEFAULT_THEME = 'halloween';
@@ -67,6 +71,7 @@ export async function installThemes(storage, root=document, events=window) {
  const apply=id=>{
   selected=normalizeTheme(id);root.documentElement.dataset.theme=selected;
   const backgrounds=root.getElementById('halloween-backgrounds');if(backgrounds)backgrounds.hidden=selected!=='halloween';
+  const winterBackgrounds=root.getElementById('winter-backgrounds');if(winterBackgrounds)winterBackgrounds.hidden=selected!=='winter';
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
  apply(DEFAULT_THEME);

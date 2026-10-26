@@ -2581,3 +2581,9 @@
 :root[data-theme] #manage-shortcuts{display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;font-size:28px;font-weight:500;line-height:1;background:transparent;border:0;box-shadow:none}
 :root[data-theme] .plant-navigation{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
 :root[data-theme] .plant-navigation>.iso-calendar-card{flex:0 0 3.35rem;width:3.35rem;margin:0 0 0 auto}
+/* Independent Fin de año wallpapers preserve the existing Halloween choice. */
+:root[data-theme=winter][data-winter-wallpaper=gold]{--scene-art:url('./themes/winter-gold.5ddd3ec92bde6765.webp')}
+:root[data-theme=winter][data-winter-wallpaper=snow]{--scene-art:url('./themes/winter-snow.42fca70e703ce4c0.webp')}
+:root[data-theme] .wallpaper-aurora{background-image:url('./themes/winter.2b84eaa69482468d.webp')}
+:root[data-theme] .wallpaper-gold{background-image:url('./themes/winter-gold.5ddd3ec92bde6765.webp')}
+:root[data-theme] .wallpaper-snow{background-image:url('./themes/winter-snow.42fca70e703ce4c0.webp')}

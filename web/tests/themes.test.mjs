@@ -53,13 +53,14 @@ function appearancePage(){
  const node=id=>{const result={value:'',textContent:'',disabled:false,dataset:{},addEventListener(type,fn){this[type]=fn;},setAttribute(k,v){this[k]=v;}};elements.set(id,result);return result;};
  for(const id of ['appearance-controls','appearance-status','appearance-cards','appearance-windows','appearance-cards-value','appearance-windows-value','appearance-reset'])node(id);
  const buttons=['original','moon'].map(value=>{const b=node('wallpaper-'+value);b.dataset.wallpaperChoice=value;return b;});
- elements.get('appearance-controls').querySelectorAll=()=>buttons;
+ const winterButtons=['aurora','gold','snow'].map(value=>{const b=node('winter-'+value);b.dataset.winterWallpaperChoice=value;return b;});
+ elements.get('appearance-controls').querySelectorAll=selector=>selector==='[data-winter-wallpaper-choice]'?winterButtons:buttons;
  return {elements,styles,root:{getElementById:id=>elements.get(id),documentElement:{dataset:{theme:'halloween'},style:{setProperty:(key,value)=>styles.set(key,value)}}}};
 }
 test('appearance validates stored values and limits transparency without accepting CSS',()=>{
  assert.deepEqual(normalizeAppearance(null),DEFAULT_APPEARANCE);
  assert.deepEqual(normalizeAppearance({wallpaper:'url(evil)',cards:Infinity,windows:'40'}),DEFAULT_APPEARANCE);
- assert.deepEqual(normalizeAppearance({wallpaper:'moon',cards:100,windows:-4}),{wallpaper:'moon',cards:60,windows:0});
+ assert.deepEqual(normalizeAppearance({wallpaper:'moon',cards:100,windows:-4}),{wallpaper:'moon',winterWallpaper:'aurora',cards:60,windows:0});
 });
 test('appearance previews live, persists independently, restores on reopen and rolls back failed writes',async()=>{
  const values=new Map([['team-original','KEEP'],[THEME_KEY,'halloween']]);let fail=false,writes=0;
@@ -78,6 +79,16 @@ test('unreadable appearance keeps defaults and remains editable',async()=>{
  const ui=appearancePage();await installAppearance({getText:async()=>'{invalid',putText:async()=>{}},ui.root);
  assert.equal(ui.root.documentElement.dataset.wallpaper,'original');assert.equal(ui.elements.get('appearance-cards').disabled,false);
  assert.match(ui.elements.get('appearance-status').textContent,/No se pudo leer/);
+});
+test('winter backgrounds migrate existing preferences without writes and persist independently of Halloween',async()=>{
+ const original=JSON.stringify({wallpaper:'moon',cards:35,windows:12}),values=new Map([[APPEARANCE_KEY,original]]);
+ const storage={getText:async key=>values.get(key),putText:async(key,value)=>values.set(key,value)};
+ const ui=appearancePage();await installAppearance(storage,ui.root);
+ assert.equal(ui.root.documentElement.dataset.winterWallpaper,'aurora');assert.equal(values.get(APPEARANCE_KEY),original);
+ await ui.elements.get('winter-gold').click();assert.deepEqual(JSON.parse(values.get(APPEARANCE_KEY)),{wallpaper:'moon',winterWallpaper:'gold',cards:35,windows:12});
+ const reopened=appearancePage();await installAppearance(storage,reopened.root);assert.equal(reopened.root.documentElement.dataset.winterWallpaper,'gold');assert.equal(reopened.elements.get('winter-gold')['aria-pressed'],'true');
+ await reopened.elements.get('winter-snow').click();assert.equal(JSON.parse(values.get(APPEARANCE_KEY)).winterWallpaper,'snow');assert.equal(reopened.root.documentElement.dataset.wallpaper,'moon');
+ assert.equal(normalizeAppearance({winterWallpaper:'url(unsafe)'}).winterWallpaper,'aurora');
 });
 
 test('PayPal usa el enlace público y mantiene el navegador separado de la app',async()=>{
