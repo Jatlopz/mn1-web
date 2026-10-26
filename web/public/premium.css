@@ -2587,3 +2587,19 @@
 :root[data-theme] .wallpaper-aurora{background-image:url('./themes/winter.2b84eaa69482468d.webp')}
 :root[data-theme] .wallpaper-gold{background-image:url('./themes/winter-gold.5ddd3ec92bde6765.webp')}
 :root[data-theme] .wallpaper-snow{background-image:url('./themes/winter-snow.42fca70e703ce4c0.webp')}
+/* The team-selection calendar is 15% larger; the live clock balances its side. */
+:root[data-theme] .plant-navigation>.iso-calendar-card{flex-basis:3.8525rem;width:3.8525rem;min-height:3.68rem;padding:5.75px 3.45px 4.6px;border-top-width:3.45px;margin:0 auto}
+:root[data-theme] .plant-navigation .iso-calendar-copy strong{font-size:.46rem}
+:root[data-theme] .plant-navigation .iso-calendar-week-number{font-size:1.15rem}
+:root[data-theme] .plant-navigation .iso-calendar-copy time{font-size:.391rem}
+:root[data-theme] .plant-navigation>.iso-calendar-card::before,:root[data-theme] .plant-navigation>.iso-calendar-card::after{top:-5.75px;width:2.3px;height:6.9px}
+:root[data-theme] .plant-navigation>.iso-calendar-card::before{left:10.35px}
+:root[data-theme] .plant-navigation>.iso-calendar-card::after{right:10.35px}
+:root[data-theme] .plant-clock{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;max-width:100%;min-height:44px;padding:8px 4px;background:transparent;border:0;box-shadow:none;color:var(--text);font:600 .82rem var(--mono);font-variant-numeric:tabular-nums;cursor:pointer;text-shadow:0 1px 5px #0009;touch-action:manipulation}
+:root[data-theme] .plant-clock[hidden],:root[data-theme] .plant-clock-icon[hidden]{display:none}
+:root[data-theme] .plant-clock time{white-space:nowrap}
+:root[data-theme] .plant-clock-icon{display:grid;place-items:center;color:var(--lime);flex:0 0 20px}
+:root[data-theme] .plant-clock-icon svg{display:block;width:20px;height:20px}
+:root[data-theme] .plant-clock:focus-visible{outline:2px solid var(--lime);outline-offset:4px;border-radius:4px}
+:root[data-theme] #plant-clock-status{margin:0;font-size:.75rem;color:var(--danger)}
+@media(forced-colors:active){:root[data-theme] .plant-clock{color:ButtonText;text-shadow:none}:root[data-theme] .plant-clock-icon{color:ButtonText}}

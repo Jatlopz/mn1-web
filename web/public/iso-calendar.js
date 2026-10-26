@@ -31,7 +31,15 @@ export function formatIsoCalendarDate(value,locale='es-HN') {
 }
 
 /** Read-only calendar. Selecting a date never changes a report or the current-week indicator. */
-export function installIsoCalendar({root=document,now=()=>new Date(),timers=true}={}) {
+export const CLOCK_FORMAT_KEY='mn1.appearance.clock-format';
+export const normalizeClockFormat=value=>value==='24h'?'24h':'12h';
+export function localClockInfo(date=new Date(),format='12h') {
+  if(!(date instanceof Date)||!Number.isFinite(date.getTime()))throw Error('Hora no válida.');
+  const hour=date.getHours(),minute=String(date.getMinutes()).padStart(2,'0'),military=normalizeClockFormat(format)==='24h';
+  return {text:military?String(hour).padStart(2,'0')+':'+minute:(hour%12||12)+':'+minute+' '+(hour<12?'AM':'PM'),dateTime:String(hour).padStart(2,'0')+':'+minute,period:hour>=6&&hour<18?'day':'night'};
+}
+
+export function installIsoCalendar({root=document,now=()=>new Date(),timers=true,storage=null}={}) {
   const triggers=['iso-calendar-open','teams-iso-calendar-open'].map(id=>root.getElementById(id)).filter(Boolean);if(!triggers.length)return null;
   const view=root.defaultView;
   const node=(tag,className,text)=>{const el=root.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
@@ -46,7 +54,11 @@ export function installIsoCalendar({root=document,now=()=>new Date(),timers=true
   const thead=node('thead'),heading=node('tr');for(const [short,full] of [['#','Semana ISO'],['L','Lunes'],['M','Martes'],['X','Miércoles'],['J','Jueves'],['V','Viernes'],['S','Sábado'],['D','Domingo']]){const th=node('th','',short);th.scope='col';th.setAttribute('aria-label',full);heading.append(th);}thead.append(heading);const body=node('tbody');table.append(caption,thead,body);
   const explanation=node('details','iso-help');explanation.append(node('summary','','Cómo se cuenta la semana'),node('p','hint','Las semanas van de lunes a domingo. La semana 1 contiene el primer jueves del año. Por eso, cerca de Año Nuevo, el año ISO puede ser distinto del año de la fecha.'));
   dialog.append(head,selectedBox,navigation,table,explanation);root.body.append(dialog);
-  let current=isoWeekInfo(now()),selected=current.date,month=selected.slice(0,7),timer=null;
+  let current=isoWeekInfo(now()),selected=current.date,month=selected.slice(0,7),timer=null,alive=true,clockFormat='12h',clockSaving=false;
+  const clockButton=root.getElementById('plant-clock'),clockValue=root.getElementById('plant-current-time'),dayIcon=root.getElementById('plant-day-icon'),nightIcon=root.getElementById('plant-night-icon'),clockStatus=root.getElementById('plant-clock-status');
+  const clockError=message=>{if(clockStatus){clockStatus.textContent=message;clockStatus.hidden=!message;}};
+  function refreshClock(instant){if(!clockButton)return;const info=localClockInfo(instant,clockFormat);clockValue.textContent=info.text;clockValue.dateTime=info.dateTime;dayIcon.hidden=info.period!=='day';nightIcon.hidden=info.period!=='night';clockButton.setAttribute('aria-pressed',String(clockFormat==='24h'));clockButton.setAttribute('aria-label',(info.period==='day'?'De día':'De noche')+', '+info.text+'. Formato '+(clockFormat==='24h'?'24 horas':'AM/PM')+'. Toca para cambiar el formato.');clockButton.title='Cambiar a '+(clockFormat==='24h'?'AM/PM':'24 horas');clockButton.hidden=false;}
+  async function toggleClock(){if(clockSaving||!alive)return;const previous=clockFormat;clockFormat=previous==='12h'?'24h':'12h';clockSaving=true;clockButton.disabled=true;clockError('');refresh();try{if(storage)await storage.putText(CLOCK_FORMAT_KEY,clockFormat);}catch{if(alive){clockFormat=previous;refresh();clockError('No se pudo guardar el formato. Se conserva el anterior.');}}finally{clockSaving=false;if(alive)clockButton.disabled=false;}}
   const monthFormatter=new Intl.DateTimeFormat('es-HN',{month:'long',year:'numeric',timeZone:'UTC'});
   function render() {
     const info=isoWeekInfo(selected);selectedTitle.textContent='Semana '+info.week+' · '+info.weekYear;selectedDate.textContent=formatIsoCalendarDate(selected);selectedDate.dateTime=selected;range.textContent='Del '+formatIsoCalendarDate(info.startDate)+' al '+formatIsoCalendarDate(info.endDate);
@@ -63,9 +75,12 @@ export function installIsoCalendar({root=document,now=()=>new Date(),timers=true
   function selectDate(date,focus=false){selected=isoWeekInfo(date).date;month=selected.slice(0,7);render();if(focus)body.querySelector('[data-date="'+selected+'"]').focus();}
   function moveMonth(offset){const target=civil(month+'-01');target.setUTCMonth(target.getUTCMonth()+offset);if(target.getUTCFullYear()>=1&&target.getUTCFullYear()<=9999){month=key(target).slice(0,7);render();}}
   function selectToday(){refresh();selectDate(current.date,true);}
-  function refresh(){const next=isoWeekInfo(now()),changed=next.date!==current.date;current=next;for(const trigger of triggers){const weekLabel=trigger.querySelector('strong'),number=node('span','iso-calendar-week-number',String(current.week));weekLabel.replaceChildren(root.createTextNode('Semana '),number);const date=trigger.querySelector('time');date.textContent=formatIsoCalendarDate(current.date);date.dateTime=current.date;trigger.setAttribute('aria-label','Semana '+current.week+', '+formatIsoCalendarDate(current.date)+'. Abrir calendario ISO');trigger.hidden=false;}if(changed&&dialog.open)render();}
+  function refresh(){if(!alive)return;const instant=now(),next=isoWeekInfo(instant),changed=next.date!==current.date;current=next;for(const trigger of triggers){const weekLabel=trigger.querySelector('strong'),number=node('span','iso-calendar-week-number',String(current.week));weekLabel.replaceChildren(root.createTextNode('Semana '),number);const date=trigger.querySelector('time');date.textContent=formatIsoCalendarDate(current.date);date.dateTime=current.date;trigger.setAttribute('aria-label','Semana '+current.week+', '+formatIsoCalendarDate(current.date)+'. Abrir calendario ISO');trigger.hidden=false;}refreshClock(instant);if(changed&&dialog.open)render();}
   const onOpen=()=>{refresh();selected=current.date;month=selected.slice(0,7);render();if(!dialog.open)dialog.showModal();};
   const onVisible=()=>{if(!root.hidden)refresh();};for(const trigger of triggers)trigger.addEventListener('click',onOpen);view?.addEventListener('focus',refresh);root.addEventListener('visibilitychange',onVisible);refresh();
-  if(timers)timer=view.setInterval(onVisible,60000);
-  return {refresh,destroy(){if(timer!==null)view.clearInterval(timer);for(const trigger of triggers){trigger.removeEventListener('click',onOpen);trigger.hidden=true;}view?.removeEventListener('focus',refresh);root.removeEventListener('visibilitychange',onVisible);dialog.close();dialog.remove();}};
+  clockButton?.addEventListener('click',toggleClock);
+  const ready=(async()=>{if(!clockButton||!storage)return;clockButton.disabled=true;try{const saved=await storage.getText(CLOCK_FORMAT_KEY);if(alive){clockFormat=normalizeClockFormat(saved);refresh();}}catch{if(alive)clockError('No se pudo leer el formato de hora. Puedes cambiarlo.');}finally{if(alive)clockButton.disabled=false;}})();
+  function schedule(){if(!alive)return;const elapsed=((now().getTime()%60000)+60000)%60000;timer=view.setTimeout(()=>{onVisible();schedule();},60000-elapsed);}
+  if(timers)schedule();
+  return {refresh,ready,destroy(){alive=false;if(timer!==null)view.clearTimeout(timer);for(const trigger of triggers){trigger.removeEventListener('click',onOpen);trigger.hidden=true;}clockButton?.removeEventListener('click',toggleClock);if(clockButton)clockButton.hidden=true;view?.removeEventListener('focus',refresh);root.removeEventListener('visibilitychange',onVisible);dialog.close();dialog.remove();}};
 }

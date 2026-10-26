@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isoWeekInfo,isoMonthWeeks,formatIsoCalendarDate} from '../public/iso-calendar.js';
+import {isoWeekInfo,isoMonthWeeks,formatIsoCalendarDate,localClockInfo,normalizeClockFormat} from '../public/iso-calendar.js';
+
+test('reloj local distingue medianoche, mediodía y formato militar sin alterar la fecha',()=>{
+ for(const [hour,minute,normal,military] of [[0,5,'12:05 AM','00:05'],[12,0,'12:00 PM','12:00'],[15,28,'3:28 PM','15:28'],[23,59,'11:59 PM','23:59']]){
+  const date=new Date(2026,9,26,hour,minute),before=date.getTime();
+  assert.equal(localClockInfo(date,'12h').text,normal);assert.equal(localClockInfo(date,'24h').text,military);assert.equal(localClockInfo(date).dateTime,military);assert.equal(date.getTime(),before);
+ }
+ assert.equal(normalizeClockFormat('24h'),'24h');assert.equal(normalizeClockFormat('unsupported'),'12h');assert.throws(()=>localClockInfo(new Date(NaN)));
+});
+test('sol y luna siguen los límites locales de día y noche',()=>{
+ for(const [hour,minute,period] of [[5,59,'night'],[6,0,'day'],[17,59,'day'],[18,0,'night']])assert.equal(localClockInfo(new Date(2026,9,26,hour,minute)).period,period);
+});
 
 test('25 de octubre de 2026 corresponde a la semana ISO43, lunes19 a domingo25',()=>{
  assert.deepEqual(isoWeekInfo('2026-10-25'),{date:'2026-10-25',week:43,weekYear:2026,weekKey:'2026-W43',weekday:7,startDate:'2026-10-19',endDate:'2026-10-25'});

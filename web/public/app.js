@@ -4692,7 +4692,7 @@ async function boot() {
   window.mn1HandleBack = () => handleAppBack(dom,app);
   document.getElementById('tools-back-teams').addEventListener('click',()=>{app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();});
   wireTeamLogo(dom, app);
-  installIsoCalendar();
+  installIsoCalendar({storage:app.storage});
   const toolLibrary=createTeamToolLibrary({getTeam:()=>getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}),onRequest:(toolId,teamId)=>app.cloud?.requestTool(toolId,teamId)});
   document.getElementById('open-tool-library').addEventListener('click',()=>{if(!app.busy&&!app.switching)toolLibrary.open();});
   document.getElementById('open-announcement').addEventListener('click',()=>launchTeamTool(dom,app,'announcement'));
