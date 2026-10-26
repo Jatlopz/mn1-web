@@ -2124,3 +2124,5 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 
 .iso-calendar-dialog .dialog-head{flex-wrap:wrap;align-items:flex-start}.iso-calendar-dialog .dialog-head h2{flex:1 1 9ch;overflow-wrap:normal}.iso-calendar-dialog .dialog-head .dialog-close{margin-left:auto}
 @media(max-width:380px){.iso-month-nav{grid-template-columns:40px minmax(0,1fr) 40px}.iso-month-nav h3{grid-column:1/-1;grid-row:1}.iso-month-nav>button:nth-child(1){grid-column:1;grid-row:2}.iso-month-nav>button:nth-child(3){grid-column:3;grid-row:2}.iso-month-nav>button:nth-child(4){grid-column:2;grid-row:2}}
+
+.team-tools-toolbar{flex-wrap:wrap}.team-tools-toolbar>.iso-calendar-card{flex:0 0 3.35rem;margin:4px 24px 0 auto}
