@@ -6,7 +6,7 @@
   "description": "Frontend web MN1 híbrido: workspace de cuatro equipos, foto original, editor Canvas, dictado y puente v1. Sin dependencias.",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check public/team-tool-library.js && node --check public/bridge.js && node --check public/profiles.js && node --check public/storage.js && node --check public/renderer.js && node --check public/starter-templates.js && node --check public/voice.js && node --check public/app.js && node --check public/meeting-report.js && node --check public/themes.js && node --check public/cloud-client.js && node --check public/cloud-model.js && node --check public/cloud-workspace.js && node --check public/plant-catalog.js && node --check public/production-model.js && node --check public/production-pdf.js && node --check public/production-studio.js"
+    "check": "node --check public/iso-calendar.js && node --check public/team-tool-library.js && node --check public/bridge.js && node --check public/profiles.js && node --check public/storage.js && node --check public/renderer.js && node --check public/starter-templates.js && node --check public/voice.js && node --check public/app.js && node --check public/meeting-report.js && node --check public/themes.js && node --check public/cloud-client.js && node --check public/cloud-model.js && node --check public/cloud-workspace.js && node --check public/plant-catalog.js && node --check public/production-model.js && node --check public/production-pdf.js && node --check public/production-studio.js"
   },
   "engines": {
     "node": ">=20"

@@ -1,1 +1,7 @@
-<!doctype html><html lang="es"><meta charset="utf-8"><title>Catálogo · viewport móvil 360 × 800</title><style>body{margin:0;background:#101015;display:grid;place-items:center}iframe{width:360px;height:800px;border:0;display:block}</style><iframe src="./team-tool-library.browser.html?legacyViewport=1" title="Catálogo de prueba móvil"></iframe><script>if(new URLSearchParams(location.search).has("pdf"))document.querySelector("iframe").src+="&showPdfExample=1";if(new URLSearchParams(location.search).has("home"))document.querySelector("iframe").src+="&home=1";const q=new URLSearchParams(location.search);if(q.has("theme"))document.querySelector("iframe").src+="&theme="+encodeURIComponent(q.get("theme"));if(q.has("largeText"))document.querySelector("iframe").src+="&largeText=1";</script></html>
+<!doctype html><html lang="es"><meta charset="utf-8"><title>SuperTools · viewport móvil 360 × 800</title><style>body{margin:0;background:#101015;display:grid;place-items:center}iframe{width:360px;height:800px;border:0;display:block}</style><iframe title="Vista de prueba móvil"></iframe><script>
+const q=new URLSearchParams(location.search),child=new URLSearchParams();let page='./team-tool-library.browser.html';
+if(q.has('calendar')){page='./iso-calendar.browser.html';if(q.get('calendar')==='card')child.set('view','card');}
+else{child.set('legacyViewport','1');if(q.has('pdf'))child.set('showPdfExample','1');if(q.has('home'))child.set('home','1');}
+if(q.has('theme'))child.set('theme',q.get('theme'));if(q.has('largeText'))child.set('largeText','1');
+document.querySelector('iframe').src=page+'?'+child;
+</script></html>
