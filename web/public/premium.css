@@ -2291,10 +2291,18 @@
   border-color:var(--lime)
 }
 :root[data-theme] .iso-selected {
-  background:var(--ui-inset);
-  border:1px solid var(--ui-edge);
-  border-radius:14px
+  display:grid;
+  gap:8px;
+  padding:16px 12px;
+  margin:0 0 8px;
+  text-align:center;
+  background:transparent;
+  border:0;
+  border-radius:0
 }
+:root[data-theme] .iso-selected-week{margin:0;font-size:1.25rem;line-height:1.35}
+:root[data-theme] .iso-selected-date{display:block;margin:0;font-size:.88rem;line-height:1.5}
+:root[data-theme] .iso-selected .hint{margin:0;font-size:.76rem;line-height:1.6;overflow-wrap:anywhere}
 :root[data-theme] .iso-month-nav {
   gap:.5rem
 }
