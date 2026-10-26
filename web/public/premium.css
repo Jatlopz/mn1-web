@@ -2570,3 +2570,4 @@
 :root[data-theme] .tools-hero:has(.team-heading-logo[hidden]){grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto}
 :root[data-theme] .tools-heading{margin:12px 0 4px}
 :root[data-theme] .team-shortcuts{margin:4px 0 12px}
+:root[data-theme] #manage-shortcuts{display:grid;place-items:center;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;font-size:28px;font-weight:500;line-height:1;background:transparent;border:0;box-shadow:none}
