@@ -32,7 +32,7 @@ export function formatIsoCalendarDate(value,locale='es-HN') {
 
 /** Read-only calendar. Selecting a date never changes a report or the current-week indicator. */
 export function installIsoCalendar({root=document,now=()=>new Date(),timers=true}={}) {
-  const trigger=root.getElementById('iso-calendar-open');if(!trigger)return null;
+  const triggers=['iso-calendar-open','teams-iso-calendar-open'].map(id=>root.getElementById(id)).filter(Boolean);if(!triggers.length)return null;
   const view=root.defaultView;
   const node=(tag,className,text)=>{const el=root.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
   const button=(text,fn,className='iso-secondary')=>{const el=node('button',className,text);el.type='button';el.addEventListener('click',fn);return el;};
@@ -63,9 +63,9 @@ export function installIsoCalendar({root=document,now=()=>new Date(),timers=true
   function selectDate(date,focus=false){selected=isoWeekInfo(date).date;month=selected.slice(0,7);render();if(focus)body.querySelector('[data-date="'+selected+'"]').focus();}
   function moveMonth(offset){const target=civil(month+'-01');target.setUTCMonth(target.getUTCMonth()+offset);if(target.getUTCFullYear()>=1&&target.getUTCFullYear()<=9999){month=key(target).slice(0,7);render();}}
   function selectToday(){refresh();selectDate(current.date,true);}
-  function refresh(){const next=isoWeekInfo(now()),changed=next.date!==current.date;current=next;const weekLabel=root.getElementById('iso-current-week'),number=node('span','iso-calendar-week-number',String(current.week));weekLabel.replaceChildren(root.createTextNode('Semana '),number);const date=root.getElementById('iso-current-date');date.textContent=formatIsoCalendarDate(current.date);date.dateTime=current.date;trigger.setAttribute('aria-label','Semana '+current.week+', '+formatIsoCalendarDate(current.date)+'. Abrir calendario ISO');trigger.hidden=false;if(changed&&dialog.open)render();}
+  function refresh(){const next=isoWeekInfo(now()),changed=next.date!==current.date;current=next;for(const trigger of triggers){const weekLabel=trigger.querySelector('strong'),number=node('span','iso-calendar-week-number',String(current.week));weekLabel.replaceChildren(root.createTextNode('Semana '),number);const date=trigger.querySelector('time');date.textContent=formatIsoCalendarDate(current.date);date.dateTime=current.date;trigger.setAttribute('aria-label','Semana '+current.week+', '+formatIsoCalendarDate(current.date)+'. Abrir calendario ISO');trigger.hidden=false;}if(changed&&dialog.open)render();}
   const onOpen=()=>{refresh();selected=current.date;month=selected.slice(0,7);render();if(!dialog.open)dialog.showModal();};
-  const onVisible=()=>{if(!root.hidden)refresh();};trigger.addEventListener('click',onOpen);view?.addEventListener('focus',refresh);root.addEventListener('visibilitychange',onVisible);refresh();
+  const onVisible=()=>{if(!root.hidden)refresh();};for(const trigger of triggers)trigger.addEventListener('click',onOpen);view?.addEventListener('focus',refresh);root.addEventListener('visibilitychange',onVisible);refresh();
   if(timers)timer=view.setInterval(onVisible,60000);
-  return {refresh,destroy(){if(timer!==null)view.clearInterval(timer);trigger.removeEventListener('click',onOpen);view?.removeEventListener('focus',refresh);root.removeEventListener('visibilitychange',onVisible);dialog.close();dialog.remove();trigger.hidden=true;}};
+  return {refresh,destroy(){if(timer!==null)view.clearInterval(timer);for(const trigger of triggers){trigger.removeEventListener('click',onOpen);trigger.hidden=true;}view?.removeEventListener('focus',refresh);root.removeEventListener('visibilitychange',onVisible);dialog.close();dialog.remove();}};
 }
