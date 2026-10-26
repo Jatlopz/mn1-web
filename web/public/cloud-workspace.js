@@ -1,3 +1,4 @@
+import {createRegistryAdmin} from './registry-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
@@ -24,7 +25,7 @@ export function setAdminScreenVisible(screen,visible,root=document) {
  if(visible)screen.focus();
 }
 export function applyAdminDashboardView(dashboard, view) {
-  if (!['overview', 'tools', 'inbox'].includes(view)) return false;
+  if (!['overview', 'tools', 'inbox', 'catalog'].includes(view)) return false;
   dashboard.dataset.view = view;
   for (const panel of dashboard.querySelectorAll('[data-admin-panel]')) panel.hidden = panel.dataset.adminPanel !== view;
   for (const button of dashboard.querySelectorAll('[data-admin-view]')) button.setAttribute('aria-pressed', String(button.dataset.adminView === view));
@@ -47,6 +48,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
     client = providedClient || new CloudClient(getServices().storage);
+  let registry = null;
   let meta = {},
     access = null,
     rows = [],
@@ -74,7 +76,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     $("cloud-logout").hidden = !logged;
     $("cloud-password-settings").hidden = !logged;
     $('open-admin-dashboard').hidden=!access?.admin;
-    if(!access?.admin){$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminIsOpen())hideAdmin();}
+    if(!access?.admin){registry?.clear();$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminIsOpen())hideAdmin();}
     if(access?.admin&&!adminOffered&&!getServices().isEditing?.()){adminOffered=true;queueMicrotask(()=>void openAdmin());}
     $("cloud-admin").hidden = !access?.admin;
     $("cloud-ideas-admin").hidden = !access?.admin || !IDEAS_ENABLED;
@@ -499,7 +501,8 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');};
   const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
   const screenCloser={close:hideAdmin};
-  function selectAdminView(view){return applyAdminDashboardView(adminDashboard,view);}
+  registry=createRegistryAdmin($('admin-registry'),{client,onAccessLost:()=>{access={...access,admin:false};render();}});
+  function selectAdminView(view){const changed=applyAdminDashboardView(adminDashboard,view);if(changed&&view==='catalog')void registry.open();return changed;}
   function renderAdminTeams(){
     const all=definitions(),plant=$('admin-plant').value;
     $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=String(rows.filter(row=>row.revision).length);

@@ -153,6 +153,9 @@ export class CloudClient {
   }
   creatorProfile(){return this.request('/rest/v1/mn1_creator_profile?select=revision,photo&id=eq.1',{method:'GET',auth:false});}
   setCreatorPhoto(expected,photo){return this.request('/rest/v1/rpc/mn1_set_creator_photo',{body:{p_expected:expected,p_photo:photo}});}
+  registry(plantId){return this.request('/rest/v1/rpc/mn1_plant_registry',{body:{p_plant:plantId}});}
+  saveRegistryProcess(value){return this.request('/rest/v1/rpc/mn1_save_registry_process',{body:{p_plant:value.plantId,p_expected:value.revision,p_id:value.id,p_create:value.create,p_name:value.name,p_flow:value.flow,p_cycle:value.cycle,p_default_kind:value.defaultKind,p_enabled:value.enabled}});}
+  saveRegistryResource(value){return this.request('/rest/v1/rpc/mn1_save_registry_resource',{body:{p_plant:value.plantId,p_expected:value.revision,p_process:value.processId,p_id:value.id,p_create:value.create,p_name:value.name,p_kind:value.kind,p_enabled:value.enabled}});}
   access() {
     return this.request("/rest/v1/rpc/mn1_access", { body: {} });
   }
