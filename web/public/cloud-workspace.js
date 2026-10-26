@@ -15,9 +15,36 @@ import {
 import { WORKSPACE_KEYS } from "./storage.js";
 import { REPORT_PREFS_KEY, REPORT_STYLES_KEY } from "./meeting-report.js";
 export function isCreatorPhoto(value){return typeof value==='string'&&value.length<=350000&&new RegExp('^data:image/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$').test(value);}
+export function isCompanyLogo(value){return typeof value==='string'&&value.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);}
+export async function prepareCompanyLogo(dataUrl){
+ const image=await loadImageElement(dataUrl);
+ for(const maxSide of [512,384,256,192,128]){
+  const scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight)),canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  const ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo preparar el logo.');
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);const logo=canvas.toDataURL('image/png');if(isCompanyLogo(logo))return logo;
+ }
+ throw Error('El logo es demasiado grande. Elige una imagen más pequeña.');
+}
+export function installCompanyLogo({getServices,client,root=document}){
+ const image=root.getElementById('company-logo'),change=root.getElementById('company-logo-change'),input=root.getElementById('company-logo-input'),status=root.getElementById('company-logo-status'),about=root.getElementById('about-dialog');
+ if(!image||!change||!input||!status)return {ready:Promise.resolve(),refresh:async()=>{}};
+ const storage=getServices().storage,cacheKey='mn1.company.logo';let revision=0,busy=false;
+ const valid=row=>row&&Number.isSafeInteger(row.revision)&&row.revision>=0&&(row.logo===null||isCompanyLogo(row.logo));
+ const show=logo=>{image.hidden=!logo;if(logo)image.src=logo;else image.removeAttribute('src');};
+ image.addEventListener('error',()=>{image.hidden=true;image.removeAttribute('src');});
+ async function refresh(){if(busy)return;try{const rows=await client.companyLogo(),value=rows?.[0],row=value&&{revision:value.logo_revision,logo:value.logo};if(busy||!valid(row)||row.revision<revision)return;revision=row.revision;show(row.logo);try{await storage.putText(cacheKey,JSON.stringify(row));}catch{/* La imagen recibida sigue disponible. */}}catch{/* Conserva la marca anterior sin conexión. */}}
+ async function save(dataUrl){const logo=await prepareCompanyLogo(dataUrl);const next=await client.setCompanyLogo(revision,logo);if(!Number.isSafeInteger(next)||next<=revision)throw Error('No se pudo confirmar el cambio de logo.');revision=next;show(logo);try{await storage.putText(cacheKey,JSON.stringify({revision,logo}));}catch{/* El servidor ya confirmó la publicación. */}status.textContent='Logo actualizado para todos los teléfonos.';}
+ async function run(task){if(busy)return;busy=true;change.disabled=true;status.textContent='Preparando el logo…';try{if(!(await client.access()).admin)throw Error('Sólo el administrador general puede cambiar el logo.');await task();}catch(error){status.textContent=error.code==='conflict'?'El logo cambió en otro teléfono. Cierra y abre Acerca de antes de reintentar.':(error.message||'No se pudo guardar el logo. El anterior se conserva.');}finally{busy=false;change.disabled=false;}}
+ change.addEventListener('click',()=>{const service=getServices();if(service.mode!=='native'){input.value='';input.click();return;}void run(async()=>{const result=await service.bridge.request('IMPORT_IMAGE',{}, {timeoutMs:300000});if(!result.ok||!result.data?.imageDataUrl)throw Error(result.message||'Selección cancelada.');await save(result.data.imageDataUrl);});});
+ input.addEventListener('change',()=>{const file=input.files?.[0];if(file)void run(async()=>{const prepared=await prepareImageFile(file,{maxSide:512,minDimension:1,maxDataUrlLength:350000});await save(prepared.dataUrl);});});
+ if(about&&typeof MutationObserver!=='undefined')new MutationObserver(()=>{if(about.open)void refresh();}).observe(about,{attributes:true,attributeFilter:['open']});
+ const ready=(async()=>{try{const row=JSON.parse(await storage.getText(cacheKey)||'null');if(valid(row)&&row.revision>=revision){revision=row.revision;show(row.logo);}}catch{/* Datos anteriores no válidos: se conserva la vista actual. */}await refresh();})();
+ return {ready,refresh};
+}
 export function applyAccountVisibility(access,root=document){
  const admin=access?.admin===true;
- for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details','creator-photo-change']){const node=root.getElementById(id);if(node)node.hidden=!admin;}
+ for(const id of ['settings-admin','cloud-dashboard-access','cloud-refresh','cloud-teams','cloud-sync-details','creator-photo-change','company-logo-change']){const node=root.getElementById(id);if(node)node.hidden=!admin;}
 }
 export function setAdminScreenVisible(screen,visible,root=document) {
  screen.hidden=!visible;
@@ -414,6 +441,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       status("Contraseña actualizada.");
     });
   });
+  installCompanyLogo({getServices,client});
   let creatorRevision=0,creatorBusy=false;const creatorCacheKey='mn1.creator.photo';
   const defaultCreatorSrc=$('creator-photo').getAttribute('src');
   function showCreatorPhoto(photo){$('creator-photo').src=photo||defaultCreatorSrc;$('creator-photo').classList.toggle('is-custom',Boolean(photo));}

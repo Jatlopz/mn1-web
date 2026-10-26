@@ -2603,3 +2603,15 @@
 :root[data-theme] .plant-clock:focus-visible{outline:2px solid var(--lime);outline-offset:4px;border-radius:4px}
 :root[data-theme] #plant-clock-status{margin:0;font-size:.75rem;color:var(--danger)}
 @media(forced-colors:active){:root[data-theme] .plant-clock{color:ButtonText;text-shadow:none}:root[data-theme] .plant-clock-icon{color:ButtonText}}
+:root[data-theme] .about-dialog .dialog-head h2{margin:0}
+:root[data-theme] .about-tagline{font-size:.82rem;line-height:1.5;margin:8px 0 0;color:var(--text-muted);letter-spacing:0;text-transform:none}
+:root[data-theme] .business-contact>summary{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:fit-content;max-width:100%}
+:root[data-theme] .business-contact>summary svg{width:16px;height:16px;flex:0 0 16px;margin:0}
+:root[data-theme] #about-connection-details[hidden]{display:none}
+:root[data-theme] .about-company-brand{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;min-height:76px;margin:20px 0 8px}
+:root[data-theme] #company-logo{display:block;max-width:min(180px,100%);max-height:72px;object-fit:contain;background:none;border:0;padding:0;box-shadow:none}
+:root[data-theme] #company-logo[hidden],:root[data-theme] #company-logo-change[hidden],:root[data-theme] #company-logo-input{display:none}
+:root[data-theme] #company-logo-change{display:grid;place-items:center;width:44px;height:44px;min-width:44px;border:0;background:none;color:var(--lime);font:500 28px var(--font);cursor:pointer;padding:0;box-shadow:none}
+:root[data-theme] #company-logo-change:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+:root[data-theme] #company-logo-status{flex:1 1 100%;margin:0;text-align:center;font-size:.75rem;line-height:1.5}
+:root[data-theme] #company-logo-status:empty{display:none}
