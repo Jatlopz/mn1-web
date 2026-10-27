@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 24,
-  "versionName": "0.6.0-production",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-24-d20c841923888069.apk",
-  "sha256": "d20c8419238880695ae50952a0800f814a1e407172ef91105cec052df7bf7ee0",
-  "sizeBytes": 18429611,
-  "notes": "Nueva herramienta de eficiencias y estatus de planta con catálogo editable, unidades configurables, borrador por equipo y reporte PDF compartible con confirmación. Conserva equipos, imágenes y ajustes. Captura manual; datos de producción locales."
+  "versionCode": 25,
+  "versionName": "0.6.1-brand",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-25-9280e2422a850e39.apk",
+  "sha256": "9280e2422a850e3988c578c16cc0f6ab92dc85d076a377d43cb639d04b89b9f7",
+  "sizeBytes": 20621635,
+  "notes": "Nueva identidad SuperTools: símbolo ST a color en el icono del teléfono, sin nombre, y marca renovada dentro de la app y en el widget. Conserva equipos, imágenes, ajustes y datos. Actualiza desde Settings > Actualizaciones, sin desinstalar."
 }
