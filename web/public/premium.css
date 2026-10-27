@@ -478,14 +478,17 @@
   min-width:72px;
   height:72px;
   min-height:72px;
-  margin:24px 4px 12px auto;
+  margin:0;
   padding:0;
   border:0;
   border-radius:50%;
   background:transparent;
   color:#e6edf4;
   box-shadow:none;
-  position:static;
+  position:fixed;
+  right:max(18px,env(safe-area-inset-right),calc((100vw - 1000px)/2));
+  bottom:max(20px,calc(env(safe-area-inset-bottom) + 16px));
+  z-index:30;
   transform:none;
   animation:none;
   transition:none;
@@ -493,6 +496,7 @@
 }
 :root[data-theme] .add-team-button svg{display:block;width:72px;height:72px;filter:drop-shadow(0 8px 14px #0008) drop-shadow(0 2px 3px #0005)}
 :root[data-theme] .teams-screen>.add-team-button:is(:hover,:active,:focus):not(:disabled){background:transparent;color:#e6edf4;box-shadow:none;transform:none;animation:none;transition:none}
+:root[data-theme] .teams-screen{padding-bottom:100px}
 :root[data-theme] .profile-grid {
   gap:1rem;
   grid-template-columns:repeat(2,minmax(0,1fr))
