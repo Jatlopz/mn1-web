@@ -479,15 +479,16 @@
   height:72px;
   min-height:72px;
   margin:24px 4px 12px auto;
-  padding:16px;
+  padding:0;
   border:0;
   border-radius:50%;
-  background:var(--lime);
-  color:var(--lime-ink);
-  box-shadow:0 10px 28px var(--accent-glow),0 4px 10px #0004;
+  background:transparent;
+  color:var(--lime);
+  box-shadow:none;
   touch-action:manipulation
 }
-:root[data-theme] .add-team-button svg{display:block;width:40px;height:40px}
+:root[data-theme] .add-team-button svg{display:block;width:72px;height:72px;filter:drop-shadow(0 6px 12px #0004)}
+:root[data-theme] .teams-screen>.add-team-button:hover:not(:disabled){background:transparent;box-shadow:none}
 :root[data-theme] .add-team-button:active:not(:disabled){transform:scale(.96)}
 :root[data-theme] .profile-grid {
   gap:1rem;
