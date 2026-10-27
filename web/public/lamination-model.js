@@ -1,6 +1,12 @@
 /** Workbook: Verificar Reporte, F7/F21, H7/H21 and B14:B15. */
 export const LAMINATION_DEFAULTS=Object.freeze({faces:'2',inchesPerMetre:'39.37',gramsPerPound:'454',normal:'17',yara:'46.15'});
 export const laminationKey=teamId=>'mn1.lamination.v1.'+teamId;
+// H7/H21 conditional-format interval in the source workbook, inclusive.
+export const LAMINATION_VARIATION_POUNDS=50;
+export function laminationVariation(difference) {
+ if(typeof difference!=='number'||!Number.isFinite(difference))return 'pending';
+ return Math.abs(difference)>LAMINATION_VARIATION_POUNDS?'outside':'within';
+}
 export const emptyLaminationRow=()=>({width:'',application:'17',labelPounds:'',labelMetres:'',reportedPounds:''});
 export function decimal(value,{positive=false,signed=false}={}) {
  const text=String(value??'').trim();

@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {calculateLamination,calculateSlitter,decimal,createLaminationDraft,normalizeLaminationDraft,laminationKey,LAMINATION_DEFAULTS} from '../public/lamination-model.js';
+import {calculateLamination,calculateSlitter,decimal,createLaminationDraft,normalizeLaminationDraft,laminationKey,LAMINATION_DEFAULTS,laminationVariation} from '../public/lamination-model.js';
 import {isToolEnabledForTeam,PROFILE_CATALOG,toolShortcutsForTeam} from '../public/profiles.js';
 import {launchTeamTool} from '../public/app.js';
 const row={width:'10',application:'20',labelPounds:'100',labelMetres:'800',reportedPounds:'125'};
 const settings={...LAMINATION_DEFAULTS,inchesPerMetre:'40',gramsPerPound:'400'};
+test('variación del Excel: ±50lb inclusivos, rojo sólo fuera, sin clasificar datos pendientes',()=>{
+ for(const value of [-50,-49.999,0,49.999,50])assert.equal(laminationVariation(value),'within');
+ for(const value of [-50.001,50.001,-500,500])assert.equal(laminationVariation(value),'outside');
+ for(const value of [null,undefined,NaN,Infinity,'-51'])assert.equal(laminationVariation(value),'pending');
+});
 test('reproduce la cadena del Excel y conserva el signo calculado menos reportado',()=>{
  assert.deepEqual(calculateLamination(row,settings),{coatingPounds:20,calculatedPounds:120,difference:-5});
  assert.equal(calculateLamination({...row,reportedPounds:'115'},settings).difference,5);

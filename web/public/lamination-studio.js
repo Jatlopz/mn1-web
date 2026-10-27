@@ -1,4 +1,4 @@
-import {LAMINATION_DEFAULTS,laminationKey,emptyLaminationRow,createLaminationDraft,normalizeLaminationDraft,calculateLamination,calculateSlitter,decimal} from './lamination-model.js';
+import {laminationVariation,LAMINATION_DEFAULTS,laminationKey,emptyLaminationRow,createLaminationDraft,normalizeLaminationDraft,calculateLamination,calculateSlitter,decimal} from './lamination-model.js';
 
 export function createLaminationStudio(getServices,{root=document}={}) {
  const el=(tag,cls,text)=>{const node=root.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
@@ -25,9 +25,11 @@ export function createLaminationStudio(getServices,{root=document}={}) {
  function update() {
   if(!draft)return;
   const results=draft.rows.map(row=>calculateLamination(row,draft.settings));
-  results.forEach((result,index)=>{const view=rowViews[index];if(!view)return;view.coating.textContent=show(result.coatingPounds)+' lb';view.total.textContent=show(result.calculatedPounds)+' lb';view.delta.textContent=show(result.difference)+' lb';view.delta.dataset.sign=result.difference===null?'empty':result.difference<0?'negative':result.difference>0?'positive':'zero';});
+  results.forEach((result,index)=>{const view=rowViews[index];if(!view)return;view.coating.textContent=show(result.coatingPounds)+' lb';view.total.textContent=show(result.calculatedPounds)+' lb';view.delta.textContent=show(result.difference)+' lb';const band=laminationVariation(result.difference);view.delta.dataset.variation=band;view.variation.textContent=band==='pending'?'Completa los datos para comparar':band==='within'?'Dentro de ±50 lb':'Fuera de ±50 lb';});
   const complete=results.filter(row=>row.calculatedPounds!==null),allCompared=complete.length>0&&complete.every(row=>row.difference!==null);
   summary.replaceChildren(el('small','',complete.length+' de '+draft.rows.length+' etiquetas calculadas'),el('strong','',show(complete.length?complete.reduce((sum,row)=>sum+row.calculatedPounds,0):null)+' lb'),el('span','',allCompared?'Diferencia total: '+show(complete.reduce((sum,row)=>sum+row.difference,0))+' lb':'Ingresa las libras reportadas para comparar.'));
+  const compared=results.filter(row=>row.difference!==null),outside=compared.filter(row=>laminationVariation(row.difference)==='outside').length;
+  const variationNotice=el('small','lamination-variation',outside?outside+' etiqueta(s) fuera de ±50 lb':compared.length?compared.length+' etiqueta(s) dentro de ±50 lb':'Variación permitida: −50 a +50 lb');variationNotice.dataset.variation=outside?'outside':compared.length?'within':'pending';summary.append(variationNotice);
   const result=calculateSlitter(draft.slitter);slitterYield.textContent=show(result.yield)+' m/lb';slitterMetres.textContent=show(result.metresToRequest)+' m';
  }
  function metric(label,parent){const box=el('div'),output=el('output');box.append(el('small','',label),output);parent.append(box);return output;}
@@ -45,11 +47,12 @@ export function createLaminationStudio(getServices,{root=document}={}) {
    field('Metros de etiqueta',row.labelMetres,value=>row.labelMetres=value,grid);
    field('Libras reportadas en Sysprod',row.reportedPounds,value=>row.reportedPounds=value,grid);
    const metrics=el('div','lamination-results');rowViews.push({coating:metric('Recubrimiento calculado',metrics),total:metric('Libras calculadas',metrics),delta:metric('Diferencia',metrics)});
+   const view=rowViews.at(-1);view.variation=el('small','lamination-variation');view.delta.parentElement.append(view.variation);
    section.append(head,grid,metrics);rows.append(section);
   });add.disabled=draft.rows.length>=50;update();
  }
  const add=button('+ Agregar etiqueta',()=>{if(draft.rows.length>=50)return;draft.rows.push({...emptyLaminationRow(),application:draft.settings.normal});renderRows();changed();rows.lastElementChild.querySelector('input').focus();});
- laminate.append(el('p','hint','Ingresa los datos de cada etiqueta. La diferencia es libras calculadas menos libras reportadas; no se aplica una tolerancia automática.'),summary,rows,add,details);
+ laminate.append(el('p','hint','Ingresa los datos de cada etiqueta. La diferencia es libras calculadas menos libras reportadas; variación permitida de −50 a +50 lb, incluidos los límites.'),summary,rows,add,details);
  const slitterFields=el('div','lamination-fields'),slitterResults=el('div','lamination-results');
  const slitterYield=metric('Rendimiento',slitterResults),slitterMetres=metric('Metros a requisar',slitterResults);
  slitter.append(el('p','hint','Cálculo auxiliar del Excel. Ingresa la diferencia de libras y los datos de la viñeta. El signo de la diferencia se conserva.'),slitterFields,slitterResults);
