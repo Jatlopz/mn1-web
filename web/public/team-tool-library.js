@@ -21,6 +21,8 @@ export function createProductionExample() {
 export function syncToolAvailability(root,team) {
   const production=root.getElementById('production-tools-section');
   if(production)production.hidden=!isToolEnabledForTeam('production',team);
+  const lamination=root.getElementById('lamination-tools-section');
+  if(lamination)lamination.hidden=!isToolEnabledForTeam('lamination',team);
   for(const input of root.querySelectorAll('[data-shortcut]')) {
     const available=isToolEnabledForTeam(input.value,team);
     input.disabled=!available;input.closest('label').hidden=!available;

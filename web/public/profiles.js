@@ -881,6 +881,7 @@ export const TEAM_TOOLS = Object.freeze([
   {id:'announcement',scope:'general',includedByDefault:true,name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
   {id:'report',scope:'general',includedByDefault:true,name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
   {id:'production',scope:'exclusive',plantId:'sacos',teamIds:Object.freeze(['champions','espartanos','super-guerreros','indestructibles']),name:'Eficiencias y estatus',description:'Calcula eficiencias y comparte el reporte de planta en PDF'},
+  {id:'lamination',scope:'exclusive',plantId:'sacos',plantWide:true,processId:'laminado',name:'Verificador de libras',description:'Compara el reporte de Laminado con las etiquetas y calcula metros de Slitter'},
 ]);
 export const normalizeToolShortcuts = value => Array.isArray(value) ? [...new Set(value.filter(id=>TEAM_TOOLS.some(tool=>tool.id===id)))] : TEAM_TOOLS.map(tool=>tool.id);
 export const teamShortcutsKey = id => 'mn1.tools.'+id;
@@ -889,7 +890,7 @@ export const teamShortcutsKey = id => 'mn1.tools.'+id;
 export function isToolEnabledForTeam(toolId, team) {
   const tool=TEAM_TOOLS.find(item=>item.id===toolId);
   if(!tool||!team?.id)return false;
-  return (tool.scope==='general'&&tool.includedByDefault===true)||(plantForTeam(team)===tool.plantId&&tool.teamIds?.includes(team.id)===true);
+  return (tool.scope==='general'&&tool.includedByDefault===true)||(plantForTeam(team)===tool.plantId&&(tool.plantWide===true||tool.teamIds?.includes(team.id)===true));
 }
 export const toolsForTeam = team => TEAM_TOOLS.filter(tool=>isToolEnabledForTeam(tool.id,team));
 export const toolShortcutsForTeam = (value,team) => normalizeToolShortcuts(value).filter(id=>isToolEnabledForTeam(id,team));
