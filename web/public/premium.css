@@ -2644,8 +2644,7 @@
 :root[data-theme] .lamination-presets button{min-height:44px;padding:8px 14px}
 :root[data-theme] .lamination-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:16px;margin:20px 0}
 :root[data-theme] .lamination-results>div{display:flex;flex-direction:column;gap:6px;min-width:0}
-:root[data-theme] .lamination-results output{font-size:1.1rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-:root[data-theme] .lamination-results output[data-sign=negative]{color:var(--danger)}
+:root[data-theme] .lamination-results output{color:var(--text);font-size:1.1rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 :root[data-theme] .lamination-settings{margin:24px 0}
 :root[data-theme] .lamination-settings summary{padding:12px 0;min-height:44px;cursor:pointer}
 :root[data-theme] .lamination-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:16px}
