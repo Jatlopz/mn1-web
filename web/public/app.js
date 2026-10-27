@@ -2,7 +2,7 @@ import {installIsoCalendar} from './iso-calendar.js';
 import {createLaminationStudio} from './lamination-studio.js';
 import {createTeamToolLibrary,syncToolAvailability} from './team-tool-library.js';
 import { TEAM_TOOLS, normalizeToolShortcuts, teamShortcutsKey, isToolEnabledForTeam, toolShortcutsForTeam } from './profiles.js';
-import { readSelectedPlant, rememberSelectedPlant } from './profiles.js';
+import { readSelectedPlant, rememberSelectedPlant, readSelectedTeam, rememberSelectedTeam } from './profiles.js';
 /*
  * MN1 híbrido · app web del workspace.
  *
@@ -2177,11 +2177,33 @@ async function seedStarterImagesOnBoot(dom, app) {
   }
 }
 
+export async function restoreTeamToolsSession({storage,catalog,activeProfileId,selectProfile,openTools,fromWidget=false,navigationChanged=()=>false}) {
+  if(fromWidget||navigationChanged()||!storage)return false;
+  const id=await readSelectedTeam(storage,{catalog});
+  if(!id||navigationChanged())return false;
+  if(id!==activeProfileId) {
+    if(!await selectProfile(id))return false;
+    if(navigationChanged()) {
+      if(!await selectProfile(activeProfileId))throw Error('No se pudo recuperar la selección previa.');
+      return false;
+    }
+  }
+  if(navigationChanged())return false;
+  return openTools(id)!==false;
+}
+
+function rememberTeamToolsSelection(dom,app,profileId) {
+  const storage=app.storage,catalog=app.catalog;
+  app.teamSelectionSave=(app.teamSelectionSave??Promise.resolve()).catch(()=>{}).then(()=>rememberSelectedTeam(storage,profileId,{catalog}));
+  void app.teamSelectionSave.catch(()=>showStatus(dom,'No se pudo recordar el equipo para el próximo inicio. Tus datos se conservan.','warning'));
+}
+
 function openTeamTools(dom, app, profileId) {
   const settings = document.getElementById('team-settings');
   if (settings) settings.open = false;
   app.selectedPlantId=plantForTeam(getProfileDefinition(profileId,{catalog:app.catalog}));
   app.teamToolsOpen=true;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;
+  rememberTeamToolsSelection(dom,app,profileId);
   renderAll(dom,app,{syncFields:true});dom.teamToolsHome?.focus();
   return true;
 }
@@ -2829,6 +2851,7 @@ async function handleCreateTeam(dom, app) {
     app.catalog = profileCatalogForWorkspace(created.state);
     app.draft = cloneDraftFromProfile(created.state.profiles[created.profileId]);
     app.teamToolsOpen=true;
+    rememberTeamToolsSelection(dom,app,created.profileId);
     app.workspaceView = WORKSPACE_VIEW_TEAMS;
     app.editorTool = null;
     app.dirty = false;
@@ -4565,6 +4588,7 @@ function wireWidgetLaunch(dom, app) {
   const cold = typeof window !== 'undefined' && isWidgetHash(window.location?.hash);
   if (cold) queue.enqueue('cold');
   window.addEventListener(WIDGET_OPEN_EVENT, () => {
+    app.startupWidgetRequested=true;
     if (!queue.enqueue('warm')) void handleWidgetOpen(dom, app, 'warm');
   });
   return async function processWidgetLaunch() {
@@ -4596,13 +4620,14 @@ function wireReportWidgetLaunch(dom,app) {
     app.reportWidgetOpening=true;
     try{return await openWidgetReport({isBusy:app.busy||app.switching,isListening:app.listening,activeProfileId:app.workspace?.activeProfileId,flushSave:()=>flushDraftBeforeLeaving(dom,app),openReport:options=>{app.selectedPlantId=plantForTeam(getProfileDefinition(app.workspace?.activeProfileId,{catalog:app.catalog}));return app.reportStudio.open(options);},consumeHash:()=>{if(window.location.hash===REPORT_WIDGET_HASH)window.history?.replaceState?.(null,'','#equipos');}});}catch(error){showError(dom,'No se pudo abrir el reporte del widget. '+(error.message||''),app);return false;}finally{app.reportWidgetOpening=false;}
   };
-  window.addEventListener('mn1:report-open',()=>{if(!queue.enqueue('warm'))void open();});
+  window.addEventListener('mn1:report-open',()=>{app.startupWidgetRequested=true;if(!queue.enqueue('warm'))void open();});
   return async()=>{const pending=queue.markHydrated();if(pending.length)await open();};
 }
 
 async function boot() {
   const dom = collectDom();
   if (!dom.main || !dom.messageInput || !dom.previewMessage) return;
+  const startupFromWidget=isWidgetHash(window.location?.hash)||window.location?.hash===REPORT_WIDGET_HASH;
 
   const bridge = createMn1Bridge({ root: window });
   const app = {
@@ -4673,10 +4698,12 @@ async function boot() {
   wireUiEvents(dom, app);
   for (const button of document.querySelectorAll('[data-plant]')) button.addEventListener('click',()=>{
     if (!selectPlant(app,button.dataset.plant)) return;
+    app.startupNavigationChosen=true;
     void rememberSelectedPlant(app.storage,app.selectedPlantId).catch(()=>showError(dom,'No se pudo recordar la planta. Tus equipos se conservan.',app));
     renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();
   });
   document.getElementById('back-to-plants').addEventListener('click',()=>{
+    app.startupNavigationChosen=true;
     app.selectedPlantId=null;app.workspaceView=WORKSPACE_VIEW_TEAMS;
     renderAll(dom,app,{syncFields:true});dom.welcomeScreen?.focus();
   });
@@ -4690,6 +4717,11 @@ async function boot() {
     if (app.selectedPlantId) await rememberSelectedPlant(app.storage,app.selectedPlantId);
     else app.selectedPlantId=await readSelectedPlant(app.storage);
   } catch { showError(dom,'No se pudo leer la planta guardada. Puedes elegirla de nuevo.',app); }
+  if(app.workspace) {
+    try {
+      await restoreTeamToolsSession({storage:app.storage,catalog:app.catalog,activeProfileId:app.workspace.activeProfileId,fromWidget:startupFromWidget,navigationChanged:()=>app.startupNavigationChosen===true||app.startupWidgetRequested===true,selectProfile:id=>switchWorkspaceProfile(dom,app,id),openTools:id=>openTeamTools(dom,app,id)});
+    } catch { showStatus(dom,'No se pudo recuperar el equipo guardado. Puedes elegirlo de nuevo; tus datos se conservan.','warning'); }
+  }
   renderAll(dom,app,{syncFields:true});
   window.mn1HandleBack = () => handleAppBack(dom,app);
   document.getElementById('tools-back-teams').addEventListener('click',()=>{app.teamToolsOpen=false;renderAll(dom,app,{syncFields:true});dom.teamsScreen?.focus();});

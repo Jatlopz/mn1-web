@@ -322,6 +322,44 @@ test('seleccionar planta sigue disponible durante sincronización sin mutar dato
   }
 });
 
+test('equipo recordado persiste localmente y valida catálogo sin tocar imágenes ni workspace',async()=>{
+ const {rememberSelectedTeam,readSelectedTeam,TEAM_SELECTION_KEY,PROFILE_CATALOG}=await import('../public/profiles.js');
+ const values=new Map([['mn1.workspace.state','KEEP'],['mn1.workspace.image.example','IMAGE']]);
+ const vault=()=>({getText:async key=>values.get(key)??null,putText:async(key,value)=>values.set(key,value)});
+ assert.equal(await readSelectedTeam(vault(),{catalog:PROFILE_CATALOG}),null);
+ await rememberSelectedTeam(vault(),'espartanos',{catalog:PROFILE_CATALOG});
+ assert.equal(await readSelectedTeam(vault(),{catalog:PROFILE_CATALOG}),'espartanos');
+ assert.equal(await readSelectedTeam(vault(),{catalog:PROFILE_CATALOG.filter(team=>team.id!=='espartanos')}),null);
+ assert.equal(values.get(TEAM_SELECTION_KEY),'espartanos');
+ assert.equal(values.get('mn1.workspace.state'),'KEEP');assert.equal(values.get('mn1.workspace.image.example'),'IMAGE');
+ await rememberSelectedTeam(vault(),'unknown',{catalog:PROFILE_CATALOG});assert.equal(values.get(TEAM_SELECTION_KEY),'espartanos');
+ const other={getText:async()=>null};assert.equal(await readSelectedTeam(other,{catalog:PROFILE_CATALOG}),null);
+});
+test('reinicio abre herramientas del equipo recordado después de cargarlo; widget conserva prioridad',async()=>{
+ const {restoreTeamToolsSession}=await import('../public/app.js');const {PROFILE_CATALOG,TEAM_SELECTION_KEY}=await import('../public/profiles.js');
+ const order=[],storage={getText:async key=>key===TEAM_SELECTION_KEY?'espartanos':null};
+ const opts={storage,catalog:PROFILE_CATALOG,activeProfileId:'champions',selectProfile:async id=>{order.push('select:'+id);return true;},openTools:id=>{order.push('open:'+id);return true;}};
+ assert.equal(await restoreTeamToolsSession(opts),true);assert.deepEqual(order,['select:espartanos','open:espartanos']);
+ order.length=0;assert.equal(await restoreTeamToolsSession({...opts,fromWidget:true}),false);assert.deepEqual(order,[]);
+ assert.equal(await restoreTeamToolsSession({...opts,navigationChanged:()=>true}),false);assert.deepEqual(order,[]);
+ assert.equal(await restoreTeamToolsSession({...opts,activeProfileId:'espartanos'}),true);assert.deepEqual(order,['open:espartanos']);
+});
+test('restaurar nunca inventa equipo ni abre uno cuyo cambio o lectura falló',async()=>{
+ const {restoreTeamToolsSession}=await import('../public/app.js');const {PROFILE_CATALOG}=await import('../public/profiles.js');let opens=0;
+ const opts={catalog:PROFILE_CATALOG,activeProfileId:'champions',selectProfile:async()=>false,openTools:()=>{opens++;}};
+ for(const value of [null,'unknown'])assert.equal(await restoreTeamToolsSession({...opts,storage:{getText:async()=>value}}),false);
+ assert.equal(await restoreTeamToolsSession({...opts,storage:{getText:async()=>'espartanos'}}),false);assert.equal(opens,0);
+ await assert.rejects(()=>restoreTeamToolsSession({...opts,storage:{getText:async()=>{throw Error('offline');}}}),/offline/);assert.equal(opens,0);
+});
+test('navegación o widget durante lectura cancelan restauración; durante cambio recuperan selección previa',async()=>{
+ const {restoreTeamToolsSession}=await import('../public/app.js');const {PROFILE_CATALOG}=await import('../public/profiles.js');
+ for(const phase of ['read','select']) {
+  let changed=false,release;const pending=new Promise(resolve=>release=resolve),calls=[];
+  const task=restoreTeamToolsSession({catalog:PROFILE_CATALOG,activeProfileId:'champions',navigationChanged:()=>changed,storage:{getText:async()=>{if(phase==='read')await pending;return 'espartanos';}},selectProfile:async id=>{calls.push(id);if(id==='espartanos'&&phase==='select')await pending;return true;},openTools:()=>{throw Error('No debe abrir herramientas');}});
+  await Promise.resolve();await Promise.resolve();changed=true;release();assert.equal(await task,false);
+  assert.deepEqual(calls,phase==='read'?[]:['espartanos','champions']);
+ }
+});
 test('planta recordada sobrevive reinicios sin cambiar el workspace',async()=>{
   const {readSelectedPlant,rememberSelectedPlant,PLANT_SELECTION_KEY}=await import('../public/profiles.js');
   const data=new Map([['mn1.workspace.state','KEEP']]);

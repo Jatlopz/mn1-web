@@ -868,6 +868,15 @@ export function setTeamArchived(state, id, archived) {
 }
 
 export const PLANT_SELECTION_KEY = 'mn1.navigation.plant';
+export const TEAM_SELECTION_KEY = 'mn1.navigation.team';
+export async function readSelectedTeam(storage,{catalog=PROFILE_CATALOG}={}) {
+  const id=await storage.getText(TEAM_SELECTION_KEY);
+  return catalog.some(team=>team.id===id)?id:null;
+}
+export async function rememberSelectedTeam(storage,id,{catalog=PROFILE_CATALOG}={}) {
+  if(!storage||!catalog.some(team=>team.id===id))return;
+  await storage.putText(TEAM_SELECTION_KEY,id);
+}
 export async function readSelectedPlant(storage) {
   const value = await storage.getText(PLANT_SELECTION_KEY);
   return PLANTS.some(plant => plant.id === value) ? value : null;
