@@ -281,7 +281,7 @@ test('clonar y resolver catálogo/ruta/título incluye los equipos personalizado
 
 test('la pantalla de equipos tiene botón verde y diálogo accesible con máximo de 60', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-  assert.match(html, /<button[^>]*class="[^"]*button-primary[^"]*"[^>]*id="add-team"[^>]*>\s*\+ Agregar equipo/);
+  assert.match(html, /<button[^>]*class="[^"]*button-primary[^"]*"[^>]*id="add-team"[^>]*aria-label="Agregar equipo"/);
   assert.match(html, /<dialog[^>]*id="add-team-dialog"[^>]*aria-labelledby="add-team-title"[^>]*aria-describedby="add-team-help add-team-error"/);
   assert.match(html, /id="add-team-input"[^>]*maxlength="60"/);
   assert.match(html, /id="add-team-error"[^>]*role="alert"/);
