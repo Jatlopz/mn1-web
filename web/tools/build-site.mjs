@@ -26,6 +26,7 @@ export const STARTER_IMAGES = Object.freeze([
   }),
 ]);
 
+export const BRAND_SYMBOL=Object.freeze({"path":"brand/supertools-symbol.dde519ee1d6b5bbf.png","sha256":"dde519ee1d6b5bbfcc0c70332c81d3beb6f0af39c1d270219b6300d9a59fa6e3","size":586169});
 export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
   {"id":"winter-gold","path":"themes/winter-gold.5ddd3ec92bde6765.webp","sha256":"5ddd3ec92bde6765c5c7d095e93fff7202aa2943a9b6b5ae42e59843bfaa090f","size":359112,"width":1024,"height":1536},
@@ -165,6 +166,12 @@ export async function buildSite(source, destination) {
   const creatorBytes=await readFile(creatorFile);
   if(creatorBytes.length!==CREATOR_PHOTO.size||createHash('sha256').update(creatorBytes).digest('hex')!==CREATOR_PHOTO.sha256||creatorBytes[0]!==255||creatorBytes[1]!==216)throw Error('Creator photo integrity mismatch');
   output[CREATOR_PHOTO.path]=creatorBytes;
+  const brandFile=path.join(source,BRAND_SYMBOL.path),brandStat=await lstat(brandFile);
+  if(!brandStat.isFile()||brandStat.isSymbolicLink()||!isWithin(await realpath(brandFile),sourceReal))throw Error('Invalid brand symbol');
+  const brandBytes=await readFile(brandFile);
+  if(brandBytes.length!==BRAND_SYMBOL.size||createHash('sha256').update(brandBytes).digest('hex')!==BRAND_SYMBOL.sha256||!brandBytes.subarray(0,8).equals(PNG_SIGNATURE))throw Error('Brand symbol integrity mismatch');
+  output[BRAND_SYMBOL.path]=brandBytes;
+
 
   await mkdir(destination, {recursive:true});
   output['index.html'] = html;

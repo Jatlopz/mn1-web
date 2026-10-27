@@ -4,7 +4,7 @@ import {cp, mkdtemp, mkdir, readFile, unlink, writeFile, symlink, access} from '
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {buildSite} from '../tools/build-site.mjs';
+import {buildSite,BRAND_SYMBOL} from '../tools/build-site.mjs';
 
 const publicPath = fileURLToPath(new URL('../public', import.meta.url));
 const APPROVED = [
@@ -19,10 +19,10 @@ async function fixture() {
   return {root, source, out: path.join(root, 'out')};
 }
 
-test('empaqueta sólo los dos PNG aprobados con rutas anidadas', async () => {
+test('empaqueta sólo los dos artes y el símbolo de marca aprobados', async () => {
   const {source, out} = await fixture();
   const files = await buildSite(source, out);
-  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...APPROVED].sort());
+  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...APPROVED,BRAND_SYMBOL.path].sort());
   for (const file of APPROVED) {
     assert.deepEqual(await readFile(path.join(out, file)), await readFile(path.join(source, file)));
   }
@@ -73,7 +73,7 @@ test('nunca copia assets extra, APK, Android privado ni secretos', async () => {
   await writeFile(path.join(source, 'private-android', 'keystore.txt'), 'private');
 
   const files = await buildSite(source, out);
-  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...APPROVED].sort());
+  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...APPROVED,BRAND_SYMBOL.path].sort());
   for (const file of ['templates/unapproved.png', 'tracked.apk', 'secret.txt', 'private-android/keystore.txt']) {
     assert.ok(!files.includes(file));
     await assert.rejects(access(path.join(out, file)));

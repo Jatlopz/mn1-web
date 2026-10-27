@@ -2671,3 +2671,8 @@
 :root[data-theme] .lamination-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:16px}
 @media(max-width:420px){:root[data-theme] .lamination-studio{padding:18px}}
 @media(max-width:360px){:root[data-theme] .lamination-fields{grid-template-columns:minmax(0,1fr)}:root[data-theme] .lamination-studio .dialog-head{flex-wrap:wrap}:root[data-theme] .lamination-studio h2{flex:1 1 100%;order:2;overflow-wrap:normal}:root[data-theme] .lamination-studio .dialog-close{margin-left:auto}}
+:root[data-theme] .brand-emblem{width:56px;height:56px;flex-basis:56px;filter:none}
+:root[data-theme] .brand-emblem img{display:block;width:100%;height:100%;object-fit:contain}
+:root[data-theme] .brand-name{color:var(--text)}
+:root[data-theme] .about-product-mark{display:block;width:64px;height:64px;object-fit:contain;margin:0 0 6px}
+@media(max-width:600px){:root[data-theme] .brand-emblem{width:48px;height:48px;flex-basis:48px}}
