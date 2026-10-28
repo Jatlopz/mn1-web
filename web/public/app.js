@@ -721,6 +721,7 @@ export function applyWorkspaceNavigation(dom, app) {
   if (open && app.plantNavigation) app.selectedPlantId = plantForTeam(getProfileDefinition(app.workspace?.activeProfileId, {catalog:app.catalog}));
   const activeTool = resolveEditorTool(app.editorTool);
   app.editorTool = activeTool;
+  if(dom.main?.dataset)dom.main.dataset.activeEditorTool=activeTool??'';
   const drawerOpen = open && activeTool !== null;
 
   const selectingPlant = Boolean(dom.welcomeScreen) && !app.selectedPlantId && !open;

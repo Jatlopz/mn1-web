@@ -12,6 +12,22 @@ test('logos están aislados por equipo y no aceptan URLs externas ni claves de a
 test('marca de agua conserva proporción y se dibuja dentro de la foto, sin tapar el membrete',()=>{const calls=[];const ctx=new Proxy({measureText:t=>({width:t.length*10})},{get:(o,k)=>o[k]||((...args)=>calls.push([k,...args]))});const canvas={getContext:()=>ctx},logo={width:100,height:50},photo={width:1000,height:800};const prefs=normalizeReportPreferences({watermark:true,watermarkPosition:'bottom-right',watermarkOpacity:.3},PROFILE_CATALOG);const d=drawReport(canvas,photo,prefs,PROFILE_CATALOG[0],new Date(),logo);const mark=calls.filter(c=>c[0]==='drawImage')[1];assert.equal(mark[1],logo);assert.equal(mark[4]/mark[5],2);assert.ok(mark[2]+mark[4]<d.width);assert.ok(mark[3]+mark[5]<d.photoHeight);assert.ok(calls.some(c=>c[0]==='save'));assert.ok(calls.some(c=>c[0]==='restore'));});
 
 test('mensaje compartido sólo incluye saludo, membrete y equipo aunque existan grupos antiguos',()=>{const prefs={heading:'Reunión realizada',destinations:['GRUPO PRIVADO A','GRUPO PRIVADO B']};const team=PROFILE_CATALOG.find(t=>t.id==='indestructibles');assert.equal(reportShareMessage(prefs,team,8),'Buenos días. Reunión realizada · Los Indestructibles.');assert.equal(reportShareMessage(prefs,team,22),'Buenas noches. Reunión realizada · Los Indestructibles.');assert.doesNotMatch(reportShareMessage(prefs,team,22),/GRUPO|destino|https?:/i);});
+test('mensaje editable del reporte conserva texto y saltos sin agregar saludos ni grupos',()=>{
+ const text='Buenas noches, compañeros.\nCompartimos nuestro reporte de reunión.';
+ assert.equal(reportShareMessage({shareMessage:text},PROFILE_CATALOG[0],8),text);
+ assert.equal(reportShareMessage({shareMessage:text},PROFILE_CATALOG[0],22),text);
+ assert.equal(reportShareMessage({shareMessage:''},PROFILE_CATALOG[0],8),'');
+});
+test('mensaje automático se conserva para preferencias antiguas y puede restablecerse',()=>{
+ const team=PROFILE_CATALOG[0];
+ assert.equal(normalizeReportPreferences({},PROFILE_CATALOG).shareMessage,null);
+ assert.match(reportShareMessage({shareMessage:null,heading:'Reporte'},team,8),/^Buenos días\. Reporte/);
+ assert.match(reportShareMessage({shareMessage:null,heading:'Reporte'},team,22),/^Buenas noches\. Reporte/);
+});
+test('texto de reporte respeta límite del puente y normaliza controles conservando líneas',()=>{
+ assert.equal(normalizeReportPreferences({shareMessage:'x'.repeat(2001)},PROFILE_CATALOG).shareMessage.length,2000);
+ assert.equal(normalizeReportPreferences({shareMessage:'Línea 1\r\nLínea 2\u0000'},PROFILE_CATALOG).shareMessage,'Línea 1\nLínea 2');
+});
 
 test('color personalizado se valida, persiste y prevalece sobre estilo y equipo',()=>{const p=normalizeReportPreferences({frame:'gold',frameColor:'#58A6FF'},PROFILE_CATALOG);assert.equal(p.frameColor,'#58a6ff');assert.equal(resolveReportFrameColor(JSON.parse(JSON.stringify(p)),PROFILE_CATALOG[0]),'#58a6ff');assert.equal(normalizeReportPreferences({frameColor:'url(evil)'},PROFILE_CATALOG).frameColor,null);assert.equal(resolveReportFrameColor({frame:'gold',frameColor:null},PROFILE_CATALOG[0]),'#f5c542');assert.equal(resolveReportFrameColor({frame:'signal'},PROFILE_CATALOG[0]),PROFILE_CATALOG[0].color);});
 test('el color elegido se usa en el borde del PNG exportado',()=>{const colors=[];const ctx=new Proxy({measureText:t=>({width:t.length*10})},{set:(o,k,v)=>{if(k==='strokeStyle')colors.push(v);o[k]=v;return true;},get:(o,k)=>o[k]||(()=>{})});const photo={width:1000,height:800};drawReport({getContext:()=>ctx},photo,normalizeReportPreferences({frame:'gold',frameColor:'#ff6b6b'},PROFILE_CATALOG),PROFILE_CATALOG[0]);assert.equal(colors[0],'#ff6b6b');assert.equal(photo.width,1000);});

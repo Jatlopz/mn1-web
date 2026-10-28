@@ -2676,3 +2676,13 @@
 :root[data-theme] .brand-name{color:var(--text)}
 :root[data-theme] .about-product-mark{display:block;width:64px;height:64px;object-fit:contain;margin:0 0 6px}
 @media(max-width:600px){:root[data-theme] .brand-emblem{width:48px;height:48px;flex-basis:48px}}
+/* Message editing gets readable space even after the software keyboard shrinks the viewport. */
+:root[data-theme] #contenido.workspace[data-active-editor-tool=message]{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-padding-block:16px}
+:root[data-theme] #contenido[data-active-editor-tool=message] .hero-panel{flex:0 0 auto;min-height:0}
+:root[data-theme] #contenido[data-active-editor-tool=message] .image-frame{flex:none;height:clamp(88px,calc(var(--mn1-editor-height,100vh) * .22),180px);min-height:0}
+:root[data-theme] #contenido[data-active-editor-tool=message] .tool-drawer{flex:0 0 auto;max-height:none;min-height:360px}
+:root[data-theme] #contenido[data-active-editor-tool=message] .tool-drawer-body{flex:none;overflow-y:visible}
+:root[data-theme] #message-input,:root[data-theme] #report-message{display:block;width:100%;box-sizing:border-box;min-height:200px;height:clamp(200px,calc(var(--mn1-editor-height,100vh) * .42),340px);max-height:none;font-size:1rem;line-height:1.6;resize:vertical;overflow-y:auto;scroll-margin-block:16px}
+:root[data-theme] .report-message-editor{display:grid;gap:12px;margin:24px 0;padding:20px 0;border-block:1px solid var(--ui-edge-subtle)}
+:root[data-theme] .report-message-editor .field-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+:root[data-theme] .report-studio.is-editing-message .report-preview{position:relative;top:auto;height:120px;min-height:0}

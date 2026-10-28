@@ -308,7 +308,7 @@
                 <label class="field-label" for="message-input">Mensaje de la convocatoria</label>
                 <span class="meta" id="message-count">0 / 2000</span>
               </div>
-              <textarea id="message-input" class="textarea" rows="5" maxlength="2000" spellcheck="true" aria-describedby="message-help message-error"></textarea>
+              <textarea id="message-input" class="textarea" rows="8" maxlength="2000" spellcheck="true" aria-describedby="message-help message-error"></textarea>
               <p class="hint" id="message-help">Escribe <code>{hora}</code> y se sustituirá por la hora elegida en la vista y en el PNG para compartir.</p>
               <p class="field-error" id="message-error" role="alert" hidden></p>
             </div>
@@ -368,6 +368,7 @@
       <label class="field report-wide">Membrete<input class="input" id="report-heading" maxlength="60" value="Reunión realizada"></label>
       <label class="report-wide"><input type="checkbox" id="report-date" checked> Incluir fecha</label>
     </div>
+    <section class="report-message-editor" aria-labelledby="report-message-label"><div class="field-head"><label class="field-label" id="report-message-label" for="report-message">Mensaje para compartir</label><span class="meta" id="report-message-count">0 / 2000</span></div><textarea id="report-message" class="textarea" rows="8" maxlength="2000" spellcheck="true" aria-describedby="report-message-help report-message-count"></textarea><p class="hint" id="report-message-help">Este texto acompaña la foto al compartirla; no se escribe sobre la imagen. Escribe un mensaje antes de compartir.</p><button class="button button-secondary" id="report-message-auto" type="button">Restablecer mensaje automático</button></section>
     <details class="report-watermark-settings"><summary>Marca de agua del equipo</summary><label class="watermark-toggle"><input id="report-watermark" type="checkbox"> Incluir logo en la foto</label><button class="button button-secondary" id="report-logo-pick" type="button">Elegir logo del equipo</button><p class="hint" id="report-logo-status"></p><label class="field">Posición<select class="select" id="report-watermark-position"><option value="bottom-right">Abajo a la derecha</option><option value="bottom-left">Abajo a la izquierda</option><option value="top-right">Arriba a la derecha</option><option value="top-left">Arriba a la izquierda</option></select></label><label class="field">Intensidad<input id="report-watermark-opacity" type="range" min="15" max="65" step="5" value="28"></label><input id="report-logo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden></details>
     <p id="report-status" role="status" aria-live="polite"></p>
     <div class="report-actions"><button class="button button-secondary" id="report-save" type="button">Guardar ajustes</button><button class="button button-primary" id="report-share" type="button" disabled>Compartir reporte</button></div>
