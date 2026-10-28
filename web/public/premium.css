@@ -2688,3 +2688,6 @@
 :root[data-theme] .report-message-editor{display:grid;gap:12px;margin:24px 0;padding:20px 0;border-block:1px solid var(--ui-edge-subtle)}
 :root[data-theme] .report-message-editor .field-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
 :root[data-theme] .report-studio.is-editing-message .report-preview{position:relative;top:auto;height:120px;min-height:0}
+:root[data-theme] .report-actions{flex-wrap:wrap}
+:root[data-theme] .report-actions .button{flex:1 1 150px}
+:root[data-theme] .report-studio.is-editing-message .report-actions{position:static}
