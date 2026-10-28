@@ -1219,6 +1219,8 @@
   border:1px solid var(--ui-edge)
 }
 :root[data-theme] .report-studio {
+  position:relative;
+  z-index:1;
   background:var(--page);
   max-width:1000px;
   width:100%;
