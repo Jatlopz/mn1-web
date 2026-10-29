@@ -1411,6 +1411,7 @@ function renderActions(dom, app) {
   dom.pickImage.hidden = !legacy;
   dom.openEditor.hidden = !legacy;
   dom.downloadPng.hidden = app.uiMode !== 'browser';
+  dom.prepareShare.hidden = app.uiMode === 'browser';
   dom.saveTemplate.textContent = legacy ? 'Guardar plantilla' : 'Guardar';
   dom.prepareShare.textContent = 'Compartir';
   dom.prepareShare.disabled = app.busy

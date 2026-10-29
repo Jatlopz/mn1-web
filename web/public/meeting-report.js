@@ -86,7 +86,7 @@ export function createMeetingReport(getServices) {
   let customShareMessage=null;
   const services=()=>getServices();
   const message=(text,error=false)=>{const el=$('report-status');el.textContent=text;el.dataset.tone=error?'error':'info';};
-  const lock=value=>{busy=value;root.setAttribute('aria-busy',String(value));for(const e of root.querySelectorAll('button,input,select,textarea'))e.disabled=value;$('report-share').disabled=value||!photo;$('report-preview').classList.toggle('is-loading',value);};
+  const lock=value=>{busy=value;root.setAttribute('aria-busy',String(value));for(const e of root.querySelectorAll('button,input,select,textarea'))e.disabled=value;$('report-share').disabled=value||!photo;$('report-download').disabled=value||!photo;$('report-preview').classList.toggle('is-loading',value);};
   const values=()=>normalizeReportPreferences({shareMessage:customShareMessage,frameColor,watermark:$('report-watermark').checked,watermarkOpacity:Number($('report-watermark-opacity').value)/100,watermarkPosition:$('report-watermark-position').value,logoKeys,teamId:$('report-team').value,frame:$('report-frame').value,heading:$('report-heading').value,showDate:$('report-date').checked},services().catalog);
   const renderShareMessage=(selected=values())=>{const team=services().catalog.find(t=>t.id===selected.teamId);const text=reportShareMessage(selected,team,capture?.localHour??new Date().getHours());const field=$('report-message');if(field.value!==text)field.value=text;$('report-message-count').textContent=text.length+' / 2000';};
   const render=()=>{const selected=values();renderShareMessage(selected);lastRenderedValues=selected;const selectedTeam=services().catalog.find(t=>t.id===selected.teamId)||{};$('report-frame-color').value=resolveReportFrameColor(selected,selectedTeam);$('report-color-auto').setAttribute('aria-pressed',String(frameColor===null));for(const b of root.querySelectorAll('[data-report-color]'))b.setAttribute('aria-pressed',String(b.dataset.reportColor===frameColor));if(!photo)return;const v=values(),team=services().catalog.find(t=>t.id===v.teamId)||{};drawReport(canvas,photo,v,team,capture?.capturedAt?new Date(capture.capturedAt):new Date(),logoCache.get(v.logoKeys[v.teamId])||null);$('report-capture-info').textContent=capture?.capturedAt?'Saludo del reporte: '+greetingForHour(capture.localHour):'Hora original no disponible; saludo según la hora actual.';canvas.hidden=false;$('report-placeholder').hidden=true;};
@@ -109,6 +109,7 @@ export function createMeetingReport(getServices) {
     const s=services();if(s.blocked){message('Espera a que termine la operación actual.',true);return false;}
     const visibleTeams=teamsForPlant(s.catalog,s.plantId);if(!visibleTeams.length)return false;
     priorTitle=document.title;document.title='Reporte de reunión · SuperTools';$('app').hidden=true;root.hidden=false;lock(true);message('Preparando estudio…');
+    const browser=s.mode!=='native';$('report-download').hidden=!browser;$('report-copy-message').hidden=!browser;$('report-share').hidden=browser&&typeof navigator.share!=='function';
     const token=++loadToken;
     try {
       const saved=s.storage?await s.storage.getText(REPORT_PREFS_KEY):null;prefs=normalizeReportPreferences(saved?JSON.parse(saved):{},s.catalog);
@@ -151,7 +152,7 @@ export function createMeetingReport(getServices) {
   $('report-message').addEventListener('blur',()=>root.classList.remove('is-editing-message'));
   $('report-message-auto').addEventListener('click',()=>{if(busy)return;customShareMessage=null;dirty=true;lastRenderedValues=values();renderShareMessage(lastRenderedValues);message('Mensaje automático restablecido según la hora de la foto.');});
   $('report-save').addEventListener('click',async()=>{if(busy)return;lock(true);try{await persist();message('Ajustes guardados en este teléfono.');}catch(e){message(e.message,true);}finally{lock(false);}});
-  $('report-share').addEventListener('click',async()=>{
+  const exportReport=async(downloadOnly=false)=>{
     if(busy||!photo)return;lock(true);try{
       const v=values();
       const s=services(),team=s.catalog.find(t=>t.id===v.teamId);const text=reportShareMessage(v,team,capture?.localHour??new Date().getHours());
@@ -159,9 +160,12 @@ export function createMeetingReport(getServices) {
       await loadLogo();if(v.watermark&&!logoCache.get(v.logoKeys[v.teamId]))throw Error('Elige el logo de este equipo para usar la marca de agua.');await persist();render();let dataUrl=canvas.toDataURL('image/png');let out=canvas;
       for(let attempt=0;dataUrl.length>8*1024*1024&&attempt<8;attempt++){const small=document.createElement('canvas');small.width=Math.round(out.width*.8);small.height=Math.round(out.height*.8);small.getContext('2d').drawImage(out,0,0,small.width,small.height);out=small;dataUrl=out.toDataURL('image/png');}
       if(!isPngDataUrl(dataUrl))throw Error('La imagen supera el tamaño permitido.');
-      if(s.mode!=='native'){if(typeof navigator.share!=='function'||typeof File!=='function')throw Error('Comparte desde SuperTools Android.');const bytes=Uint8Array.from(atob(pngBase64FromDataUrl(dataUrl)),c=>c.charCodeAt(0));const file=new File([bytes],'reporte-reunion.png',{type:'image/png'});if(!navigator.canShare?.({files:[file]}))throw Error('Este navegador no comparte imágenes.');await navigator.share({files:[file],text});message('Se cerró el selector; la entrega se confirma en WhatsApp.');}
+      if(s.mode!=='native'){const bytes=Uint8Array.from(atob(pngBase64FromDataUrl(dataUrl)),c=>c.charCodeAt(0));const file=new File([bytes],'reporte-reunion.png',{type:'image/png'});if(!downloadOnly&&typeof navigator.share==='function'&&navigator.canShare?.({files:[file]})){await navigator.share({files:[file],text});message('Se cerró el selector; la entrega se confirma en WhatsApp.');}else{const link=document.createElement('a');link.href=dataUrl;link.download='reporte-reunion.png';document.body.append(link);link.click();link.remove();message('Imagen descargada. Usa Copiar mensaje y adjúntala en WhatsApp para confirmar el envío.');}}
       else {const result=await s.bridge.request('SHARE_PNG',{imageDataUrl:dataUrl,message:text},{timeoutMs:300000});if(!result.ok)throw Error(result.message);message(result.message+' Elige y confirma los grupos en WhatsApp.');}
     }catch(e){message(e.message||'No se compartió.',true);}finally{lock(false);}
-  });
+  };
+  $('report-share').addEventListener('click',()=>void exportReport());
+  $('report-download').addEventListener('click',()=>{if(services().mode!=='native')void exportReport(true);});
+  $('report-copy-message').addEventListener('click',async()=>{if(busy)return;const text=$('report-message').value;try{if(!navigator.clipboard?.writeText)throw Error('Copia el texto desde el campo Mensaje para compartir.');await navigator.clipboard.writeText(text);message('Mensaje copiado. Pégalo al compartir la imagen.');}catch(e){$('report-message').focus();$('report-message').select();message(e.message||'Selecciona y copia el mensaje.',true);}});
   return {open,close};
 }

@@ -2691,3 +2691,46 @@
 :root[data-theme] .report-actions{flex-wrap:wrap}
 :root[data-theme] .report-actions .button{flex:1 1 150px}
 :root[data-theme] .report-studio.is-editing-message .report-actions{position:static}
+
+/* Desktop workspace: same data and tools, sized for mouse, keyboard and wide windows. */
+@media(min-width:1000px){
+ :root[data-theme] .app{max-width:1480px;padding:20px 32px 40px}
+ :root[data-theme] .app-header{padding:8px 0 20px;margin-bottom:24px}
+ :root[data-theme] .teams-screen{width:100%;max-width:none}
+ :root[data-theme] .teams-intro{margin:24px 0 32px}
+ :root[data-theme] .profile-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}
+ :root[data-theme] .profile-card-wrap .profile-card{min-height:210px}
+ :root[data-theme] .team-tools-home{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;max-width:none}
+ :root[data-theme] .team-tools-home>.team-tools-toolbar,
+ :root[data-theme] .team-tools-home>.tools-hero,
+ :root[data-theme] .team-tools-home>.tools-heading,
+ :root[data-theme] .team-tools-home>.team-shortcuts,
+ :root[data-theme] .team-tools-home>#shortcuts-empty,
+ :root[data-theme] .team-tools-home>.team-discovery-actions{grid-column:1/-1}
+ :root[data-theme] .team-tools-home>.tools-hero{padding:12px 0;margin:0}
+ :root[data-theme] .team-tools-home>.tools-category{margin:0;padding:24px;background:var(--panel-glass)}
+ :root[data-theme] #contenido.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,420px);grid-template-rows:auto auto minmax(0,1fr) auto;gap:16px;max-width:1400px;width:100%;height:calc(var(--mn1-editor-height,100vh) - 40px);min-height:620px;overflow:auto;padding:16px}
+ :root[data-theme] #contenido.workspace .workspace-header{grid-column:1/-1;grid-row:1}
+ :root[data-theme] #contenido.workspace .hero-panel{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;min-height:0;height:auto;flex:initial}
+ :root[data-theme] #contenido.workspace .image-frame{flex:1;min-height:260px;height:auto}
+ :root[data-theme] #contenido.workspace .editor-tools{grid-column:2;grid-row:2;position:static}
+ :root[data-theme] #contenido.workspace .tool-drawer{grid-column:2;grid-row:3;position:static;height:auto;min-height:0;max-height:none;overflow:auto;flex:initial}
+ :root[data-theme] #contenido.workspace .tool-drawer-body{overflow-y:auto;flex:1;min-height:0}
+ :root[data-theme] #contenido.workspace .workspace-global{grid-column:1/-1;grid-row:4;position:static}
+ :root[data-theme] #contenido.workspace .action-bar{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:12px}
+ :root[data-theme] #contenido.workspace .action-bar .button{width:auto;flex:0 1 auto;min-width:160px}
+ :root[data-theme] #contenido.workspace #download-png{background:var(--lime);color:var(--lime-ink);font-weight:750}
+ :root[data-theme] .report-studio{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(360px,1fr);gap:20px 32px;max-width:1400px;padding:32px}
+ :root[data-theme] .report-studio .report-header{grid-column:1/-1;grid-row:1;margin:0}
+ :root[data-theme] .report-studio .report-preview,
+ :root[data-theme] .report-studio.is-editing-message .report-preview{grid-column:1;grid-row:2/6;position:sticky;top:24px;align-self:start;height:60vh;min-height:300px}
+ :root[data-theme] .report-studio .report-capture-info{grid-column:1;grid-row:6;margin:0}
+ :root[data-theme] .report-studio .report-toolbar{grid-column:2;grid-row:2;margin:0}
+ :root[data-theme] .report-studio .report-options{grid-column:2;grid-row:3}
+ :root[data-theme] .report-studio .report-message-editor{grid-column:2;grid-row:4;margin:0}
+ :root[data-theme] .report-studio .report-watermark-settings{grid-column:2;grid-row:5;margin:0}
+ :root[data-theme] .report-studio #report-status{grid-column:1/-1;grid-row:7;margin:0}
+ :root[data-theme] .report-studio .report-actions{grid-column:1/-1;grid-row:8;position:static;margin:0}
+ :root[data-theme] .prod-shell{max-width:1240px}
+ :root[data-theme] .admin-dashboard{max-width:1400px;margin:auto}
+}
