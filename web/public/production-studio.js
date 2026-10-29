@@ -99,7 +99,7 @@ export function createProductionStudio(getServices) {
   function lock(value){busy=value;root.setAttribute('aria-busy',String(value));for(const e of root.querySelectorAll('button,input,select,textarea'))e.disabled=value;}
   function serial(operation){const task=queue.then(operation);queue=task.catch(()=>{});return task;}
   const stamp=()=>{dirty=true;report.updatedAt=new Date().toISOString();};
-  function selectTab(id){tab=id;for(const [key,panel] of Object.entries(panels)){panel.hidden=key!==id;tabButtons[key].setAttribute('aria-pressed',String(key===id));}if(id==='preview')renderPreview();}
+  function selectTab(id){tab=id;root.dataset.tab=id;for(const [key,panel] of Object.entries(panels)){panel.hidden=key!==id;tabButtons[key].setAttribute('aria-pressed',String(key===id));}if(id==='preview')renderPreview();}
   for(const [input,key] of [[date.input,'date'],[effDate.input,'efficiencyDate'],[effShift.input,'efficiencyShift'],[statusShift.input,'statusShift']])input.addEventListener('input',()=>{if(!report)return;report[key]=input.value;report.timingMode='manual';stamp();renderTiming();if(tab==='preview')renderPreview();});
   function selectInput(label,value,options,onChange){const wrap=node('label','prod-field');wrap.append(node('span','',label));const select=node('select');const values=[...new Set(['',...options,value])];for(const item of values){const option=node('option','',item||'Sin indicar');option.value=item;select.append(option);}select.value=value;select.addEventListener('change',()=>onChange(select.value));wrap.append(select);return wrap;}
   function inputField(label,value,onChange,{numeric=false,list=null,multiline=false,max=200}={}){
@@ -109,25 +109,27 @@ export function createProductionStudio(getServices) {
   }
   function definition(id){return report.catalogSnapshot?.processes.find(p=>p.id===id)||catalog.processes.find(p=>p.id===id)||{id,name:report.rows[id]?.name||id,products:[],actions:[]};}
   function rowEdit(id,key,value){report.rows[id][key]=value;stamp();}
-  function renderStatus(){
+  function renderStatus(focusId=null){
     for(const detail of statusPanel.querySelectorAll('[data-process-id]')){if(detail.open)expandedProcesses.add(detail.dataset.processId);else expandedProcesses.delete(detail.dataset.processId);}
     for(const detail of statusPanel.querySelectorAll('[data-count-process-id]')){if(detail.open)expandedCounts.add(detail.dataset.countProcessId);else expandedCounts.delete(detail.dataset.countProcessId);}
     statusPanel.replaceChildren();const intro=node('div','prod-panel-intro');intro.append(node('div','', 'Procesos y máquinas'));
-    const allOff=button('Marcar todos inactivos','prod-text-button',()=>{if(!confirm('¿Confirmar todos los procesos como inactivos? No se borrará la producción ingresada.'))return;for(const row of Object.values(report.rows))row.active=false;stamp();renderStatus();});intro.append(allOff);statusPanel.append(intro,node('p','prod-hint','Confirma el estado de cada proceso para el turno de estatus. Apagarlo no cambia la eficiencia del turno reportado.'));
+    const allOff=button('Marcar todos inactivos','prod-text-button',()=>{if(!confirm('¿Confirmar todos los procesos como inactivos? No se borrará la producción ingresada.'))return;for(const row of Object.values(report.rows))row.active=false;stamp();renderStatus();});intro.append(allOff);statusPanel.append(intro,node('p','prod-hint','Cambia cada estado con el interruptor. Los datos de producción se conservan.'));
     if(!Object.keys(report.rows).length){statusPanel.append(node('p','prod-empty','Agrega procesos al catálogo y aplícalos al borrador para comenzar.'));return;}
+    const grid=node('div','prod-status-grid');statusPanel.append(grid);
     for(const [id,row] of Object.entries(report.rows)){
-      const process=definition(id),card=node('article','prod-process');card.dataset.state=row.active===true?'on':row.active===false?'off':'unknown';
+      const process=definition(id),card=node('article','prod-process');card.dataset.rowId=id;card.dataset.state=row.active===true?'on':row.active===false?'off':'unknown';
       const head=node('div','prod-process-head'),copy=node('div');copy.append(node('h2','',row.name||process.name));const status=node('span','prod-machine-status',row.active===true?'En funcionamiento':row.active===false?'Inactivo':'Sin confirmar');copy.append(status);
-      const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;stamp();renderStatus();});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
-      if(row.active===null)card.append(button('Confirmar inactivo','prod-text-button',()=>{row.active=false;stamp();renderStatus();}));
+      const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;stamp();renderStatus(id);});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
+      if(row.active===null){const inactive=button('Inactivo','prod-text-button',()=>{row.active=false;stamp();renderStatus(id);});inactive.setAttribute('aria-label','Confirmar inactivo '+(row.name||process.name));card.append(inactive);}
       const productSummary=node('p','prod-product-summary');
-      const updateSummary=()=>{productSummary.textContent=productionRowSummary(row);productSummary.title=productSummary.textContent;};updateSummary();card.append(productSummary);
-      const editor=node('details','prod-status-details');editor.dataset.processId=id;editor.open=expandedProcesses.has(id);editor.append(node('summary','','Producto y comentario'));
+      const updateSummary=()=>{productSummary.textContent=productionRowSummary(row);productSummary.title=productSummary.textContent;productSummary.hidden=!row.product&&!row.action&&!row.comment&&row.runningCount===''&&row.totalCount==='';};updateSummary();card.append(productSummary);
+      const editor=node('details','prod-status-details');editor.dataset.processId=id;editor.open=expandedProcesses.has(id);const editSummary=node('summary','','Detalles');editSummary.setAttribute('aria-label','Producto y comentario de '+(row.name||process.name));editor.append(editSummary);
       const edit=(key,value)=>{rowEdit(id,key,value);updateSummary();};
       const fields=node('div','prod-row-fields');fields.append(inputField('Producto (elige o escribe)',row.product,v=>edit('product',v),{list:process.products,max:200}),selectInput('Acción / estado',row.action,process.actions,v=>edit('action',v)));
       const counts=node('details','prod-counts');counts.dataset.countProcessId=id;counts.open=expandedCounts.has(id);counts.append(node('summary','','Cantidad de máquinas en funcionamiento'));const countFields=node('div','prod-two-fields');countFields.append(inputField('Activas',row.runningCount,v=>edit('runningCount',v),{numeric:true,max:12}),inputField('Total',row.totalCount,v=>edit('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
-      editor.append(fields,counts,inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(editor);statusPanel.append(card);
+      editor.append(fields,counts,inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(editor);grid.append(card);
     }
+    if(focusId){const activeCard=[...grid.children].find(card=>card.dataset.rowId===focusId);activeCard?.querySelector('[role=switch]')?.focus({preventScroll:true});}
   }
   function renderTotals(target){
     target.replaceChildren(node('h3','','Totales capturados por unidad'));

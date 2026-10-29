@@ -2734,3 +2734,61 @@
  :root[data-theme] .prod-shell{max-width:1240px}
  :root[data-theme] .admin-dashboard{max-width:1400px;margin:auto}
 }
+
+/* Dense plant status board. Expanded details remain optional; every switch stays direct. */
+:root[data-theme] .production-studio[data-tab=status]{padding:14px max(12px,env(safe-area-inset-right)) 20px}
+:root[data-theme] .production-studio[data-tab=status] .prod-header{gap:8px;padding-bottom:8px;margin-bottom:6px}
+:root[data-theme] .production-studio[data-tab=status] .prod-title-wrap h1{font-size:1.5rem;margin:4px 0;line-height:1.15}
+:root[data-theme] .production-studio[data-tab=status] .prod-title-wrap .prod-eyebrow{display:none}
+:root[data-theme] .production-studio[data-tab=status] .prod-context{margin:4px 0 10px}
+:root[data-theme] .production-studio[data-tab=status] .prod-timing-card{padding:8px 12px;margin-bottom:4px;gap:8px;border-radius:12px;flex-wrap:wrap}
+:root[data-theme] .production-studio[data-tab=status] .prod-timing-card>div{flex:1 1 10rem;min-width:min(100%,10rem)}
+:root[data-theme] .production-studio[data-tab=status] .prod-timing-card p{margin:2px 0 0;font-size:.74rem;line-height:1.4}
+:root[data-theme] .production-studio[data-tab=status] .prod-timing-editor{margin-bottom:4px}
+:root[data-theme] .production-studio[data-tab=status] .prod-tabs{margin:4px 0 8px}
+:root[data-theme] #prod-panel-status>.prod-panel-intro{gap:8px;font-size:.95rem;margin:0}
+:root[data-theme] #prod-panel-status>.prod-hint{display:none}
+:root[data-theme] .prod-status-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start}
+:root[data-theme] .prod-status-grid .prod-process{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 8px;margin:0;padding:8px 12px;border-radius:12px;min-width:0}
+:root[data-theme] .prod-status-grid .prod-process-head{grid-column:1/-1;gap:10px;margin:0;min-height:44px}
+:root[data-theme] .prod-status-grid .prod-process-head>div{min-width:0}
+:root[data-theme] .prod-status-grid .prod-process-head h2{font-size:.95rem;line-height:1.25;margin:0 0 2px}
+:root[data-theme] .prod-status-grid .prod-machine-status{font-size:.72rem;line-height:1.25}
+:root[data-theme] .prod-status-grid .prod-switch{width:52px;height:44px;flex:0 0 52px;padding:7px}
+:root[data-theme] .prod-status-grid .prod-switch-thumb{width:26px;height:26px}
+:root[data-theme] .prod-status-grid .prod-switch[aria-checked=true] .prod-switch-thumb{transform:translateX(8px)}
+:root[data-theme] .prod-status-grid .prod-process>.prod-text-button{grid-column:1;grid-row:2;justify-self:start;min-height:44px;padding:0;font-size:.73rem}
+:root[data-theme] .prod-status-grid .prod-product-summary{grid-column:1;grid-row:2;align-self:center;min-width:0;max-width:100%;margin:0;font-size:.75rem;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:root[data-theme] .prod-status-grid .prod-process[data-state=unknown] .prod-product-summary{grid-column:1/-1;grid-row:3;padding-bottom:6px}
+:root[data-theme] .prod-status-grid .prod-status-details{grid-column:2;grid-row:2;border:0;margin:0;padding:0;min-width:0}
+:root[data-theme] .prod-status-grid .prod-status-details>summary{gap:6px;min-height:44px;padding:0;font-size:.75rem;justify-content:flex-end}
+:root[data-theme] .prod-status-grid .prod-status-details[open]{grid-column:1/-1;grid-row:4;padding-top:6px;border-top:1px solid var(--ui-edge-subtle)}
+:root[data-theme] .prod-status-grid .prod-status-details .prod-field{gap:5px;margin-bottom:8px}
+:root[data-theme] .prod-status-grid .prod-status-details .prod-row-fields{gap:8px;margin-top:4px}
+@media(min-width:360px){:root[data-theme] .prod-status-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))}}
+@media(max-width:599px){:root[data-theme] .prod-status-grid .prod-process:has(>.prod-status-details[open]){grid-column:1/-1}}
+@media(min-width:1000px){
+ :root[data-theme] .production-studio[data-tab=status] .prod-shell{max-width:1600px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px}
+ :root[data-theme] .production-studio[data-tab=status] .prod-shell>*{grid-column:1/-1}
+ :root[data-theme] .production-studio[data-tab=status] .prod-context{grid-column:1;grid-row:2}
+ :root[data-theme] .production-studio[data-tab=status] .prod-feedback{grid-column:2;grid-row:2;align-self:center;max-width:28rem;text-align:right;margin:0;font-size:.75rem}
+ :root[data-theme] .production-studio[data-tab=status] .prod-timing-card{grid-column:1;grid-row:3}
+ :root[data-theme] .production-studio[data-tab=status] .prod-timing-editor:not([open]){grid-column:2;grid-row:3;align-self:center}
+ :root[data-theme] .production-studio[data-tab=status] .prod-timing-editor[open]{grid-row:4}
+ :root[data-theme] .production-studio[data-tab=status] .prod-header{grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+ :root[data-theme] .production-studio[data-tab=status] .prod-title-wrap{grid-column:2;grid-row:1}
+ :root[data-theme] .production-studio[data-tab=status] .prod-title-wrap h1{font-size:1.65rem}
+ :root[data-theme] .production-studio[data-tab=status] .prod-title-wrap .prod-eyebrow{display:none}
+ :root[data-theme] .production-studio[data-tab=status] .prod-timing-editor>summary{min-height:30px}
+ :root[data-theme] .production-studio[data-tab=status] .prod-tab{min-height:36px;padding:8px}
+ :root[data-theme] .production-studio[data-tab=status] #prod-panel-status{max-width:none;width:100%}
+ :root[data-theme] .production-studio[data-tab=status] #prod-panel-status>.prod-hint{display:none}
+ :root[data-theme] .prod-status-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+ :root[data-theme] .prod-status-grid .prod-process{padding:6px 10px}
+ :root[data-theme] .prod-status-grid .prod-process>.prod-text-button,
+ :root[data-theme] .prod-status-grid .prod-status-details>summary{min-height:36px}
+ :root[data-theme] .production-studio[data-tab=status] .prod-footer{display:flex;justify-content:flex-end;gap:10px;padding-top:10px;margin-top:12px}
+ :root[data-theme] .production-studio[data-tab=status] .prod-footer button{min-height:44px}
+ :root[data-theme] .production-studio[data-tab=status] .prod-privacy{margin:6px 0;font-size:.68rem}
+}
+@media(min-width:1200px){:root[data-theme] .prod-status-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
