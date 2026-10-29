@@ -69,3 +69,16 @@ test('iniciar un nuevo turno respalda antes de reemplazar y no arrastra producci
  assert.equal(next.rows.extrusion.target,'');assert.equal(next.rows.extrusion.actual,'');assert.equal(next.rows.extrusion.active,null);assert.equal(next.rows.extrusion.efficiencyComment,'');assert.equal(next.rows.extrusion.unit,'lb');
  await assert.rejects(beginNextProductionReport({putText:async()=>{throw Error('Sin espacio');}},old,context),/Sin espacio/);assert.equal(JSON.stringify(old),before);
 });
+
+test('productos recordados sugieren sin duplicar mayúsculas o espacios',async()=>{
+ const {productionProductOptions,normalizeProductionProducts,productionProductsKey}=await import('../public/production-studio.js');
+ assert.deepEqual(productionProductOptions(['Tape 720D'],[' tape   720D ','Otro producto'],['']),['Tape 720D','Otro producto']);
+ assert.deepEqual({...normalizeProductionProducts(JSON.parse('{"extrusion":["Uno","uno"],"__proto__":["inseguro"]}'))},{extrusion:['Uno']});
+ assert.notEqual(productionProductsKey('sacos'),productionProductsKey('polietileno'));
+});
+test('Conversión 1 y 3 quedan consecutivas sin cambiar el reporte',async()=>{
+ const {productionOrderedRows}=await import('../public/production-studio.js');
+ const report={rows:{'conversion-3':{},extrusion:{},'conversion-1':{},telares:{}}},before=JSON.stringify(report);
+ assert.deepEqual(productionOrderedRows(report).map(([id])=>id),['extrusion','conversion-1','conversion-3','telares']);
+ assert.equal(JSON.stringify(report),before);
+});

@@ -33,7 +33,7 @@ try{
  await check('Vista previa deja inactivos en blanco y marca activos en verde sin borrar datos',async()=>{
   type('Meta','100');type('Producción real','100');button('Estatus').click();
   const first=root.querySelector('.prod-process'),set=(label,value)=>{const wrap=[...first.querySelectorAll('label')].find(e=>e.querySelector('span')?.textContent===label),input=wrap.querySelector('input,textarea');input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
-  set('Producto (elige o escribe)','Producto de prueba retenido');set('Comentario','Nota de prueba retenida');root.querySelectorAll('[role=switch]')[1].click();button('Reporte').click();
+  const choose=first.querySelector('.prod-product-picker select');choose.value='__new_product__';choose.dispatchEvent(new Event('change',{bubbles:true}));set('Nuevo producto','Producto de prueba retenido');first.querySelector('.prod-product-done').click();set('Comentario','Nota de prueba retenida');root.querySelectorAll('[role=switch]')[1].click();button('Reporte').click();
   const tables=root.querySelectorAll('#prod-panel-preview table'),rows=tables[tables.length-1].querySelectorAll('tbody tr');
   assert(rows[0].cells[2].textContent===''&&rows[0].cells[3].textContent==='','Aparecen datos del proceso inactivo');assert(rows[1].dataset.active==='true','Falta la marca de activo');assert(getComputedStyle(rows[1].cells[1]).backgroundColor==='rgb(223, 243, 231)','Falta el fondo verde');
   assert(!root.querySelector('#prod-panel-preview .prod-totals'),'El reporte contiene totales por unidad');
