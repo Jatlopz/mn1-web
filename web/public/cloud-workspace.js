@@ -95,7 +95,9 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
 
   };
   const definitions = () => getServices().catalog;
+  let lastIdentity;
   function render() {
+    const identity=client.session?.user?.id||null;if(identity!==lastIdentity){lastIdentity=identity;window.dispatchEvent(new CustomEvent('supertools:identity-changed',{detail:{userId:identity}}));}
     const logged = Boolean(client.session);
     applyAccountVisibility(access);
     $("cloud-login").hidden = logged;
@@ -631,5 +633,5 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     });
     void tick();
   }
-  return { start, tick, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
+  return { start, tick, aiSession:async()=>({token:await client.token(),userId:client.session.user.id}), requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
 }
