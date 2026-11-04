@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createLoomConfig,normalizeLoomConfig,createLoomWeek,normalizeLoomWeek,saveLoomShift,loomMetric,loomDashboard,loomWeekKey,loomDays} from '../public/looms-model.js';
+import {createLoomConfig,normalizeLoomConfig,createLoomWeek,normalizeLoomWeek,saveLoomShift,loomMetric,loomDashboard,loomWeekKey,loomDays,isLoomPhotoKey,isLoomPhoto} from '../public/looms-model.js';
 const config=()=>normalizeLoomConfig({version:1,people:[{id:'person-a',name:'Persona de prueba',enabled:true}],benches:[{id:'bench-a',name:'Bancada ficticia',enabled:true}],machines:[{id:'loom-a',name:'Telar ficticio',enabled:true,benchId:'bench-a',baseTarget:'1200'}]});
 const entry=(overrides={})=>({machineId:'loom-a',benchId:'bench-a',personId:'person-a',baseTarget:'1200',actual:'600',hours:'6',state:'recorded',note:'',...overrides});
 test('12 horas predeterminadas, metas proporcionales y cero real distinto de pendiente',()=>{
@@ -21,4 +21,10 @@ test('dashboard pondera producción y metas, no promedia porcentajes ni inventa 
 test('capturas duplicadas, semana incorrecta e inactivo con producción se rechazan',()=>{
  const c=config(),w=saveLoomShift(createLoomWeek('2026-11-04'),c,'2026-11-04','TA',[entry()]);assert.throws(()=>normalizeLoomWeek({...w,captures:[...w.captures,...w.captures]},'2026-11-04'));assert.throws(()=>normalizeLoomWeek(w,'2026-12-01'));assert.throws(()=>saveLoomShift(w,c,'2026-11-04','TA',[entry({state:'inactive'})]));
  const inactive=saveLoomShift(w,c,'2026-11-04','TA',[entry({state:'inactive',actual:'',personId:''})]);assert.equal(loomDashboard(inactive).inactive,1);assert.equal(loomDashboard(inactive).efficiency,null);
+});
+
+test('fotos de operador conservan referencias locales y rechazan URL externas',()=>{
+ const c=config();assert.equal(c.people[0].photoKey,'');const photoKey='mn1.loom.pic.'+'a'.repeat(32);assert.equal(isLoomPhotoKey(photoKey),true);c.people[0].photoKey=photoKey;assert.equal(normalizeLoomConfig(c).people[0].photoKey,photoKey);
+ for(const value of ['https://example.com/photo.jpg','javascript:alert(1)','mn1.loom.pic.../file',123]){c.people[0].photoKey=value;assert.throws(()=>normalizeLoomConfig(c));}
+ assert.equal(isLoomPhoto('data:image/jpeg;base64,/9j/2Q=='),true);assert.equal(isLoomPhoto('https://example.com/photo.jpg'),false);assert.equal(isLoomPhoto('data:image/svg+xml;base64,AAAA'),false);assert.equal(isLoomPhoto('data:image/jpeg;base64,/9j/'+'a'.repeat(150000)),false);
 });
