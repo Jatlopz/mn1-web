@@ -19,6 +19,8 @@ export function createProductionExample() {
 
 /** Shared by rendering and shortcut editing; saved preferences themselves are not rewritten. */
 export function syncToolAvailability(root,team) {
+  const looms=root.getElementById('looms-tools-section');
+  if(looms)looms.hidden=!isToolEnabledForTeam('looms',team);
   const production=root.getElementById('production-tools-section');
   if(production)production.hidden=!isToolEnabledForTeam('production',team);
   const lamination=root.getElementById('lamination-tools-section');

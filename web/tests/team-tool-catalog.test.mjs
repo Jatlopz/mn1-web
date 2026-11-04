@@ -5,7 +5,7 @@ import {launchTeamTool} from '../public/app.js';
 const custom={id:'custom-11111111-1111-4111-8111-111111111111',name:'Equipo ficticio',plantId:'sacos'};
 test('anuncios y reporte son generales; eficiencia es exclusiva de los cuatro equipos de Sacos',()=>{
  assert.deepEqual(TEAM_TOOLS.filter(t=>t.includedByDefault===true).map(t=>t.id),['announcement','report']);
- for(const team of PROFILE_CATALOG)assert.deepEqual(toolsForTeam(team).map(t=>t.id),['announcement','report','production','lamination']);
+ for(const team of PROFILE_CATALOG)assert.deepEqual(toolsForTeam(team).map(t=>t.id),['announcement','report','production','looms','lamination']);
  for(const team of [custom,{...custom,plantId:'polietileno'},{...PROFILE_CATALOG[0],plantId:'polietileno'}]){
   assert.deepEqual(toolsForTeam(team).map(t=>t.id),team.plantId==='sacos'?['announcement','report','lamination']:['announcement','report']);assert.equal(isToolEnabledForTeam('production',team),false);
  }

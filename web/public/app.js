@@ -1,3 +1,4 @@
+import {createLoomStudio} from './looms-studio.js';
 import {installIsoCalendar} from './iso-calendar.js';
 import {createLaminationStudio} from './lamination-studio.js';
 import {createTeamToolLibrary,syncToolAvailability} from './team-tool-library.js';
@@ -2217,6 +2218,7 @@ export function launchTeamTool(dom,app,id) {
   if(id==='announcement')openWorkspaceFor(dom,app,app.workspace.activeProfileId);
   if(id==='report')void app.reportStudio?.open({teamId:app.workspace.activeProfileId});
   if(id==='production'){const definition=getProfileDefinition(app.workspace.activeProfileId,{catalog:app.catalog});void app.productionStudio?.open({teamId:definition.id,teamName:definition.name,plantId:plantForTeam(definition)});}
+  if(id==='looms')void app.loomsStudio?.open({id:team.id,name:team.name,plantId:plantForTeam(team)});
   if(id==='lamination')void app.laminationStudio?.open({id:team.id,name:team.name});
   return true;
 }
@@ -2331,7 +2333,7 @@ function renderTeamTools(dom,app) {
   const grid=document.getElementById('team-shortcuts');grid.replaceChildren();
   const chosen=toolShortcutsForTeam(app.toolShortcuts?.[id],definition);
   document.getElementById('shortcuts-empty').hidden=chosen.length>0;
-  for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='lamination'?'M5 2h14v20H5ZM8 6h8M8 10h2m4 0h2M8 14h2m4 0h2M8 18h2m4 0h2':toolId==='production'?'M3 21h18M6 17V9m6 8V3m6 14v-6':toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);button.setAttribute('aria-label',tool.name);button.title=tool.name;button.append(icon);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
+  for(const toolId of chosen){const tool=TEAM_TOOLS.find(t=>t.id===toolId);const button=document.createElement('button');button.type='button';button.className='team-shortcut';button.disabled=app.busy||app.switching;const icon=document.createElement('span');icon.className='shortcut-icon';icon.setAttribute('aria-hidden','true');const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.7');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',toolId==='looms'?'M3 21h18M5 17V9m5 8V4m5 13v-6m5 6V7':toolId==='lamination'?'M5 2h14v20H5ZM8 6h8M8 10h2m4 0h2M8 14h2m4 0h2M8 18h2m4 0h2':toolId==='production'?'M3 21h18M6 17V9m6 8V3m6 14v-6':toolId==='announcement'?'M4 9h5l10-5v16L9 15H4Zm5 6 2 6H7l-2-6M19 9l3 1v4l-3 1':'M4 6h4l2-3h4l2 3h4v15H4ZM8 13a4 4 0 1 0 8 0 4 4 0 1 0-8 0');svg.append(path);icon.append(svg);button.setAttribute('aria-label',tool.name);button.title=tool.name;button.append(icon);button.addEventListener('click',()=>launchTeamTool(dom,app,toolId));grid.append(button);}
 }
 
 function openWorkspaceFor(dom, app, profileId, options = {}) {
@@ -4767,6 +4769,8 @@ async function boot() {
   };
   app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true)}));
   document.getElementById('open-production').addEventListener('click',()=>launchTeamTool(dom,app,'production'));
+  app.loomsStudio=createLoomStudio(()=>({storage:app.storage,canConfigure:()=>app.cloud?.canManageCatalog()===true,getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
+  document.getElementById('open-looms').addEventListener('click',()=>launchTeamTool(dom,app,'looms'));
   app.laminationStudio=createLaminationStudio(()=>({storage:app.storage}));
   document.getElementById('open-lamination').addEventListener('click',()=>launchTeamTool(dom,app,'lamination'));
   await seedStarterImagesOnBoot(dom, app);

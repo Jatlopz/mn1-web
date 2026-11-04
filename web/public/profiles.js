@@ -890,6 +890,7 @@ export const TEAM_TOOLS = Object.freeze([
   {id:'announcement',scope:'general',includedByDefault:true,name:'Enviar anuncio',description:'Prepara la imagen y hora de la convocatoria'},
   {id:'report',scope:'general',includedByDefault:true,name:'Reportar reunión',description:'Foto, marco y membrete de tu equipo'},
   {id:'production',scope:'exclusive',plantId:'sacos',teamIds:Object.freeze(['champions','espartanos','super-guerreros','indestructibles']),name:'Eficiencias y estatus',description:'Calcula eficiencias y comparte el reporte de planta en PDF'},
+  {id:'looms',scope:'exclusive',plantId:'sacos',teamIds:Object.freeze(['champions','espartanos','super-guerreros','indestructibles']),processId:'telares',name:'Eficiencias de Telares',description:'Bancadas, producción en metros y dashboard semanal por persona'},
   {id:'lamination',scope:'exclusive',plantId:'sacos',plantWide:true,processId:'laminado',name:'Verificador de libras',description:'Compara el reporte de Laminado con las etiquetas y calcula metros de Slitter'},
 ]);
 export const normalizeToolShortcuts = value => Array.isArray(value) ? [...new Set(value.filter(id=>TEAM_TOOLS.some(tool=>tool.id===id)))] : TEAM_TOOLS.map(tool=>tool.id);
