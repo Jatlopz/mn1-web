@@ -60,3 +60,11 @@ test('el PDF usa el encabezado solicitado, barras por umbral y resalta activos s
  for(const token of ['PRODUCTO_OCULTO','ACCION_OCULTA','COMENTARIO_OCULTO','Sin indicar','Sin observaciones'])assert.ok(!status.some(t=>t.text.includes(token)),token);
  assert.ok(status.some(t=>t.text.includes('Producto activo')));assert.equal(JSON.stringify(r),before);
 });
+
+test('PDF dibuja desperdicio secundario con meta, cero válido y sin inventar datos',async()=>{
+ const {normalizeCatalog}=await import('../public/plant-catalog.js');const {createProductionReport}=await import('../public/production-model.js');
+ const c=normalizeCatalog({processes:[0,1,2,3].map(n=>({id:'p'+n,name:'Proceso '+n,unit:'kg',efficiency:true}))},'sacos');const r=createProductionReport(c,{teamId:'fixture',teamName:'Equipo ficticio',date:'2026-11-04'});
+ const samples=[['.25','.2'],['.25','.4'],['0','0'],['.25','']];Object.values(r.rows).forEach((row,i)=>Object.assign(row,{active:false,target:'100',actual:'100',wasteTarget:samples[i][0],wasteActual:samples[i][1]}));const original=JSON.stringify(r),rects=[],texts=[];
+ const createCanvas=()=>{const ctx={scale(){},fillRect(x,y,w,h){rects.push({x,y,w,h,color:this.fillStyle});},fillText(t){texts.push(String(t));},measureText:t=>({width:String(t).length*4})};return {getContext:()=>ctx,toDataURL:()=> 'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};};
+ createProductionPdf(r,c,{createCanvas});const bars=rects.filter(r=>r.h===5&&['#218547','#c92532'].includes(r.color));assert.equal(bars.length,3);assert.deepEqual(bars.map(b=>b.color),['#218547','#c92532','#218547']);assert.equal(bars[2].w,0);assert.ok(bars.every(b=>Number.isFinite(b.w)&&b.w>=0&&b.w<=471));assert.equal(texts.filter(t=>t.startsWith('Desperdicio real:')).length,3);assert.equal(JSON.stringify(r),original);
+});
