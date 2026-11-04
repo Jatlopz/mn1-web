@@ -12,7 +12,7 @@ export function productionTimingFor(now=new Date()) {
  return {date:localDate(statusDay),efficiencyDate:localDate(efficiencyDay),efficiencyShift:day?'TC':'TA',statusShift:day?'TA':'TC',period:day?'day':'night'};
 }
 function cleanCatalog(catalog,plant){return normalizeCatalog(catalog,plant??catalog?.plantId??'sacos');}
-function defaultRow(process){return {name:process.name,active:null,product:'',action:'',comment:'',efficiencyComment:'',runningCount:'',totalCount:'',target:'',actual:'',wasteTarget:'',wasteActual:'',unit:process.unit,includeEfficiency:process.efficiency};}
+function defaultRow(process){return {name:process.name,countKind:process.countKind==='station'?'station':process.countKind==='machine'?'machine':null,active:null,product:'',action:'',comment:'',efficiencyComment:'',runningCount:'',totalCount:'',target:'',actual:'',wasteTarget:'',wasteActual:'',unit:process.unit,includeEfficiency:process.efficiency};}
 export function productionDraftKey(teamId){if(!isProcessId(teamId))throw Error('Identificador de equipo no válido.');return 'mn1.production.'+teamId;}
 export function createProductionReport(catalog,context={}) {
  const c=cleanCatalog(catalog??defaultCatalog(context.plantId),context.plantId);
@@ -22,7 +22,8 @@ export function createProductionReport(catalog,context={}) {
 }
 function normalizeRow(raw,definition){
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Fila de proceso no válida.');
- const row={...defaultRow(definition),name:text(raw.name??definition.name),active:raw.active===true?true:raw.active===false?false:null,product:text(raw.product,200),action:text(raw.action,100),comment:text(raw.comment,2000),efficiencyComment:text(raw.efficiencyComment??raw.comment,2000),unit:text(raw.unit??definition.unit,24),includeEfficiency:typeof raw.includeEfficiency==='boolean'?raw.includeEfficiency:definition.efficiency};
+ if(raw.countKind!=null&&!['machine','station'].includes(raw.countKind))throw Error('Tipo de recurso no válido.');
+ const row={...defaultRow(definition),countKind:raw.countKind==='station'?'station':raw.countKind==='machine'?'machine':definition.countKind==='station'?'station':definition.countKind==='machine'?'machine':null,name:text(raw.name??definition.name),active:raw.active===true?true:raw.active===false?false:null,product:text(raw.product,200),action:text(raw.action,100),comment:text(raw.comment,2000),efficiencyComment:text(raw.efficiencyComment??raw.comment,2000),unit:text(raw.unit??definition.unit,24),includeEfficiency:typeof raw.includeEfficiency==='boolean'?raw.includeEfficiency:definition.efficiency};
  for(const key of numericFields){const value=typeof raw[key]==='number'?String(raw[key]):raw[key]??'';if(typeof value!=='string'||value.length>64)throw Error('Dato numérico no válido o demasiado largo.');row[key]=value.trim();}
  return row;
 }
@@ -82,8 +83,8 @@ export function validateProductionReport(report,catalog) {
   if(row.active!==true&&row.active!==false)errors.push(label+': confirma el estatus activo o inactivo.');
   if(typeof row.includeEfficiency!=='boolean')errors.push(label+': confirma si se incluye en eficiencias.');
   if(row.includeEfficiency===true&&hasEfficiencyInput(row)){const result=calculateEfficiency(row);for(const error of result.errors)errors.push(label+': '+error);if(!text(row.unit,24))errors.push(label+': indica la unidad de producción.');if(requiresEfficiencyReason(row)&&!text(row.efficiencyComment??row.comment,2000))errors.push(label+': agrega una razón o comentario porque la eficiencia es de 90 % o menos.');}
-  const running=decimal(row.runningCount),total=decimal(row.totalCount);
-  if(running.kind!=='missing'||total.kind!=='missing'){
+  const running=decimal(row.runningCount),total=decimal(row.totalCount);if(total.kind==='invalid'||(total.kind==='number'&&!Number.isSafeInteger(total.value)))errors.push(label+': el total debe ser un entero no negativo.');
+  if(running.kind!=='missing'){
    if(running.kind!=='number'||total.kind!=='number'||!Number.isSafeInteger(running.value)||!Number.isSafeInteger(total.value)||running.value>total.value)errors.push(label+': las cantidades operativas deben ser enteros no negativos y la cantidad activa no puede superar el total.');
   }
  }
@@ -92,7 +93,7 @@ export function validateProductionReport(report,catalog) {
 
 /** A blank machine is omitted; a partially captured machine must still be validated. */
 export function hasEfficiencyInput(row={}) {
- return ['target','actual','wasteTarget','wasteActual'].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
+ return ['target','actual','wasteActual'].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
 }
 export function efficiencyRows(report) {
  return Object.entries(report?.rows??{}).filter(([,row])=>row.includeEfficiency===true&&hasEfficiencyInput(row));
@@ -119,6 +120,9 @@ function compareEfficiencyTo(row,percent) {
  const left=a.integer*10n**BigInt(scale-a.scale)*100n,right=t.integer*10n**BigInt(scale-t.scale)*BigInt(percent);
  return left<right?-1:left>right?1:0;
 }
+export function efficiencyMeetsTarget(row={}) { const comparison=compareEfficiencyTo(row,100);return comparison!==null&&comparison>=0; }
+export function efficiencyCommentDisplay(row={}) {return efficiencyMeetsTarget(row)?'OK':(row.efficiencyComment??row.comment)||'—';}
+export function productionCountLabels(row={}) {return row.countKind==='station'?{active:'Estaciones activas',total:'Total de estaciones',noun:'estaciones activas'}:{active:'Máquinas activas',total:'Total de máquinas',noun:'máquinas'};}
 export function requiresEfficiencyReason(row={}) {
  const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<=0;
 }
@@ -132,5 +136,5 @@ export function productionStatusDisplay(row={}) {
  const active=row.active===true;
  return {active,status:active?'En funcionamiento':row.active===false?'Inactivo':'Sin confirmar',
   productAction:active?[row.product,row.action].filter(Boolean).join(' · '):'',
-  observations:active?[row.runningCount!==''&&row.runningCount!=null&&row.totalCount!==''&&row.totalCount!=null?row.runningCount+'/'+row.totalCount+' unidades activas':'',row.comment].filter(Boolean).join(' · '):''};
+  observations:active?[row.runningCount!==''&&row.runningCount!=null&&row.totalCount!==''&&row.totalCount!=null?row.runningCount+'/'+row.totalCount+' '+productionCountLabels(row).noun:'',row.comment].filter(Boolean).join(' · '):''};
 }

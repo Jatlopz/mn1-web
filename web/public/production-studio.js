@@ -1,5 +1,5 @@
 import { defaultCatalog, normalizeCatalog, catalogKey } from './plant-catalog.js';
-import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, PRODUCTION_REPORT_TITLE } from './production-model.js';
+import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, efficiencyMeetsTarget, efficiencyCommentDisplay, productionCountLabels, PRODUCTION_REPORT_TITLE } from './production-model.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const fmt = value => value === null ? 'Sin datos' : new Intl.NumberFormat('es-HN', {maximumFractionDigits:2}).format(value);
@@ -21,6 +21,37 @@ export function normalizeProductionProducts(raw) {
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return Object.create(null);
   return Object.assign(Object.create(null),Object.fromEntries(Object.entries(raw).filter(([id])=>/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(id)&&!['constructor','prototype','__proto__'].includes(id)).map(([id,values])=>[id,productionProductOptions(values)])));
 }
+
+export const productionDefaultsKey = plant => 'mn1.prod.defaults.'+plant;
+const initialValues=(id)=>({wasteTarget:'',totalCount:id==='telares'?'23':'',countKind:['liner','empaque'].includes(id)?'station':'machine'});
+function validDefaultsMonth(month){return typeof month==='string'&&/^[2-9]\d{3}-(0[1-9]|1[0-2])$/.test(month);}
+export function normalizeProductionDefaults(raw){
+ if(raw==null)return {version:1,months:{}};
+ if(typeof raw!=='object'||Array.isArray(raw)||raw.version!==1||!raw.months||typeof raw.months!=='object'||Array.isArray(raw.months)||Object.keys(raw.months).length>120)throw Error('Formato de valores fijos no válido.');
+ const months={};for(const [month,entries]of Object.entries(raw.months)){
+  if(!validDefaultsMonth(month)||!entries||typeof entries!=='object'||Array.isArray(entries)||Object.keys(entries).length>40)throw Error('Mes o procesos de valores fijos no válidos.');
+  const values={};for(const [id,entry]of Object.entries(entries)){
+   if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(id)||['constructor','prototype','__proto__'].includes(id)||!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('Proceso de valores fijos no válido.');
+   const waste=String(entry.wasteTarget??'').trim().replace(',','.'),total=String(entry.totalCount??'').trim();
+   if(waste!==''&&(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(waste)||!Number.isFinite(Number(waste))||Number(waste)>100||waste.length>32))throw Error('La meta de desperdicio debe estar entre 0 y 100 %.');
+   if(total!==''&&(!/^\d{1,6}$/.test(total)||Number(total)>100000))throw Error('La cantidad debe ser un entero entre 0 y 100000.');
+   if(!['machine','station'].includes(entry.countKind))throw Error('Elige máquinas o estaciones.');values[id]={wasteTarget:waste,totalCount:total,countKind:entry.countKind};
+  }months[month]=values;
+ }return {version:1,months};
+}
+export function productionDefaultsFor(defaults,month,id){
+ if(!validDefaultsMonth(month))throw Error('Mes no válido.');let value=initialValues(id);
+ for(const date of Object.keys(defaults.months).filter(date=>date<=month).sort())if(Object.hasOwn(defaults.months[date],id))value={...value,...defaults.months[date][id]};return value;
+}
+export function applyProductionDefaults(report,defaults,{replace=false,month=null}={}){
+ const next=clone(report),effMonth=(report.efficiencyDate??report.date).slice(0,7),statusMonth=report.date.slice(0,7);for(const [id,row]of Object.entries(next.rows)){
+  const eff=validDefaultsMonth(effMonth)?productionDefaultsFor(defaults,effMonth,id):null,status=validDefaultsMonth(statusMonth)?productionDefaultsFor(defaults,statusMonth,id):null;
+  if(eff&&(replace&&(!month||month===effMonth)||row.wasteTarget==null||row.wasteTarget===''))row.wasteTarget=eff.wasteTarget;
+  if(status&&(replace&&(!month||month===statusMonth)||row.totalCount==null||row.totalCount===''))row.totalCount=status.totalCount;
+  if(status&&(replace&&(!month||month===statusMonth)||!['machine','station'].includes(row.countKind)))row.countKind=status.countKind;
+ }return next;
+}
+
 export const productionOrderKey = team => 'mn1.prod.order.'+team;
 export function normalizeProductionOrder(raw) {
   if(raw===null||raw===undefined)return null;
@@ -56,7 +87,7 @@ export function reconcileProductionCatalog(report, catalog) {
   return next;
 }
 export function productionPreviewRows(report,order=null) {
-  return productionOrderedRows(report,order).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
+  return productionOrderedRows(report,order).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:efficiencyCommentDisplay(row),meetsTarget:efficiencyMeetsTarget(row),unit:row.unit,target:row.target,actual:row.actual}));
 }
 export function productionRowSummary(row) {
   const counts = row.runningCount !== '' || row.totalCount !== '' ? (row.runningCount || '—')+'/'+(row.totalCount || '—') : '';
@@ -87,7 +118,7 @@ export function createProductionStudio(getServices) {
   const back=button('← Herramientas','prod-back',()=>void close());
   const heading=node('div','prod-title-wrap');heading.append(node('p','prod-eyebrow','CONTROL DE PLANTA'));
   const title=node('h1','','Eficiencias y estatus');title.id='production-title';heading.append(title);
-  const catalogButton=button('Catálogo','prod-secondary',()=>openCatalog());header.append(back,heading,catalogButton);
+  const catalogButton=button('Catálogo','prod-secondary',()=>openCatalog());const fixedButton=button('Valores fijos','prod-secondary',openDefaults),headerActions=node('div','prod-header-actions');headerActions.append(fixedButton,catalogButton);header.append(back,heading,headerActions);
   const context=node('p','prod-context');
   const metadata=node('div','prod-metadata');
   function field(label,type='text') {const wrap=node('label','prod-field');wrap.append(node('span','',label));const input=node('input');input.type=type;wrap.append(input);return {wrap,input};}
@@ -116,7 +147,7 @@ export function createProductionStudio(getServices) {
   footer.append(save,download,share);
   const privacy=node('p','prod-privacy','Captura manual de Sysprod. Borrador y catálogo guardados en este teléfono; el envío se confirma al compartir.');
   shell.append(header,context,timingCard,timingEditor,tabs,catalogNotice,feedback,errors,statusPanel,effPanel,previewPanel,footer,privacy);root.append(shell);doc.body.append(root);
-  let report=null,catalog=null,contextValue=null,busy=false,dirty=false,tab='status',priorAppHidden=false,queue=Promise.resolve(),catalogChanged=false,productHistory=Object.create(null),productHistoryWritable=true,productHistoryWarning='',processOrder=null,orderWritable=true;
+  let report=null,catalog=null,contextValue=null,busy=false,dirty=false,tab='status',priorAppHidden=false,queue=Promise.resolve(),catalogChanged=false,productHistory=Object.create(null),productHistoryWritable=true,productHistoryWarning='',processOrder=null,orderWritable=true,defaults={version:1,months:{}},defaultsWritable=true;
   const app=doc.getElementById('app');
   const catalogDialog=node('dialog','prod-catalog-dialog');catalogDialog.setAttribute('aria-labelledby','prod-catalog-title');
   const catalogHead=node('div','prod-dialog-head'),catalogTitle=node('h2','','Catálogo de procesos');catalogTitle.id='prod-catalog-title';
@@ -178,7 +209,7 @@ export function createProductionStudio(getServices) {
     const next=normalizeProductionOrder(draftOrder);lock(true);orderSave.disabled=true;
     try{await serial(()=>getServices().storage.putText(productionOrderKey(contextValue.teamId),JSON.stringify(next)));processOrder=next;orderDialog.close();render();message('Orden guardado para este equipo.');}
     catch{orderError.textContent='No se pudo guardar el orden. Tu orden anterior y la captura se conservan; puedes reintentar.';}
-    finally{lock(false);orderSave.disabled=false;renderOrder();if(orderDialog.open)orderSave.focus({preventScroll:true});else panels[tab]?.querySelector('.prod-order-open')?.focus({preventScroll:true});}
+    finally{lock(false);orderSave.disabled=false;if(orderDialog.open)renderOrder();if(orderDialog.open)orderSave.focus({preventScroll:true});else panels[tab]?.querySelector('.prod-order-open')?.focus({preventScroll:true});}
   }
   function renderChart(){
     const section=node('section','prod-chart');section.setAttribute('aria-label','Gráfica de eficiencias');const rows=productionChartRows(report,processOrder);
@@ -186,6 +217,27 @@ export function createProductionStudio(getServices) {
     if(!rows.length){section.append(node('p','prod-chart-empty','Ingresa una meta y producción real para ver tus barras aquí.'));return section;}
     const maximum=Math.max(100,Math.ceil(Math.max(...rows.map(row=>row.efficiency))/20)*20),scale=node('div','prod-chart-scale');scale.append(node('span','','0 %'),node('span','','Escala hasta '+fmt(maximum)+' %'));section.append(scale);
     const list=node('div','prod-chart-bars');const groups=productionChartGroups(report,processOrder);list.dataset.groups=String(groups.length);for(const group of groups){const block=node('section','prod-chart-group'),groupRows=node('div','prod-chart-group-rows');block.append(node('h4','',group.name),groupRows);for(const row of group.rows){const item=node('article','prod-chart-row');item.dataset.level=row.level;const head=node('div','prod-chart-label');head.append(node('strong','',row.name),node('output','',fmt(row.efficiency)+' %'));const track=node('div','prod-chart-track');track.setAttribute('role','meter');track.setAttribute('aria-label',row.name);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.setAttribute('aria-valuenow',String(row.efficiency));track.setAttribute('aria-valuetext',fmt(row.efficiency)+' por ciento; meta 100 por ciento');const fill=node('span','prod-chart-fill'),target=node('span','prod-chart-target');fill.style.width=(row.efficiency/maximum*100)+'%';target.style.left=(100/maximum*100)+'%';track.append(fill,target);item.append(head,track);groupRows.append(item);}list.append(block);}section.append(list,node('p','prod-chart-legend','Verde ≥ 90 % · Naranja 80–89,99 % · Rojo < 80 % · Línea vertical: meta 100 %'));return section;
+  }
+
+  const defaultsDialog=node('dialog','prod-defaults-dialog');defaultsDialog.setAttribute('aria-labelledby','prod-defaults-title');
+  const defaultsTitle=node('h2','','Valores fijos por mes');defaultsTitle.id='prod-defaults-title';
+  const defaultsMonth=field('Mes de las metas','month'),defaultsList=node('div','prod-defaults-list'),defaultsError=node('p','prod-feedback');defaultsError.setAttribute('role','status');let defaultsDraft={};
+  const replaceLabel=node('label','prod-check'),replaceDefaults=node('input');replaceDefaults.type='checkbox';replaceLabel.append(replaceDefaults,node('span','','Reemplazar estos valores en el borrador actual (se guardará una copia anterior)'));
+  const defaultsSave=button('Guardar valores fijos','prod-primary',()=>void saveDefaults());const defaultsActions=node('div','prod-dialog-actions');defaultsActions.append(button('Cancelar','prod-secondary',()=>defaultsDialog.close()),defaultsSave);
+  defaultsDialog.append(defaultsTitle,node('p','prod-hint','Configura una vez la meta de desperdicio, el total disponible y si cuentas máquinas o estaciones. Se reutilizan en reportes nuevos y meses siguientes hasta que los cambies. No se precargan producción ni cantidades activas.'),defaultsMonth.wrap,defaultsList,replaceLabel,defaultsError,defaultsActions);root.append(defaultsDialog);
+  defaultsMonth.input.addEventListener('change',()=>{if(validDefaultsMonth(defaultsMonth.input.value))renderDefaults();else defaultsError.textContent='Selecciona un mes válido.';});defaultsDialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
+  function openDefaults(){if(busy||!report)return;const requested=(report.efficiencyDate??report.date).slice(0,7);defaultsMonth.input.value=validDefaultsMonth(requested)?requested:productionTimingFor().date.slice(0,7);replaceDefaults.checked=false;defaultsError.textContent=defaultsWritable?'':'No se pudo leer la configuración anterior. Reabre la herramienta para reintentar sin sobrescribirla.';renderDefaults();defaultsDialog.showModal();}
+  function renderDefaults(){defaultsList.replaceChildren();defaultsDraft={};for(const [id,row]of productionOrderedRows(report,processOrder)){
+    const value=productionDefaultsFor(defaults,defaultsMonth.input.value,id);defaultsDraft[id]={...value};const entry=node('section','prod-defaults-row');entry.append(node('strong','',row.name));
+    entry.append(inputField('Meta desperdicio %',value.wasteTarget,v=>{defaultsDraft[id].wasteTarget=v;},{numeric:true,max:32}),inputField('Total disponible',value.totalCount,v=>{defaultsDraft[id].totalCount=v;},{numeric:true,max:6}));
+    const label=node('label','prod-field'),kind=node('select');label.append(node('span','','Tipo de recurso'),kind);for(const [key,text]of [['machine','Máquinas'],['station','Estaciones']]){const option=node('option','',text);option.value=key;kind.append(option);}kind.value=value.countKind;kind.addEventListener('change',()=>defaultsDraft[id].countKind=kind.value);entry.append(label);defaultsList.append(entry);
+  }}
+  async function saveDefaults(){if(busy)return;if(!defaultsWritable){defaultsError.textContent='Reabre la herramienta para leer los valores anteriores antes de modificarlos.';return;}const month=defaultsMonth.input.value;let next;
+    try{next=normalizeProductionDefaults({...defaults,months:{...defaults.months,[month]:{...defaults.months[month],...defaultsDraft}}});}catch(error){defaultsError.textContent=error.message;return;}
+    const apply=[(report.efficiencyDate??report.date).slice(0,7),report.date.slice(0,7)].includes(month),replace=apply&&replaceDefaults.checked;lock(true);
+    try{await serial(async()=>{const storage=getServices().storage;if(replace)await storage.putText('mn1.production.history.'+crypto.randomUUID().replaceAll('-',''),JSON.stringify(report));await storage.putText(productionDefaultsKey(contextValue.plantId),JSON.stringify(next));});defaults=next;if(apply){report=applyProductionDefaults(report,defaults,{replace,month});stamp();}defaultsDialog.close();render();message('Valores fijos guardados para '+month+'. Se conservan los meses anteriores y la producción capturada.');}
+    catch{defaultsError.textContent='No se pudieron guardar los valores fijos. Tu captura y configuración anterior se conservan. Puedes reintentar.';}
+    finally{lock(false);if(orderDialog.open)renderOrder();if(defaultsDialog.open)defaultsSave.focus({preventScroll:true});else fixedButton.focus({preventScroll:true});}
   }
   function definition(id){return report.catalogSnapshot?.processes.find(p=>p.id===id)||catalog.processes.find(p=>p.id===id)||{id,name:report.rows[id]?.name||id,products:[],actions:[]};}
   function rowEdit(id,key,value){report.rows[id][key]=value;stamp();}
@@ -221,8 +273,8 @@ export function createProductionStudio(getServices) {
       if(row.active===null){const inactive=button('Inactivo','prod-text-button',()=>{row.active=false;stamp();renderStatus(id);});inactive.setAttribute('aria-label','Confirmar inactivo '+(row.name||process.name));copy.append(inactive);}
       const edit=(key,value)=>rowEdit(id,key,value);
       const fields=node('div','prod-row-fields prod-status-inline');fields.append(productPicker(id,row,process),selectInput('Estado / acción',row.action,process.actions,v=>edit('action',v)),inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(fields);
-      const editSummary=button('Cantidades','prod-status-counts');editSummary.setAttribute('aria-label','Cantidad de máquinas de '+(row.name||process.name));
-      const counts=node('div','prod-counts-block');counts.append(node('h3','','Máquinas en funcionamiento'));const countFields=node('div','prod-two-fields');countFields.append(inputField('Activas',row.runningCount,v=>edit('runningCount',v),{numeric:true,max:12}),inputField('Total',row.totalCount,v=>edit('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
+      const countLabels=productionCountLabels(row),editSummary=button('Cantidades','prod-status-counts');editSummary.setAttribute('aria-label',countLabels.total+' de '+(row.name||process.name));
+      const counts=node('div','prod-counts-block');counts.append(node('h3','',countLabels.active));const countFields=node('div','prod-two-fields');countFields.append(inputField(countLabels.active,row.runningCount,v=>edit('runningCount',v),{numeric:true,max:12}),inputField(countLabels.total,row.totalCount,v=>edit('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
       const editor=modalEditor('Cantidades · '+(row.name||process.name),[counts],editSummary,'status');editor.dataset.processId=id;head.insertBefore(editSummary,toggle);card.append(editor);grid.append(card);
     }
     if(focusId){const activeCard=[...grid.children].find(card=>card.dataset.rowId===focusId);activeCard?.querySelector('[role=switch]')?.focus({preventScroll:true});}
@@ -245,8 +297,8 @@ export function createProductionStudio(getServices) {
       const outcome=node('output','prod-efficiency-result');outcome.setAttribute('aria-label','Eficiencia de '+(row.name||id));
       const reason=inputField('Razón / comentario de eficiencia',row.efficiencyComment??row.comment??'',v=>{rowEdit(id,'efficiencyComment',v);update();},{multiline:true,max:2000});
       const reasonHint=node('p','prod-hint','Obligatorio cuando la eficiencia es de 90 % o menos.');reason.append(reasonHint);
-      const reasonNote=node('span','prod-reason-note');
-      const update=()=>{const result=calculateEfficiency(row),required=requiresEfficiencyReason(row);outcome.textContent=result.efficiency===null?(hasEfficiencyInput(row)?'Completa la captura':'No se incluirá'):fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':required?'below':'met';reason.hidden=!required&&!(row.efficiencyComment??row.comment??'').trim();reason.querySelector('textarea').required=required;reasonHint.hidden=!required;reasonNote.hidden=!required;reasonNote.textContent=(row.efficiencyComment??row.comment??'').trim()?'Motivo registrado':'Añade el motivo';reasonNote.dataset.pending=String(required&&!(row.efficiencyComment??row.comment??'').trim());updateTotals();};
+      const reasonNote=node('span','prod-reason-note'),ok=node('strong','prod-efficiency-ok','OK');ok.setAttribute('aria-label','Meta de producción cumplida');
+      const update=()=>{const result=calculateEfficiency(row),required=requiresEfficiencyReason(row);ok.hidden=!efficiencyMeetsTarget(row);outcome.textContent=result.efficiency===null?(hasEfficiencyInput(row)?'Completa la captura':'No se incluirá'):fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':required?'below':'met';reason.hidden=!required&&!(row.efficiencyComment??row.comment??'').trim();reason.querySelector('textarea').required=required;reasonHint.hidden=!required;reasonNote.hidden=!required;reasonNote.textContent=(row.efficiencyComment??row.comment??'').trim()?'Motivo registrado':'Añade el motivo';reasonNote.dataset.pending=String(required&&!(row.efficiencyComment??row.comment??'').trim());updateTotals();};
       check.addEventListener('change',()=>{row.includeEfficiency=check.checked;content.hidden=!check.checked;excluded.hidden=check.checked;stamp();update();});
       const grid=node('div','prod-two-fields');grid.append(inputField('Meta',row.target,v=>{rowEdit(id,'target',v);update();},{numeric:true,max:32}),inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}));
       const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome,reasonNote);
@@ -254,17 +306,17 @@ export function createProductionStudio(getServices) {
       const unitField=inputField('Unidad',row.unit,v=>{rowEdit(id,'unit',v);unitTag.textContent=v;updateTotals();},{list:['sacos','m','kg','unidades'],max:24});
       const wasteFields=node('div','prod-two-fields prod-waste-inline');wasteFields.append(inputField('Meta desperdicio %',row.wasteTarget,v=>{rowEdit(id,'wasteTarget',v);update();},{numeric:true,max:32}),inputField('Real desperdicio %',row.wasteActual,v=>{rowEdit(id,'wasteActual',v);update();},{numeric:true,max:32}));
       const details=modalEditor('Eficiencia · '+(row.name||id),[unitField,reason],more,'efficiency');
-      const line=node('div','prod-efficiency-bottom');line.append(resultWrap,more);content.append(grid,wasteFields,line,details);card.append(content);cards.append(card);update();
+      const line=node('div','prod-efficiency-bottom');line.append(resultWrap,ok,more);content.append(grid,wasteFields,line,details);card.append(content);cards.append(card);update();
     }
     updateTotals();
   }
-  function table(headers,rows,highlightRows=[]){const wrap=node('div','prod-table-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',headers.includes('Eficiencia')?'Tabla de eficiencias':'Tabla de estatus');const t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const [index,values] of rows.entries()){const r=node('tr');if(highlightRows[index]===true)r.dataset.active='true';for(const value of values)r.append(node('td','',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
+  function table(headers,rows,highlightRows=[],okRows=[]){const wrap=node('div','prod-table-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',headers.includes('Eficiencia')?'Tabla de eficiencias':'Tabla de estatus');const t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const [index,values] of rows.entries()){const r=node('tr');if(highlightRows[index]===true)r.dataset.active='true';for(const [column,value]of values.entries())r.append(node('td',okRows[index]&&column===headers.length-1?'prod-comment-ok':'',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
   function renderPreview(){
     previewPanel.replaceChildren();const rows=productionPreviewRows(report,processOrder);previewPanel.append(node('h2','prod-panel-title',PRODUCTION_REPORT_TITLE),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)));
     previewPanel.append(renderChart());
     const columns=node('div','prod-preview-grid'),effBlock=node('section','prod-preview-block'),statusBlock=node('section','prod-preview-block');effBlock.append(node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));columns.append(effBlock,statusBlock);previewPanel.append(columns);
     const efficiency=rows.filter(row=>row.includeEfficiency);
-    if(efficiency.length)effBlock.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desp. meta %','Desp. real %','Comentario'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %'),row.efficiencyComment||'—'])));else effBlock.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
+    if(efficiency.length)effBlock.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desp. meta %','Desp. real %','Comentario'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %'),row.efficiencyComment||'—']),[],efficiency.map(row=>row.meetsTarget))); else effBlock.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
     statusBlock.append(node('h3','','Estatus de planta · '+report.statusShift),table(['Proceso','Estatus','Producto / acción','Comentario'],rows.map(row=>[row.name,row.statusDisplay.status,row.statusDisplay.productAction,row.statusDisplay.observations]),rows.map(row=>row.statusDisplay.active)));
     const issues=validateProductionReport(report,catalog);if(issues.length)previewPanel.append(node('p','prod-hint',issues.length+' datos pendientes antes de compartir. Puedes guardar el borrador aunque esté incompleto.'));
   }
@@ -276,7 +328,7 @@ export function createProductionStudio(getServices) {
   }
   async function newReport(){
     if(busy||!report)return;lock(true);
-    try{for(const [id,row] of Object.entries(report.rows))productHistory[id]=productionProductOptions(productHistory[id],[row.product]);report=await serial(async()=>{const storage=getServices().storage,next=await beginNextProductionReport(storage,report,contextValue);await saveProductHistory(storage);return next;});dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);newReportDialog.close();errors.hidden=true;render();message('Nuevo reporte con turnos automáticos. El borrador anterior quedó respaldado. '+productHistoryWarning,!!productHistoryWarning);}
+    try{for(const [id,row] of Object.entries(report.rows))productHistory[id]=productionProductOptions(productHistory[id],[row.product]);report=await serial(async()=>{const storage=getServices().storage,next=await beginNextProductionReport(storage,report,contextValue);await saveProductHistory(storage);return applyProductionDefaults(next,defaults);});dirty=true;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);newReportDialog.close();errors.hidden=true;render();message('Nuevo reporte con turnos automáticos. El borrador anterior quedó respaldado. '+productHistoryWarning,!!productHistoryWarning);}
     catch(error){message(error.message||'No se pudo iniciar el reporte. El borrador anterior se conserva.',true);}
     finally{lock(false);}
   }
@@ -297,7 +349,7 @@ export function createProductionStudio(getServices) {
   async function open(options={}){
     if(busy)return false;if(!root.hidden)return true;const services=getServices();contextValue={teamId:options.teamId||services.teamId,teamName:options.teamName||services.teamName,plantId:options.plantId||services.plantId||'sacos'};
     download.hidden=typeof services.onDownload!=='function';priorAppHidden=app?.hidden??false;if(app)app.hidden=true;root.hidden=false;root.focus();lock(true);report=null;catalog=null;catalogChanged=false;errors.hidden=true;for(const panel of Object.values(panels))panel.replaceChildren();context.textContent=contextValue.teamName+' · Planta '+plantName(contextValue.plantId);message('Abriendo reporte…');
-    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}processOrder=null;orderWritable=true;try{const savedOrder=await services.storage.getText(productionOrderKey(contextValue.teamId));processOrder=normalizeProductionOrder(savedOrder?JSON.parse(savedOrder):null);}catch{orderWritable=false;productHistoryWarning+=' No se pudo leer el orden anterior; se conserva sin sobrescribir.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message(productHistoryWarning,!!productHistoryWarning);return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
+    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}processOrder=null;orderWritable=true;try{const savedOrder=await services.storage.getText(productionOrderKey(contextValue.teamId));processOrder=normalizeProductionOrder(savedOrder?JSON.parse(savedOrder):null);}catch{orderWritable=false;productHistoryWarning+=' No se pudo leer el orden anterior; se conserva sin sobrescribir.';}defaults={version:1,months:{}};defaultsWritable=true;try{const rawDefaults=await services.storage.getText(productionDefaultsKey(contextValue.plantId));defaults=normalizeProductionDefaults(rawDefaults?JSON.parse(rawDefaults):null);report=applyProductionDefaults(report,defaults);}catch{defaultsWritable=false;productHistoryWarning+=' No se pudieron leer los valores fijos; se conserva el original sin sobrescribir.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message(productHistoryWarning,!!productHistoryWarning);return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
   }
   async function close(){if(busy)return false;if(root.hidden)return true;if(report&&dirty&&!(await guardedSave()))return false;for(const dialog of root.querySelectorAll('dialog[open]'))dialog.close();newReportDialog.close();root.hidden=true;if(app)app.hidden=priorAppHidden;getServices().onClose?.();return true;}
   function openCatalog(){if(busy||!catalog)return;catalogError.textContent='';processSelect.replaceChildren();for(const p of catalog.processes){const option=node('option','',p.name+(p.enabled?'':' (archivado)'));option.value=p.id;processSelect.append(option);}loadProcess(catalog.processes[0]?.id||null);catalogDialog.showModal();}
@@ -309,6 +361,6 @@ export function createProductionStudio(getServices) {
   async function archiveProcess(){if(busy||!editedProcessId)return;const process=catalog.processes.find(p=>p.id===editedProcessId),enabled=process.enabled===false;if(!enabled&&!confirm('¿Quitar '+process.name+' del catálogo activo? Los reportes anteriores se conservarán.'))return;lock(true);try{const next=normalizeCatalog({...catalog,processes:catalog.processes.map(p=>p.id===editedProcessId?{...p,enabled}:p)},contextValue.plantId);await commitCatalog(next);catalogDialog.close();message(enabled?'Proceso restaurado. Puedes aplicarlo al borrador.':'Proceso archivado. Puedes aplicar el catálogo al borrador.');}catch(error){catalogError.textContent=error.message||'No se pudo actualizar el catálogo.';}finally{lock(false);}}
   async function applyCatalog(){
     if(busy||!report)return;if(!confirm('¿Aplicar el catálogo a este borrador? Se guardará una copia anterior. Los datos de los procesos que continúan se conservarán.'))return;
-    lock(true);try{const before=clone(report),next=reconcileProductionCatalog(report,catalog);const storage=getServices().storage;await serial(async()=>{await storage.putText('mn1.production.history.'+crypto.randomUUID().replaceAll('-',''),JSON.stringify(before));await storage.putText(productionDraftKey(next.teamId),JSON.stringify(next));});report=next;dirty=false;catalogChanged=false;render();message('Catálogo aplicado. La versión anterior del borrador quedó respaldada.');}catch(error){message(error.message||'No se aplicó el catálogo. El borrador sigue en esta pantalla.',true);}finally{lock(false);}}
+    lock(true);try{const before=clone(report),next=applyProductionDefaults(reconcileProductionCatalog(report,catalog),defaults);const storage=getServices().storage;await serial(async()=>{await storage.putText('mn1.production.history.'+crypto.randomUUID().replaceAll('-',''),JSON.stringify(before));await storage.putText(productionDraftKey(next.teamId),JSON.stringify(next));});report=next;dirty=false;catalogChanged=false;render();message('Catálogo aplicado. La versión anterior del borrador quedó respaldada.');}catch(error){message(error.message||'No se aplicó el catálogo. El borrador sigue en esta pantalla.',true);}finally{lock(false);}}
   return {open,close,isOpen:()=>!root.hidden,isBusy:()=>busy};
 }
