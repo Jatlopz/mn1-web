@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultCatalog,normalizeCatalog} from '../public/plant-catalog.js';
 import {createProductionReport,productionDraftKey} from '../public/production-model.js';
-import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft} from '../public/production-studio.js';
+import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups} from '../public/production-studio.js';
 const context={teamId:'champions',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24'};
 
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
@@ -81,4 +81,19 @@ test('Conversión 1 y 3 quedan consecutivas sin cambiar el reporte',async()=>{
  const report={rows:{'conversion-3':{},extrusion:{},'conversion-1':{},telares:{}}},before=JSON.stringify(report);
  assert.deepEqual(productionOrderedRows(report).map(([id])=>id),['extrusion','conversion-1','conversion-3','telares']);
  assert.equal(JSON.stringify(report),before);
+});
+
+test('orden editable respeta posiciones, agrega procesos nuevos y no altera los datos',()=>{
+ const report={rows:{extrusion:{name:'Extrusión',target:'100'},'conversion-1':{name:'Conversión 1'},otros:{name:'Otro'},'conversion-3':{name:'Conversión 3'},nuevo:{name:'Conversión 2'}}},before=JSON.stringify(report);
+ assert.deepEqual(productionOrderedRows(report).map(([id])=>id),['extrusion','conversion-1','nuevo','conversion-3','otros']);
+ const custom=['conversion-3','otros','extrusion','conversion-1','archivado'];assert.deepEqual(productionOrderedRows(report,custom).map(([id])=>id),['conversion-3','otros','extrusion','conversion-1','nuevo']);assert.equal(JSON.stringify(report),before);
+ assert.ok(productionOrderKey('a'.repeat(48)).length<=64);assert.notEqual(productionOrderKey('equipo-a'),productionOrderKey('equipo-b'));assert.throws(()=>normalizeProductionOrder(['a','a']));assert.throws(()=>normalizeProductionOrder(['__proto__']));assert.deepEqual(normalizeProductionOrder(['a']),['a']);
+});
+test('gráfica calcula umbrales exactos, excluye vacíos y mantiene valores mayores de 100',()=>{
+ const rows=Object.fromEntries([0,79.99,80,89.99,90,100,145].map((value,i)=>['p'+i,{name:'Proceso '+i,target:'100',actual:String(value),includeEfficiency:true}]));rows.vacio={target:'',actual:'',includeEfficiency:true};rows.excluido={target:'100',actual:'50',includeEfficiency:false};rows.incompleto={target:'0',actual:'2',includeEfficiency:true};
+ const chart=productionChartRows({rows});assert.deepEqual(chart.map(r=>r.level),['low','low','warning','warning','good','good','good']);assert.equal(chart.at(-1).efficiency,145);assert.equal(chart[0].efficiency,0);assert.equal(productionChartRows({rows},['p6'])[0].id,'p6');
+});
+
+test('la gráfica reúne procesos numerados del mismo tipo sin separar conversiones',()=>{
+ const make=name=>({name,target:'100',actual:'90',includeEfficiency:true});const report={rows:{a:make('Conversión 3'),b:make('Extrusión'),c:make('Conversión 1'),d:make('Laminado'),e:make('Conversión 2')}};const groups=productionChartGroups(report,['a','b','c','d','e']);assert.deepEqual(groups.find(g=>g.name==='Conversión').rows.map(r=>r.name),['Conversión 1','Conversión 2','Conversión 3']);assert.deepEqual(groups.find(g=>g.name==='Procesos').rows.map(r=>r.name),['Extrusión','Laminado']);
 });

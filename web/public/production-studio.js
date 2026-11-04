@@ -21,10 +21,30 @@ export function normalizeProductionProducts(raw) {
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return Object.create(null);
   return Object.assign(Object.create(null),Object.fromEntries(Object.entries(raw).filter(([id])=>/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(id)&&!['constructor','prototype','__proto__'].includes(id)).map(([id,values])=>[id,productionProductOptions(values)])));
 }
-export function productionOrderedRows(report) {
-  const rows=Object.entries(report.rows),first=rows.findIndex(([id])=>id==='conversion-1'),third=rows.findIndex(([id])=>id==='conversion-3');
-  if(first>=0&&third>=0){const [conversion]=rows.splice(third,1);rows.splice(rows.findIndex(([id])=>id==='conversion-1')+1,0,conversion);}
-  return rows;
+export const productionOrderKey = team => 'mn1.prod.order.'+team;
+export function normalizeProductionOrder(raw) {
+  if(raw===null||raw===undefined)return null;
+  if(!Array.isArray(raw)||raw.length>40||raw.some(id=>typeof id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(id)||['constructor','prototype','__proto__'].includes(id))||new Set(raw).size!==raw.length)throw Error('El orden guardado no es válido. Se conserva sin sobrescribir.');
+  return [...raw];
+}
+export function productionOrderedRows(report, order=null) {
+  const rows=Object.entries(report.rows),label=([id,row])=>row.name||id.replaceAll('-',' '),conversions=rows.filter(entry=>/^conversi[oó]n\b/i.test(label(entry))).sort((a,b)=>label(a).localeCompare(label(b),'es',{numeric:true}));
+  const anchor=conversions[0]?.[0],anchorIndex=rows.findIndex(([id])=>id===anchor),first=rows.slice(0,anchorIndex).filter(([id])=>!conversions.some(([other])=>id===other)).length;
+  const defaults=rows.filter(([id])=>!conversions.some(([other])=>id===other));
+  if(conversions.length)defaults.splice(first,0,...conversions);
+  if(order===null)return defaults;
+  const ids=normalizeProductionOrder(order),map=new Map(rows);
+  return [...ids.filter(id=>map.has(id)).map(id=>[id,map.get(id)]),...defaults.filter(([id])=>!ids.includes(id))];
+}
+export function productionChartRows(report,order=null){
+  return productionOrderedRows(report,order).filter(([,row])=>row.includeEfficiency&&hasEfficiencyInput(row)).map(([id,row])=>({id,name:row.name||id,...calculateEfficiency(row)})).filter(row=>row.efficiency!==null).map(row=>({...row,level:row.efficiency<80?'low':row.efficiency<90?'warning':'good'}));
+}
+
+export function productionChartGroups(report,order=null){
+ const rows=productionChartRows(report,order),family=row=>row.name.match(/^(.+?)\s+\d+\b/)?.[1]||null,counts=new Map();
+ for(const row of rows){const key=family(row)?.toLocaleLowerCase('es');if(key)counts.set(key,(counts.get(key)||0)+1);}
+ const groups=new Map();for(const row of rows){const label=family(row),key=label&&counts.get(label.toLocaleLowerCase('es'))>1?label.toLocaleLowerCase('es'):'other';if(!groups.has(key))groups.set(key,{name:key==='other'?'Procesos':label,rows:[]});groups.get(key).rows.push(row);}
+ for(const [key,group]of groups)if(key!=='other')group.rows.sort((a,b)=>a.name.localeCompare(b.name,'es',{numeric:true}));return [...groups.values()];
 }
 
 /** Applying a catalogue is explicit. Existing values retain their original measurement unit. */
@@ -35,8 +55,8 @@ export function reconcileProductionCatalog(report, catalog) {
   }
   return next;
 }
-export function productionPreviewRows(report) {
-  return Object.entries(report.rows).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
+export function productionPreviewRows(report,order=null) {
+  return productionOrderedRows(report,order).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:row.efficiencyComment??row.comment,unit:row.unit,target:row.target,actual:row.actual}));
 }
 export function productionRowSummary(row) {
   const counts = row.runningCount !== '' || row.totalCount !== '' ? (row.runningCount || '—')+'/'+(row.totalCount || '—') : '';
@@ -96,7 +116,7 @@ export function createProductionStudio(getServices) {
   footer.append(save,download,share);
   const privacy=node('p','prod-privacy','Captura manual de Sysprod. Borrador y catálogo guardados en este teléfono; el envío se confirma al compartir.');
   shell.append(header,context,timingCard,timingEditor,tabs,catalogNotice,feedback,errors,statusPanel,effPanel,previewPanel,footer,privacy);root.append(shell);doc.body.append(root);
-  let report=null,catalog=null,contextValue=null,busy=false,dirty=false,tab='status',priorAppHidden=false,queue=Promise.resolve(),catalogChanged=false,productHistory=Object.create(null),productHistoryWritable=true,productHistoryWarning='';
+  let report=null,catalog=null,contextValue=null,busy=false,dirty=false,tab='status',priorAppHidden=false,queue=Promise.resolve(),catalogChanged=false,productHistory=Object.create(null),productHistoryWritable=true,productHistoryWarning='',processOrder=null,orderWritable=true;
   const app=doc.getElementById('app');
   const catalogDialog=node('dialog','prod-catalog-dialog');catalogDialog.setAttribute('aria-labelledby','prod-catalog-title');
   const catalogHead=node('div','prod-dialog-head'),catalogTitle=node('h2','','Catálogo de procesos');catalogTitle.id='prod-catalog-title';
@@ -135,6 +155,38 @@ export function createProductionStudio(getServices) {
     trigger.setAttribute('aria-haspopup','dialog');trigger.setAttribute('aria-controls',dialog.id);trigger.addEventListener('click',()=>{if(!busy)dialog.showModal();});
     dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});dialog.addEventListener('close',()=>{if(trigger.isConnected)trigger.focus({preventScroll:true});});return dialog;
   }
+
+  const orderDialog=node('dialog','prod-order-dialog');orderDialog.setAttribute('aria-labelledby','prod-order-title');
+  const orderTitle=node('h2','','Organizar procesos');orderTitle.id='prod-order-title';
+  const orderList=node('ol','prod-order-list'),orderError=node('p','prod-feedback');orderError.setAttribute('role','status');
+  let draftOrder=[];
+  const orderSave=button('Guardar orden','prod-primary',()=>void commitOrder());
+  orderDialog.append(orderTitle,node('p','prod-hint','Cambia la posición con las flechas o elige un número. Se aplica a Estatus, Eficiencias y al reporte de este equipo en este dispositivo.'),orderList,orderError);
+  const orderActions=node('div','prod-dialog-actions');orderActions.append(button('Agrupar conversiones','prod-secondary',()=>{draftOrder=productionOrderedRows(report).map(([id])=>id);renderOrder();}),button('Cancelar','prod-secondary',()=>orderDialog.close()),orderSave);orderDialog.append(orderActions);root.append(orderDialog);
+  orderDialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
+  function openOrder(){if(busy||!report)return;draftOrder=productionOrderedRows(report,processOrder).map(([id])=>id);orderError.textContent='';renderOrder();orderDialog.showModal();}
+  function moveOrder(id,to){const from=draftOrder.indexOf(id);if(from<0||!Number.isInteger(to)||to<0||to>=draftOrder.length)return;draftOrder.splice(from,1);draftOrder.splice(to,0,id);renderOrder(id);}
+  function renderOrder(focusId){
+    orderList.replaceChildren();for(const [index,id]of draftOrder.entries()){
+      const row=node('li'),name=node('span','',report.rows[id].name||id),position=node('select');position.setAttribute('aria-label','Posición de '+name.textContent);
+      for(let n=0;n<draftOrder.length;n++){const option=node('option','',String(n+1));option.value=String(n);position.append(option);}position.value=String(index);position.addEventListener('change',()=>moveOrder(id,Number(position.value)));
+      const up=button('↑','prod-order-arrow',()=>moveOrder(id,index-1)),down=button('↓','prod-order-arrow',()=>moveOrder(id,index+1));up.disabled=index===0;down.disabled=index===draftOrder.length-1;up.setAttribute('aria-label','Subir '+name.textContent);down.setAttribute('aria-label','Bajar '+name.textContent);row.dataset.processId=id;row.append(position,name,up,down);orderList.append(row);
+    }if(focusId)[...orderList.children].find(row=>row.dataset.processId===focusId)?.querySelector('select').focus({preventScroll:true});
+  }
+  async function commitOrder(){
+    if(busy)return;if(!orderWritable){orderError.textContent='No se puede sobrescribir el orden anterior porque no se pudo leer. Cierra y vuelve a abrir la herramienta para reintentar.';return;}
+    const next=normalizeProductionOrder(draftOrder);lock(true);orderSave.disabled=true;
+    try{await serial(()=>getServices().storage.putText(productionOrderKey(contextValue.teamId),JSON.stringify(next)));processOrder=next;orderDialog.close();render();message('Orden guardado para este equipo.');}
+    catch{orderError.textContent='No se pudo guardar el orden. Tu orden anterior y la captura se conservan; puedes reintentar.';}
+    finally{lock(false);orderSave.disabled=false;renderOrder();if(orderDialog.open)orderSave.focus({preventScroll:true});else panels[tab]?.querySelector('.prod-order-open')?.focus({preventScroll:true});}
+  }
+  function renderChart(){
+    const section=node('section','prod-chart');section.setAttribute('aria-label','Gráfica de eficiencias');const rows=productionChartRows(report,processOrder);
+    const top=node('div','prod-chart-top'),copy=node('div');copy.append(node('p','prod-eyebrow','RENDIMIENTO DEL TURNO'),node('h3','','Eficiencias por proceso'));top.append(copy,node('span','prod-chart-shift',report.efficiencyShift));section.append(top);
+    if(!rows.length){section.append(node('p','prod-chart-empty','Ingresa una meta y producción real para ver tus barras aquí.'));return section;}
+    const maximum=Math.max(100,Math.ceil(Math.max(...rows.map(row=>row.efficiency))/20)*20),scale=node('div','prod-chart-scale');scale.append(node('span','','0 %'),node('span','','Escala hasta '+fmt(maximum)+' %'));section.append(scale);
+    const list=node('div','prod-chart-bars');const groups=productionChartGroups(report,processOrder);list.dataset.groups=String(groups.length);for(const group of groups){const block=node('section','prod-chart-group'),groupRows=node('div','prod-chart-group-rows');block.append(node('h4','',group.name),groupRows);for(const row of group.rows){const item=node('article','prod-chart-row');item.dataset.level=row.level;const head=node('div','prod-chart-label');head.append(node('strong','',row.name),node('output','',fmt(row.efficiency)+' %'));const track=node('div','prod-chart-track');track.setAttribute('role','meter');track.setAttribute('aria-label',row.name);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.setAttribute('aria-valuenow',String(row.efficiency));track.setAttribute('aria-valuetext',fmt(row.efficiency)+' por ciento; meta 100 por ciento');const fill=node('span','prod-chart-fill'),target=node('span','prod-chart-target');fill.style.width=(row.efficiency/maximum*100)+'%';target.style.left=(100/maximum*100)+'%';track.append(fill,target);item.append(head,track);groupRows.append(item);}list.append(block);}section.append(list,node('p','prod-chart-legend','Verde ≥ 90 % · Naranja 80–89,99 % · Rojo < 80 % · Línea vertical: meta 100 %'));return section;
+  }
   function definition(id){return report.catalogSnapshot?.processes.find(p=>p.id===id)||catalog.processes.find(p=>p.id===id)||{id,name:report.rows[id]?.name||id,products:[],actions:[]};}
   function rowEdit(id,key,value){report.rows[id][key]=value;stamp();}
   async function saveProductHistory(storage){
@@ -159,10 +211,10 @@ export function createProductionStudio(getServices) {
   }
   function renderStatus(focusId=null){
     statusPanel.replaceChildren();const intro=node('div','prod-panel-intro');intro.append(node('div','', 'Procesos y máquinas'));
-    const allOff=button('Marcar todos inactivos','prod-text-button',()=>{if(!confirm('¿Confirmar todos los procesos como inactivos? No se borrará la producción ingresada.'))return;for(const row of Object.values(report.rows))row.active=false;stamp();renderStatus();});intro.append(allOff);statusPanel.append(intro,node('p','prod-hint','Cambia cada estado con el interruptor. Los datos de producción se conservan.'));
+    const allOff=button('Marcar todos inactivos','prod-text-button',()=>{if(!confirm('¿Confirmar todos los procesos como inactivos? No se borrará la producción ingresada.'))return;for(const row of Object.values(report.rows))row.active=false;stamp();renderStatus();});intro.append(button('↕ Ordenar','prod-text-button prod-order-open',openOrder),allOff);statusPanel.append(intro,node('p','prod-hint','Cambia cada estado con el interruptor. Los datos de producción se conservan.'));
     if(!Object.keys(report.rows).length){statusPanel.append(node('p','prod-empty','Agrega procesos al catálogo y aplícalos al borrador para comenzar.'));return;}
     const grid=node('div','prod-status-grid');statusPanel.append(grid);
-    for(const [id,row] of Object.entries(report.rows)){
+    for(const [id,row] of productionOrderedRows(report,processOrder)){
       const process=definition(id),card=node('article','prod-process');card.dataset.rowId=id;card.dataset.state=row.active===true?'on':row.active===false?'off':'unknown';
       const head=node('div','prod-process-head'),copy=node('div');copy.append(node('h2','',row.name||process.name));const status=node('span','prod-machine-status',row.active===true?'En funcionamiento':row.active===false?'Inactivo':'Sin confirmar');copy.append(status);
       const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;stamp();renderStatus(id);});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
@@ -183,10 +235,10 @@ export function createProductionStudio(getServices) {
   }
   function renderEfficiency(){
     const summary=node('div','prod-totals');summary.setAttribute('aria-live','polite');
-    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),summary,node('p','prod-hint','Captura meta, producción y desperdicio en la misma fila. Puedes ajustar la unidad y el motivo sin cambiar la captura.'));
+    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),button('↕ Ordenar procesos','prod-text-button',openOrder),summary,node('p','prod-hint','Captura meta, producción y desperdicio en la misma fila. Puedes ajustar la unidad y el motivo sin cambiar la captura.'));
     const updateTotals=()=>renderTotals(summary);
     const headings=node('div','prod-efficiency-headings');headings.setAttribute('aria-hidden','true');const group=node('div','prod-efficiency-heading-group');for(const text of ['Proceso / unidad','Meta','Producción real','Eficiencia','Desp. meta %','Desp. real %',''])group.append(node('span','',text));headings.append(group);const cards=node('div','prod-efficiency-grid');effPanel.append(headings,cards);
-    for(const [id,row] of productionOrderedRows(report)){
+    for(const [id,row] of productionOrderedRows(report,processOrder)){
       const card=node('article','prod-efficiency-card');card.dataset.rowId=id;const head=node('div','prod-process-head'),label=node('label','prod-check'),check=node('input');check.type='checkbox';check.checked=row.includeEfficiency;label.append(check,node('strong','',row.name||id));head.append(label);card.append(head);
       const unitTag=node('span','prod-unit-tag',row.unit);head.append(unitTag);
       const content=node('div','prod-efficiency-fields');content.hidden=!row.includeEfficiency;const excluded=node('span','prod-efficiency-excluded','No incluida');excluded.hidden=row.includeEfficiency;card.append(excluded);
@@ -208,7 +260,8 @@ export function createProductionStudio(getServices) {
   }
   function table(headers,rows,highlightRows=[]){const wrap=node('div','prod-table-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',headers.includes('Eficiencia')?'Tabla de eficiencias':'Tabla de estatus');const t=node('table','prod-table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th','',h));thead.append(tr);const tbody=node('tbody');for(const [index,values] of rows.entries()){const r=node('tr');if(highlightRows[index]===true)r.dataset.active='true';for(const value of values)r.append(node('td','',String(value)));tbody.append(r);}t.append(thead,tbody);wrap.append(t);return wrap;}
   function renderPreview(){
-    previewPanel.replaceChildren();const rows=productionPreviewRows(report);previewPanel.append(node('h2','prod-panel-title',PRODUCTION_REPORT_TITLE),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)));
+    previewPanel.replaceChildren();const rows=productionPreviewRows(report,processOrder);previewPanel.append(node('h2','prod-panel-title',PRODUCTION_REPORT_TITLE),node('p','prod-hint',report.teamName+' · Eficiencias '+dateLabel(report.efficiencyDate??report.date)+' · Estatus '+dateLabel(report.date)));
+    previewPanel.append(renderChart());
     const columns=node('div','prod-preview-grid'),effBlock=node('section','prod-preview-block'),statusBlock=node('section','prod-preview-block');effBlock.append(node('h3','','Eficiencia / desperdicio · '+report.efficiencyShift));columns.append(effBlock,statusBlock);previewPanel.append(columns);
     const efficiency=rows.filter(row=>row.includeEfficiency);
     if(efficiency.length)effBlock.append(table(['Proceso','Meta','Real','Unidad','Eficiencia','Desp. meta %','Desp. real %','Comentario'],efficiency.map(row=>[row.name,row.target||'Sin datos',row.actual||'Sin datos',row.unit,fmt(row.efficiency)+(row.efficiency===null?'':' %'),fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %'),fmt(row.wasteActual)+(row.wasteActual===null?'':' %'),row.efficiencyComment||'—'])));else effBlock.append(node('p','prod-hint','No se incluyeron procesos en eficiencias.'));
@@ -239,12 +292,12 @@ export function createProductionStudio(getServices) {
   async function exportReport(callback){
     if(busy||!report)return;const issues=validateProductionReport(report,catalog);errors.replaceChildren();errors.hidden=!issues.length;
     if(issues.length){errors.append(node('strong','','Completa estos datos:'));const list=node('ul');for(const issue of issues)list.append(node('li','',issue));errors.append(list);message('Revisa los datos pendientes antes de generar el PDF.',true);errors.scrollIntoView({block:'start'});return;}
-    lock(true);message('Preparando reporte…');try{await persist();const service=getServices()[callback];if(typeof service!=='function')throw Error('Esta versión todavía no puede generar el PDF. Revisa Actualizaciones.');const result=await service(clone(report),clone(report.catalogSnapshot||catalog));message(typeof result==='string'?result:result?.message||'Reporte preparado. Confirma el siguiente paso en el selector de tu dispositivo.');}catch(error){message(error.message||'No se pudo preparar el PDF; el borrador se conserva.',true);}finally{lock(false);}
+    lock(true);message('Preparando reporte…');try{await persist();const service=getServices()[callback];if(typeof service!=='function')throw Error('Esta versión todavía no puede generar el PDF. Revisa Actualizaciones.');const result=await service(clone({...report,rows:Object.fromEntries(productionOrderedRows(report,processOrder))}),clone(report.catalogSnapshot||catalog));message(typeof result==='string'?result:result?.message||'Reporte preparado. Confirma el siguiente paso en el selector de tu dispositivo.');}catch(error){message(error.message||'No se pudo preparar el PDF; el borrador se conserva.',true);}finally{lock(false);}
   }
   async function open(options={}){
     if(busy)return false;if(!root.hidden)return true;const services=getServices();contextValue={teamId:options.teamId||services.teamId,teamName:options.teamName||services.teamName,plantId:options.plantId||services.plantId||'sacos'};
     download.hidden=typeof services.onDownload!=='function';priorAppHidden=app?.hidden??false;if(app)app.hidden=true;root.hidden=false;root.focus();lock(true);report=null;catalog=null;catalogChanged=false;errors.hidden=true;for(const panel of Object.values(panels))panel.replaceChildren();context.textContent=contextValue.teamName+' · Planta '+plantName(contextValue.plantId);message('Abriendo reporte…');
-    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message(productHistoryWarning,!!productHistoryWarning);return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
+    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}processOrder=null;orderWritable=true;try{const savedOrder=await services.storage.getText(productionOrderKey(contextValue.teamId));processOrder=normalizeProductionOrder(savedOrder?JSON.parse(savedOrder):null);}catch{orderWritable=false;productHistoryWarning+=' No se pudo leer el orden anterior; se conserva sin sobrescribir.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message(productHistoryWarning,!!productHistoryWarning);return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
   }
   async function close(){if(busy)return false;if(root.hidden)return true;if(report&&dirty&&!(await guardedSave()))return false;for(const dialog of root.querySelectorAll('dialog[open]'))dialog.close();newReportDialog.close();root.hidden=true;if(app)app.hidden=priorAppHidden;getServices().onClose?.();return true;}
   function openCatalog(){if(busy||!catalog)return;catalogError.textContent='';processSelect.replaceChildren();for(const p of catalog.processes){const option=node('option','',p.name+(p.enabled?'':' (archivado)'));option.value=p.id;processSelect.append(option);}loadProcess(catalog.processes[0]?.id||null);catalogDialog.showModal();}
