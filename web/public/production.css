@@ -76,3 +76,5 @@
 .production-studio .prod-chart-waste-track .prod-chart-target{top:-2px;height:9px}
 .production-studio .prod-chart-waste-track .prod-chart-fill{box-shadow:0 0 7px color-mix(in srgb,var(--bar-end) 40%,transparent)}
 @media(forced-colors:active){.production-studio .prod-chart-waste-track .prod-chart-fill{box-shadow:none}}
+
+.production-studio .prod-chart-processes{text-align:center;margin:0 0 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#b9cadc;font-weight:700}
