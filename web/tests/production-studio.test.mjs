@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultCatalog,normalizeCatalog} from '../public/plant-catalog.js';
 import {createProductionReport,productionDraftKey} from '../public/production-model.js';
-import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey} from '../public/production-studio.js';
+import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey,productionWasteBar} from '../public/production-studio.js';
 const context={teamId:'champions',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24'};
 
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
@@ -107,4 +107,12 @@ test('valores fijos rechazan porcentajes, cantidades y tipos inválidos sin trun
 
 test('default de estatus usa su mes y conserva tipo ya capturado sin reemplazo explícito',()=>{
  const d=normalizeProductionDefaults({version:1,months:{'2026-10':{telares:{wasteTarget:'0.25',totalCount:'23',countKind:'machine'}},'2026-11':{telares:{wasteTarget:'0.5',totalCount:'24',countKind:'station'}}}}),r=createProductionReport(defaultCatalog(),{...context,date:'2026-11-01',efficiencyDate:'2026-10-31'});Object.assign(r.rows.telares,{countKind:'station',runningCount:'2',totalCount:''});const n=applyProductionDefaults(r,d);assert.equal(n.rows.telares.wasteTarget,'0.25');assert.equal(n.rows.telares.totalCount,'24');assert.equal(n.rows.telares.countKind,'station');const old=applyProductionDefaults({...r,rows:{telares:{...r.rows.telares,countKind:'machine',totalCount:'23'}}},d);assert.equal(old.rows.telares.countKind,'machine');const changed=applyProductionDefaults(old,d,{replace:true,month:'2026-11'});assert.equal(changed.rows.telares.countKind,'station');assert.equal(changed.rows.telares.wasteTarget,'0.25');
+});
+
+test('barra secundaria compara desperdicio sin dividir entre una meta cero',()=>{
+ assert.equal(productionWasteBar({wasteActual:null,wasteTarget:.25}),null);
+ assert.equal(productionWasteBar({wasteActual:1,wasteTarget:null}),null);
+ for(const [actual,target,level] of [[.2,.25,'good'],[.25,.25,'good'],[.3,.25,'low'],[0,0,'good'],[1,0,'low']]){
+ const bar=productionWasteBar({wasteActual:actual,wasteTarget:target});assert.equal(bar.level,level);assert.ok(Number.isFinite(bar.fill));assert.ok(bar.fill>=0&&bar.fill<=100);assert.ok(bar.marker>=0&&bar.marker<=100);assert.equal(bar.actual,actual);assert.equal(bar.target,target);
+ }
 });
