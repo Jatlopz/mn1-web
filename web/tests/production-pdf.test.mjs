@@ -55,7 +55,7 @@ test('el PDF usa el encabezado solicitado, barras por umbral y resalta activos s
  createProductionPdf(r,c,{createCanvas});
  for(const page of drawn)assert.ok(page.map(t=>t.text).join(' ').includes('Reporte de estatus y eficiencias de planta'));
  const bars=rectangles.filter(r=>r.h===10&&['#c92532','#d97706','#237b80'].includes(r.color));assert.deepEqual(bars.map(r=>r.color),['#c92532','#d97706','#d97706','#237b80','#237b80']);
- assert.ok(drawn.flat().some(t=>t.text==='OK'&&t.color==='#f5fff8'&&t.font.startsWith('700 14px')),'OK grande y claro al cumplir 100%');const ok=drawn.flat().find(t=>t.text==='OK');const cell=rectangles.find(r=>r.page===1&&r.color==='#17633e'&&r.w===159);assert.ok(cell);assert.equal(ok.x,cell.x+(cell.w-8)/2);assert.equal(ok.y,cell.y+(cell.h-14)/2);const status=drawn.at(-1);assert.ok(status.some(t=>t.text==='En funcionamiento'&&t.color==='#17633e'));
+ assert.ok(drawn.flat().some(t=>t.text==='OK'&&t.color==='#ffffff'&&t.font.startsWith('700 14px')),'OK grande y claro al cumplir 100%');const ok=drawn.flat().find(t=>t.text==='OK');const cell=rectangles.find(r=>r.page===1&&r.color==='#218547'&&r.w===159);assert.ok(cell);assert.equal(ok.x,cell.x+(cell.w-8)/2);assert.equal(ok.y,cell.y+(cell.h-14)/2);const status=drawn.at(-1);assert.ok(status.some(t=>t.text==='En funcionamiento'&&t.color==='#17633e'));
  assert.ok(rectangles.some(r=>r.page===drawn.length&&r.color==='#dff3e7'));
  for(const token of ['PRODUCTO_OCULTO','ACCION_OCULTA','COMENTARIO_OCULTO','Sin indicar','Sin observaciones'])assert.ok(!status.some(t=>t.text.includes(token)),token);
  assert.ok(status.some(t=>t.text.includes('Producto activo')));assert.equal(JSON.stringify(r),before);
