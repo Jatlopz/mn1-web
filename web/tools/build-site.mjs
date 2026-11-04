@@ -29,6 +29,11 @@ export const STARTER_IMAGES = Object.freeze([
 export const BRAND_SYMBOL=Object.freeze({"path":"brand/supertools-symbol.dde519ee1d6b5bbf.png","sha256":"dde519ee1d6b5bbfcc0c70332c81d3beb6f0af39c1d270219b6300d9a59fa6e3","size":586169});
 export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
+  {"id":"halloween-desktop","path":"themes/halloween-desktop-4k.344a5f1d7bd0d7c3.webp","sha256":"344a5f1d7bd0d7c32e9ab25fa83de4a71214c690f1eecda2da79afc8cebbc9fd","size":665704,"width":3840,"height":2160,"desktop":true},
+  {"id":"halloween-moon-desktop","path":"themes/halloween-moon-desktop-4k.02f9bd8c5ac84c40.webp","sha256":"02f9bd8c5ac84c40ae4f04d338eca77bd89b193ae20e65a4044986fd719794a6","size":994814,"width":3840,"height":2160,"desktop":true},
+  {"id":"winter-desktop","path":"themes/winter-desktop-4k.b0c5d358abef9729.webp","sha256":"b0c5d358abef972935016638e51536a0c0c685f71627b2b8c587fdf3a89c5ce5","size":684908,"width":3840,"height":2160,"desktop":true},
+  {"id":"winter-gold-desktop","path":"themes/winter-gold-desktop-4k.f5ad8a1f634c4a28.webp","sha256":"f5ad8a1f634c4a284dcbba3d92a181013afdd1132bedb294e19194f6a1e5f598","size":1153160,"width":3840,"height":2160,"desktop":true},
+  {"id":"winter-snow-desktop","path":"themes/winter-snow-desktop-4k.73c847bbb35b189b.webp","sha256":"73c847bbb35b189bd7fa9d8e1d885f196ae5c07d23d3f7dfaa8aa250939124b7","size":997980,"width":3840,"height":2160,"desktop":true},
   {"id":"winter-gold","path":"themes/winter-gold.5ddd3ec92bde6765.webp","sha256":"5ddd3ec92bde6765c5c7d095e93fff7202aa2943a9b6b5ae42e59843bfaa090f","size":359112,"width":1024,"height":1536},
   {"id":"winter-snow","path":"themes/winter-snow.42fca70e703ce4c0.webp","sha256":"42fca70e703ce4c054c1a6cf684390a8ffd2860d241402895063926ea131ffb8","size":299506,"width":1024,"height":1536},
   {
@@ -59,12 +64,26 @@ export const THEME_ART = Object.freeze([
 
 async function readThemeArt(source, sourceReal, art) {
   const file=path.join(source,art.path),info=await lstat(file);
-  if(!info.isFile()||info.isSymbolicLink()||info.size>512*1024)throw Error('Invalid theme artwork: '+art.path);
+  const maximum=art.desktop?2*1024*1024:512*1024;
+  if(art.desktop&&(art.width!==3840||art.height!==2160))throw Error('Desktop artwork must be UHD');
+  if(!info.isFile()||info.isSymbolicLink()||info.size>maximum)throw Error('Invalid theme artwork: '+art.path);
   if(!isWithin(await realpath(file),sourceReal))throw Error('Theme artwork outside source');
   const bytes=await readFile(file);
   if(bytes.length!==art.size||createHash('sha256').update(bytes).digest('hex')!==art.sha256)throw Error('Theme artwork integrity mismatch');
   if(bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error('Invalid WebP artwork');
+  const dimensions=webpDimensions(bytes);
+  if(dimensions.width!==art.width||dimensions.height!==art.height)throw Error('Theme artwork dimensions mismatch');
   return bytes;
+}
+
+export function webpDimensions(bytes){
+  if(bytes.length<30||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP'||bytes.readUInt32LE(4)+8!==bytes.length)throw Error('Invalid WebP dimensions');
+  for(let offset=12;offset+8<=bytes.length;){const type=bytes.toString('ascii',offset,offset+4),size=bytes.readUInt32LE(offset+4),data=offset+8;if(data+size>bytes.length)throw Error('Truncated WebP');
+    if(type==='VP8X'&&size>=10){if(bytes[data]&2)throw Error('Animated theme artwork is not supported');return {width:bytes.readUIntLE(data+4,3)+1,height:bytes.readUIntLE(data+7,3)+1};}
+    if(type==='VP8 '&&size>=10&&bytes[data+3]===0x9d&&bytes[data+4]===1&&bytes[data+5]===0x2a)return {width:bytes.readUInt16LE(data+6)&0x3fff,height:bytes.readUInt16LE(data+8)&0x3fff};
+    if(type==='VP8L'&&size>=5&&bytes[data]===0x2f){const bits=bytes.readUInt32LE(data+1);return {width:(bits&0x3fff)+1,height:((bits>>>14)&0x3fff)+1};}
+    offset=data+size+(size%2);
+  }throw Error('Missing WebP dimensions');
 }
 
 function shortHash(value) {

@@ -16,7 +16,7 @@ const MODULE_PATTERN = /^(lamination-model|lamination-studio|registry-model|regi
 test('published bundle contains every module with coherent content hashes', async () => {
   const out = await mkdtemp(path.join(tmpdir(), 'mn1-pages-'));
   const files = await buildSite(publicPath, out);
-  assert.equal(files.length, 35);
+  assert.equal(files.length, 40);
   assert.deepEqual((await readdir(path.join(out, 'templates'))).sort(), ['indestructibles.c9e3d4ac8d3d6f3f.png', 'super-guerreros.8200d4c6f9ede505.png']);
 
   const html = await readFile(path.join(out, 'index.html'), 'utf8');
@@ -63,7 +63,7 @@ test('published bundle contains every module with coherent content hashes', asyn
       `Archivo no permitido en el paquete: ${file}`,
     );
   }
-  for(const art of THEME_ART){const bytes=await readFile(path.join(out,art.path));assert.equal(bytes.length,art.size);assert.ok(art.size<512*1024);assert.match(await readFile(path.join(out,cssName),'utf8'),new RegExp(art.path.replaceAll('.','\\.')));}
+  for(const art of THEME_ART){const bytes=await readFile(path.join(out,art.path));assert.equal(bytes.length,art.size);assert.ok(art.size<(art.desktop?2*1024*1024:512*1024));assert.match(await readFile(path.join(out,cssName),'utf8'),new RegExp(art.path.replaceAll('.','\\.')));}
   assert.ok(!files.some((file) => /\.(apk|keystore|jks)$|(^|\/)(private|secret)|\.env/i.test(file)));
   assert.deepEqual(files, await buildSite(publicPath, out));
 });
