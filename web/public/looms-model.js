@@ -10,10 +10,12 @@ const ratio=(a,b)=>b===0n?null:Number(a*100000000n/b)/1000000;
 export function loomConfigKey(team){if(!safeId(team))fail();return 'mn1.loom.cfg.'+team;}
 export function loomWeekKey(team,date){if(!safeId(team))fail();return 'mn1.l.'+team+'.'+isoWeekInfo(date).weekKey;}
 export function createLoomConfig(){return {version:1,people:[],benches:[],machines:[]};}
+export const isLoomPhotoKey=value=>typeof value==='string'&&/^mn1\.loom\.pic\.[a-f0-9]{32}$/.test(value);
+export const isLoomPhoto=value=>typeof value==='string'&&value.length<=150000&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value);
 export function normalizeLoomConfig(raw){
  if(!raw||raw.version!==1||!Array.isArray(raw.people)||!Array.isArray(raw.benches)||!Array.isArray(raw.machines)||raw.people.length>100||raw.benches.length>50||raw.machines.length>100)fail();
  const ids=new Set();const named=value=>{if(!safeId(value.id)||ids.has(value.id)||typeof value.enabled!=='boolean')fail();ids.add(value.id);return {id:value.id,name:loomText(value.name),enabled:value.enabled};};
- const people=raw.people.map(named),benches=raw.benches.map(named),benchIds=new Set(benches.map(b=>b.id));
+ const people=raw.people.map(v=>{const person=named(v);if(v.photoKey!==undefined&&v.photoKey!==''&&!isLoomPhotoKey(v.photoKey))fail('La referencia de foto del operador no es válida.');return {...person,photoKey:v.photoKey||''};}),benches=raw.benches.map(named),benchIds=new Set(benches.map(b=>b.id));
  const machines=raw.machines.map(v=>{const m=named(v);if(v.benchId!==''&&!benchIds.has(v.benchId))fail();if(v.baseTarget!==''&&(loomNumber(v.baseTarget)===null||loomNumber(v.baseTarget)===0))fail('La meta debe ser mayor que cero, en metros para 12 horas.');return {...m,benchId:v.benchId,baseTarget:v.baseTarget};});
  return {version:1,people,benches,machines};
 }
