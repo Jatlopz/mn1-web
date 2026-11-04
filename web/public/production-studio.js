@@ -301,12 +301,12 @@ export function createProductionStudio(getServices) {
       const update=()=>{const result=calculateEfficiency(row),required=requiresEfficiencyReason(row);ok.hidden=!efficiencyMeetsTarget(row);outcome.textContent=result.efficiency===null?(hasEfficiencyInput(row)?'Completa la captura':'No se incluirá'):fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':required?'below':'met';reason.hidden=!required&&!(row.efficiencyComment??row.comment??'').trim();reason.querySelector('textarea').required=required;reasonHint.hidden=!required;reasonNote.hidden=!required;reasonNote.textContent=(row.efficiencyComment??row.comment??'').trim()?'Motivo registrado':'Añade el motivo';reasonNote.dataset.pending=String(required&&!(row.efficiencyComment??row.comment??'').trim());updateTotals();};
       check.addEventListener('change',()=>{row.includeEfficiency=check.checked;content.hidden=!check.checked;excluded.hidden=check.checked;stamp();update();});
       const grid=node('div','prod-two-fields');grid.append(inputField('Meta',row.target,v=>{rowEdit(id,'target',v);update();},{numeric:true,max:32}),inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}));
-      const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome,reasonNote);
+      const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome,reasonNote,ok);
       const more=button('Motivo / unidad','prod-efficiency-more');more.setAttribute('aria-label','Unidad y motivo de '+(row.name||id));
       const unitField=inputField('Unidad',row.unit,v=>{rowEdit(id,'unit',v);unitTag.textContent=v;updateTotals();},{list:['sacos','m','kg','unidades'],max:24});
       const wasteFields=node('div','prod-two-fields prod-waste-inline');wasteFields.append(inputField('Meta desperdicio %',row.wasteTarget,v=>{rowEdit(id,'wasteTarget',v);update();},{numeric:true,max:32}),inputField('Real desperdicio %',row.wasteActual,v=>{rowEdit(id,'wasteActual',v);update();},{numeric:true,max:32}));
       const details=modalEditor('Eficiencia · '+(row.name||id),[unitField,reason],more,'efficiency');
-      const line=node('div','prod-efficiency-bottom');line.append(resultWrap,ok,more);content.append(grid,wasteFields,line,details);card.append(content);cards.append(card);update();
+      const line=node('div','prod-efficiency-bottom');line.append(resultWrap,more);content.append(grid,wasteFields,line,details);card.append(content);cards.append(card);update();
     }
     updateTotals();
   }
