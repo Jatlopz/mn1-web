@@ -8,7 +8,7 @@ try{
  let catalog,report;
  if(new URLSearchParams(location.search).has('catalogExample')){({catalog,report}=createProductionExample());}else{
  catalog=defaultCatalog('sacos');report=createProductionReport(catalog,{teamId:'fixture',teamName:'Equipo de prueba',date:'2026-10-25',efficiencyDate:'2026-10-25',efficiencyShift:'TA',statusShift:'TC'});
- let i=0;for(const [id,row] of Object.entries(report.rows)){row.active=['extrusion','telares','conversion-3'].includes(id);row.product=row.active?'Producto de prueba':'Producto oculto de prueba';row.action=row.active?'Producción':'Mantenimiento';row.comment=row.active?'Operando':'Nota conservada';if(row.includeEfficiency){row.target='100';row.actual=String([79,80,89,90,100][i++]);row.efficiencyComment='Razón de prueba';}}
+ let i=0;for(const [id,row] of Object.entries(report.rows)){row.active=['extrusion','telares','conversion-3'].includes(id);row.product=row.active?'Producto de prueba':'Producto oculto de prueba';row.action=row.active?'Producción':'Mantenimiento';row.comment=row.active?'Operando':'Nota conservada';if(row.includeEfficiency){row.target='100';row.actual=String([79,80,89,90,100][i++]);row.efficiencyComment='Razón de prueba';row.wasteTarget='0.25';row.wasteActual=id==='extrusion'?'0.4':'0.2';}}
  report.rows.telares.runningCount='2';report.rows.telares.totalCount='3';
  }
  const before=JSON.stringify(report),pages=[];const bytes=createProductionPdf(report,catalog,{createCanvas:()=>{const page=document.createElement('canvas');pages.push(page);return page;}});
