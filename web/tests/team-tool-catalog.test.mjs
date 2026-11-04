@@ -5,7 +5,7 @@ import {launchTeamTool} from '../public/app.js';
 const custom={id:'custom-11111111-1111-4111-8111-111111111111',name:'Equipo ficticio',plantId:'sacos'};
 test('anuncios y reporte son generales; eficiencia es exclusiva de los cuatro equipos de Sacos',()=>{
  assert.deepEqual(TEAM_TOOLS.filter(t=>t.includedByDefault===true).map(t=>t.id),['announcement','report']);
- for(const team of PROFILE_CATALOG)assert.deepEqual(toolsForTeam(team).map(t=>t.id),['announcement','report','production','lamination']);
+ for(const team of PROFILE_CATALOG)assert.deepEqual(toolsForTeam(team).map(t=>t.id),['announcement','report','production','looms','lamination']);
  for(const team of [custom,{...custom,plantId:'polietileno'},{...PROFILE_CATALOG[0],plantId:'polietileno'}]){
   assert.deepEqual(toolsForTeam(team).map(t=>t.id),team.plantId==='sacos'?['announcement','report','lamination']:['announcement','report']);assert.equal(isToolEnabledForTeam('production',team),false);
  }
@@ -47,4 +47,8 @@ test('reporte de ejemplo usa datos ficticios válidos e independientes de los eq
  assert.equal(first.report.teamId,'example-only');assert.match(first.report.teamName,/ejemplo/);
  assert.equal(Object.values(first.report.rows).filter(row=>row.includeEfficiency&&row.target).length,5);
  first.report.rows.extrusion.actual='1';assert.equal(second.report.rows.extrusion.actual,'79');
+});
+
+test('Telares permite los cuatro equipos y rechaza accesos de otros equipos',()=>{
+ let opened=0;const app={workspace:{activeProfileId:'champions'},catalog:[PROFILE_CATALOG[0]],loomsStudio:{open:value=>{assert.equal(value.plantId,'sacos');opened++;}}};assert.equal(launchTeamTool({},app,'looms'),true);assert.equal(opened,1);app.workspace.activeProfileId=custom.id;app.catalog=[custom];assert.equal(launchTeamTool({},app,'looms'),false);assert.equal(opened,1);assert.equal(isToolEnabledForTeam('looms',{...PROFILE_CATALOG[0],plantId:'polietileno'}),false);
 });
