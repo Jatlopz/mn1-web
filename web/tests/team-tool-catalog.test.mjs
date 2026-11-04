@@ -48,3 +48,7 @@ test('reporte de ejemplo usa datos ficticios válidos e independientes de los eq
  assert.equal(Object.values(first.report.rows).filter(row=>row.includeEfficiency&&row.target).length,5);
  first.report.rows.extrusion.actual='1';assert.equal(second.report.rows.extrusion.actual,'79');
 });
+
+test('Telares permite los cuatro equipos y rechaza accesos de otros equipos',()=>{
+ let opened=0;const app={workspace:{activeProfileId:'champions'},catalog:[PROFILE_CATALOG[0]],loomsStudio:{open:value=>{assert.equal(value.plantId,'sacos');opened++;}}};assert.equal(launchTeamTool({},app,'looms'),true);assert.equal(opened,1);app.workspace.activeProfileId=custom.id;app.catalog=[custom];assert.equal(launchTeamTool({},app,'looms'),false);assert.equal(opened,1);assert.equal(isToolEnabledForTeam('looms',{...PROFILE_CATALOG[0],plantId:'polietileno'}),false);
+});
