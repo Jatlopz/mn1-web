@@ -156,5 +156,11 @@ test('estatus inactivo oculta campos auxiliares sin borrar valores guardados',as
  const row={active:false,product:'Producto ficticio',action:'Producción',comment:'Nota conservada',runningCount:'2',totalCount:'3'};const before=JSON.stringify(row);
  assert.deepEqual(productionStatusDisplay(row),{active:false,status:'Inactivo',productAction:'',observations:''});
  assert.equal(JSON.stringify(row),before);
- const active=productionStatusDisplay({...row,active:true});assert.equal(active.active,true);assert.equal(active.status,'En funcionamiento');assert.equal(active.productAction,'Producto ficticio · Producción');assert.equal(active.observations,'2/3 unidades activas · Nota conservada');
+ const active=productionStatusDisplay({...row,active:true});assert.equal(active.active,true);assert.equal(active.status,'En funcionamiento');assert.equal(active.productAction,'Producto ficticio · Producción');assert.equal(active.observations,'2/3 máquinas · Nota conservada');
+});
+
+test('capacidad fija no exige inventar máquinas activas y sólo meta de desperdicio no incluye eficiencia',async()=>{
+ const {hasEfficiencyInput,productionStatusDisplay,efficiencyMeetsTarget,efficiencyCommentDisplay}=await import('../public/production-model.js');const {c,r}=completed();r.rows.mixing.totalCount='23';r.rows.mixing.runningCount='';assert.deepEqual(validateProductionReport(r,c),[]);assert.equal(hasEfficiencyInput({wasteTarget:'0.25'}),false);assert.equal(hasEfficiencyInput({wasteActual:'0'}),true);
+ assert.equal(efficiencyMeetsTarget({target:'0.3',actual:'0.3'}),true);assert.equal(efficiencyMeetsTarget({target:'100',actual:'99.99'}),false);assert.equal(efficiencyCommentDisplay({target:'100',actual:'100',comment:'Nota retenida'}),'OK');assert.equal(efficiencyCommentDisplay({target:'100',actual:'98',comment:'Nota retenida'}),'Nota retenida');
+ assert.equal(productionStatusDisplay({active:true,countKind:'station',runningCount:'2',totalCount:'3'}).observations,'2/3 estaciones activas');
 });

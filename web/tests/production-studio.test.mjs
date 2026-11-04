@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultCatalog,normalizeCatalog} from '../public/plant-catalog.js';
 import {createProductionReport,productionDraftKey} from '../public/production-model.js';
-import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups} from '../public/production-studio.js';
+import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey} from '../public/production-studio.js';
 const context={teamId:'champions',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24'};
 
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
@@ -96,4 +96,15 @@ test('gráfica calcula umbrales exactos, excluye vacíos y mantiene valores mayo
 
 test('la gráfica reúne procesos numerados del mismo tipo sin separar conversiones',()=>{
  const make=name=>({name,target:'100',actual:'90',includeEfficiency:true});const report={rows:{a:make('Conversión 3'),b:make('Extrusión'),c:make('Conversión 1'),d:make('Laminado'),e:make('Conversión 2')}};const groups=productionChartGroups(report,['a','b','c','d','e']);assert.deepEqual(groups.find(g=>g.name==='Conversión').rows.map(r=>r.name),['Conversión 1','Conversión 2','Conversión 3']);assert.deepEqual(groups.find(g=>g.name==='Procesos').rows.map(r=>r.name),['Extrusión','Laminado']);
+});
+
+test('valores mensuales heredan sin aplicar meses futuros ni modificar captura histórica',()=>{
+ const defs=normalizeProductionDefaults({version:1,months:{'2026-10':{telares:{wasteTarget:'0,25',totalCount:'23',countKind:'machine'}},'2026-12':{telares:{wasteTarget:'0.3',totalCount:'24',countKind:'station'}}}});assert.equal(productionDefaultsFor(defs,'2026-11','telares').wasteTarget,'0.25');assert.equal(productionDefaultsFor(defs,'2026-12','telares').totalCount,'24');const r=createProductionReport(defaultCatalog(),{...context,date:'2026-11-03'}),before=JSON.stringify(r);r.rows.telares.actual='99';r.rows.telares.wasteTarget='0.9';const next=applyProductionDefaults(r,defs);assert.equal(next.rows.telares.actual,'99');assert.equal(next.rows.telares.wasteTarget,'0.9');assert.equal(next.rows.telares.totalCount,'23');assert.equal(r.rows.telares.totalCount,'');assert.equal(applyProductionDefaults(r,defs,{replace:true}).rows.telares.wasteTarget,'0.25');assert.ok(before.includes('2026-11-03'));assert.ok(productionDefaultsKey('sacos').length<=64);
+});
+test('valores fijos rechazan porcentajes, cantidades y tipos inválidos sin truncar',()=>{
+ for(const value of [{wasteTarget:'101',totalCount:'23',countKind:'machine'},{wasteTarget:'0.25',totalCount:'2.5',countKind:'machine'},{wasteTarget:'0.25',totalCount:'23',countKind:'other'}])assert.throws(()=>normalizeProductionDefaults({version:1,months:{'2026-11':{p:value}}}));assert.throws(()=>normalizeProductionDefaults({version:1,months:{'2026-13':{}}}));assert.equal(productionDefaultsFor(normalizeProductionDefaults(null),'2026-11','telares').totalCount,'23');
+});
+
+test('default de estatus usa su mes y conserva tipo ya capturado sin reemplazo explícito',()=>{
+ const d=normalizeProductionDefaults({version:1,months:{'2026-10':{telares:{wasteTarget:'0.25',totalCount:'23',countKind:'machine'}},'2026-11':{telares:{wasteTarget:'0.5',totalCount:'24',countKind:'station'}}}}),r=createProductionReport(defaultCatalog(),{...context,date:'2026-11-01',efficiencyDate:'2026-10-31'});Object.assign(r.rows.telares,{countKind:'station',runningCount:'2',totalCount:''});const n=applyProductionDefaults(r,d);assert.equal(n.rows.telares.wasteTarget,'0.25');assert.equal(n.rows.telares.totalCount,'24');assert.equal(n.rows.telares.countKind,'station');const old=applyProductionDefaults({...r,rows:{telares:{...r.rows.telares,countKind:'machine',totalCount:'23'}}},d);assert.equal(old.rows.telares.countKind,'machine');const changed=applyProductionDefaults(old,d,{replace:true,month:'2026-11'});assert.equal(changed.rows.telares.countKind,'station');assert.equal(changed.rows.telares.wasteTarget,'0.25');
 });
