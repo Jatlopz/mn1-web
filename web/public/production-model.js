@@ -82,7 +82,7 @@ export function validateProductionReport(report,catalog) {
   if(!isProcessId(id)||!row||typeof row!=='object'||Array.isArray(row)){errors.push(label+': fila de proceso no válida.');continue;}
   if(row.active!==true&&row.active!==false)errors.push(label+': confirma el estatus activo o inactivo.');
   if(typeof row.includeEfficiency!=='boolean')errors.push(label+': confirma si se incluye en eficiencias.');
-  if(row.includeEfficiency===true&&hasEfficiencyInput(row)){const result=calculateEfficiency(row);for(const error of result.errors)errors.push(label+': '+error);if(!text(row.unit,24))errors.push(label+': indica la unidad de producción.');if(requiresEfficiencyReason(row)&&!text(row.efficiencyComment??row.comment,2000))errors.push(label+': agrega una razón o comentario porque la eficiencia es de 90 % o menos.');}
+  if(row.includeEfficiency===true&&hasEfficiencyInput(row)){const result=calculateEfficiency(row);for(const error of result.errors)errors.push(label+': '+error);if(!text(row.unit,24))errors.push(label+': indica la unidad de producción.');if(requiresEfficiencyReason(row)&&!text(row.efficiencyComment??row.comment,2000))errors.push(label+': agrega una razón o comentario porque la eficiencia es menor del 90 %.');}
   const running=decimal(row.runningCount),total=decimal(row.totalCount);if(total.kind==='invalid'||(total.kind==='number'&&!Number.isSafeInteger(total.value)))errors.push(label+': el total debe ser un entero no negativo.');
   if(running.kind!=='missing'){
    if(running.kind!=='number'||total.kind!=='number'||!Number.isSafeInteger(running.value)||!Number.isSafeInteger(total.value)||running.value>total.value)errors.push(label+': las cantidades operativas deben ser enteros no negativos y la cantidad activa no puede superar el total.');
@@ -120,11 +120,11 @@ function compareEfficiencyTo(row,percent) {
  const left=a.integer*10n**BigInt(scale-a.scale)*100n,right=t.integer*10n**BigInt(scale-t.scale)*BigInt(percent);
  return left<right?-1:left>right?1:0;
 }
-export function efficiencyMeetsTarget(row={}) { const comparison=compareEfficiencyTo(row,100);return comparison!==null&&comparison>=0; }
+export function efficiencyMeetsTarget(row={}) { const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison>=0; }
 export function efficiencyCommentDisplay(row={}) {return efficiencyMeetsTarget(row)?'OK':(row.efficiencyComment??row.comment)||'—';}
 export function productionCountLabels(row={}) {return row.countKind==='station'?{active:'Estaciones activas',total:'Total de estaciones',noun:'estaciones activas'}:{active:'Máquinas activas',total:'Total de máquinas',noun:'máquinas'};}
 export function requiresEfficiencyReason(row={}) {
- const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<=0;
+ const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<0;
 }
 export function efficiencyBand(row={}) {
  const lower=compareEfficiencyTo(row,80);if(lower===null)return 'empty';
