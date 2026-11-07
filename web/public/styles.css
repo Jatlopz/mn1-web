@@ -2133,3 +2133,6 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 @media(prefers-reduced-motion:reduce){.registry-chevron{transition:none}}
 @media(prefers-reduced-transparency:reduce){.registry-process,.registry-metrics>div,.registry-flows{background:var(--surface);backdrop-filter:none}}
 @media(forced-colors:active){.registry-process,.registry-metrics>div,.registry-flows,.registry-editor{border-color:ButtonText;background:Canvas;color:CanvasText}.registry-flows [aria-pressed=true]{border-color:Highlight}.registry [data-archived=true]{opacity:1}}
+
+/* Desktop installation is a navigation link, styled like the other Settings actions. */
+a.settings-option{text-decoration:none}

@@ -3,7 +3,7 @@ import {readFile, mkdir, writeFile, lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const MODULES = ['looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
+const MODULES = ['desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -193,6 +193,16 @@ export async function buildSite(source, destination) {
 
 
   await mkdir(destination, {recursive:true});
+  const installerCss=await readFile(path.join(source,'desktop-install.css'),'utf8');
+  const installerCssName='desktop-install.'+shortHash(installerCss)+'.css';
+  output[installerCssName]=installerCss;
+  output['install.html']=(await readFile(path.join(source,'install.html'),'utf8')).replace('./desktop-install.js','./'+outputNames.get('desktop-install.js')).replace('./desktop-install.css','./'+installerCssName);
+  output['app.webmanifest']=await readFile(path.join(source,'app.webmanifest'),'utf8');
+  for(const size of [192,512]) {
+    const name='brand/desktop-'+size+'.png',bytes=await readFile(path.join(source,name));
+    if(!bytes.subarray(0,8).equals(PNG_SIGNATURE)||bytes.readUInt32BE(16)!==size||bytes.readUInt32BE(20)!==size||bytes.length>512*1024)throw Error('Invalid desktop icon');
+    output[name]=bytes;
+  }
   output['index.html'] = html;
   output[cssName] = css;
   output['version.json'] = JSON.stringify(version, null, 2);
