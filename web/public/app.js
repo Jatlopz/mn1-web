@@ -1,3 +1,4 @@
+import {createTeamCarousel,teamInitials} from './team-carousel.js';
 import {createLoomStudio} from './looms-studio.js';
 import {installIsoCalendar} from './iso-calendar.js';
 import {createLaminationStudio} from './lamination-studio.js';
@@ -924,12 +925,6 @@ function cardThumbnailCacheFor(app) {
   return app.cardThumbnailCache;
 }
 
-function applyCoverMedia(image, dataUrl, sourceKey) {
-  if (!image || image.dataset.coverSource !== sourceKey) return;
-  image.src = dataUrl;
-  image.hidden = false;
-}
-
 function renderProfiles(dom, app) {
   if (dom.addTeam) {
     dom.addTeam.hidden = !isWorkspace(app);
@@ -941,9 +936,6 @@ function renderProfiles(dom, app) {
     ?? (app.uiMode === 'legacy' ? DEFAULT_PROFILE_ID : '');
   const activeDefinition = getProfileDefinition(activeId, { catalog: app.catalog });
   const selectable = isWorkspace(app) || app.uiMode === 'legacy';
-  const thumbnailCache = isWorkspace(app) && app.storage
-    ? cardThumbnailCacheFor(app)
-    : null;
   const visibleTeams = teamsForPlant(app.catalog, app.selectedPlantId);
   const empty = document.getElementById('plant-empty'); if (empty) empty.hidden = visibleTeams.length > 0;
   const report = document.getElementById('open-report'); if (report) report.hidden = visibleTeams.length === 0;
@@ -953,18 +945,8 @@ function renderProfiles(dom, app) {
   for (const plant of PLANTS) {const counter=document.getElementById('plant-count-'+plant.id);if(counter){const count=teamsForPlant(app.catalog,plant.id).length;counter.textContent=count ? count+' equipo'+(count===1?'':'s') : 'Sin equipos todavía';}}
   for (const definition of visibleTeams) {
     const template = app.workspace?.profiles?.[definition.id];
-    const appearance = normalizeCardAppearance(template?.cardAppearance);
-    const coverSourceKey = isWorkspace(app) ? resolveCardCoverSource(template) : null;
-
     const wrap = document.createElement('div');
     wrap.className = 'profile-card-wrap';
-    wrap.dataset.coverMode = appearance.mode;
-    wrap.dataset.hasCover = coverSourceKey ? 'true' : 'false';
-    for (const [property, value] of Object.entries(cardCoverCssVars(appearance))) {
-      if (typeof wrap.style?.setProperty === 'function') {
-        wrap.style.setProperty(property, value);
-      }
-    }
 
     const button = document.createElement('button');
     button.type = 'button';
@@ -981,17 +963,9 @@ function renderProfiles(dom, app) {
       ? 'APK3 · abrir la plantilla única conservada'
       : `Abrir la plantilla de ${definition.name}`;
 
-    const media = document.createElement('img');
-    media.className = 'profile-card-media';
-    media.alt = '';
-    media.setAttribute('aria-hidden', 'true');
-    media.decoding = 'async';
-    media.hidden = true;
-    if (coverSourceKey) media.dataset.coverSource = coverSourceKey;
-
-    const shade = document.createElement('span');
-    shade.className = 'profile-card-shade';
-    shade.setAttribute('aria-hidden', 'true');
+    const logo=document.createElement('img');logo.className='profile-card-logo';logo.alt='';logo.setAttribute('aria-hidden','true');logo.decoding='async';logo.hidden=true;
+    const initials=document.createElement('span');initials.className='profile-logo-fallback';initials.textContent=teamInitials(definition.name);initials.setAttribute('aria-hidden','true');
+    logo.addEventListener('error',()=>{logo.hidden=true;initials.hidden=false;});
 
     const name = document.createElement('span');
     name.className = 'profile-name';
@@ -1006,42 +980,34 @@ function renderProfiles(dom, app) {
       meta.textContent = hour ?? '--:--';
     }
 
-    button.append(media, shade, name, meta);
+    const enter=document.createElement('span');enter.className='profile-enter';enter.textContent='Entrar al equipo ↗';
+    button.append(logo, initials, name, meta, enter);
 
     const coverButton = document.createElement('button');
     coverButton.type = 'button';
     coverButton.className = 'profile-cover-edit';
     coverButton.dataset.editCover = definition.id;
-    const pencil = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    pencil.setAttribute('viewBox', '0 0 24 24');
-    pencil.setAttribute('aria-hidden', 'true');
-    const pencilPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pencilPath.setAttribute('d', 'm15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z');
-    pencilPath.setAttribute('fill', 'none');
-    pencilPath.setAttribute('stroke', 'currentColor');
-    pencilPath.setAttribute('stroke-width', '1.8');
-    pencilPath.setAttribute('stroke-linejoin', 'round');
-    pencil.append(pencilPath);
-    coverButton.append(pencil);
     coverButton.setAttribute('aria-label', `Editar portada de ${definition.name}`);
     coverButton.disabled = app.busy || !isWorkspace(app);
 
-    wrap.append(button, coverButton);
+    const settings=document.createElement('details');settings.className='team-carousel-settings';
+    const summary=document.createElement('summary');summary.setAttribute('aria-label','Configurar '+definition.name);summary.title='Configurar '+definition.name;
+    const gear=document.createElementNS('http://www.w3.org/2000/svg','svg');gear.setAttribute('viewBox','0 0 24 24');gear.setAttribute('fill','none');gear.setAttribute('stroke','currentColor');gear.setAttribute('stroke-width','1.7');gear.setAttribute('aria-hidden','true');
+    const gearPath=document.createElementNS(gear.namespaceURI,'path');gearPath.setAttribute('d','m9 3-.6 2.5-2.2 1.3L3.8 6 2 9l1.8 1.8v2.4L2 15l1.8 3 2.4-.8 2.2 1.3L9 21h6l.6-2.5 2.2-1.3 2.4.8 1.8-3-1.8-1.8v-2.4L22 9l-1.8-3-2.4.8-2.2-1.3L15 3Z');const hole=document.createElementNS(gear.namespaceURI,'circle');hole.setAttribute('cx','12');hole.setAttribute('cy','12');hole.setAttribute('r','3');gear.append(gearPath,hole);summary.append(gear);
+    const menu=document.createElement('div');menu.className='team-carousel-settings-menu';
+    const pickLogo=document.createElement('button');pickLogo.type='button';pickLogo.dataset.editTeamLogo=definition.id;pickLogo.textContent='Cambiar logo PNG';pickLogo.disabled=app.busy||!isWorkspace(app);
+    coverButton.className='team-cover-original';coverButton.textContent='Editar portada original';menu.append(pickLogo,coverButton);settings.append(summary,menu);
+    settings.addEventListener('toggle',()=>{if(settings.open)for(const other of dom.profileList.querySelectorAll('.team-carousel-settings[open]'))if(other!==settings)other.open=false;});
+    settings.addEventListener('keydown',e=>{if(e.key==='Escape'){settings.open=false;summary.focus();e.preventDefault();}});
+    wrap.append(button, settings);
     dom.profileList.append(wrap);
 
-    if (thumbnailCache) thumbnailCache.trackProfile(definition.id, coverSourceKey);
-    if (coverSourceKey && thumbnailCache) {
-      const cached = thumbnailCache.get(coverSourceKey);
-      if (cached) {
-        applyCoverMedia(media, cached, coverSourceKey);
-      } else {
-        void thumbnailCache.loadProfile(definition.id, coverSourceKey).then((thumbnail) => {
-          if (thumbnail) applyCoverMedia(media, thumbnail, coverSourceKey);
-        }).catch(() => {});
-      }
-    }
+    if(isWorkspace(app)&&app.storage){void readTeamLogo(app.storage,definition.id).then(url=>{if(!url||!logo.isConnected)return;logo.src=url;logo.hidden=false;initials.hidden=true;}).catch(()=>{});}
+
   }
 
+  app.teamCarousel ||=createTeamCarousel(dom.profileList);
+  app.teamCarousel.refresh({activeId,plantId:app.selectedPlantId});
   if (dom.profilesStatus) {
     if (app.uiMode === 'legacy') dom.profilesStatus.textContent = 'APK3 · plantilla única';
     else if (activeDefinition) dom.profilesStatus.textContent = activeDefinition.name;
@@ -2283,11 +2249,14 @@ function wireTeamLogo(dom, app) {
   const accept = async (dataUrl, id) => {
     if (!id) throw Error('Vuelve a seleccionar el equipo.');
     await enqueueStorageTask(app, () => saveTeamLogo(app.storage, id, dataUrl));
+    app.teamLogoCache?.clear();renderProfiles(dom,app);
     feedback.textContent = 'Logo guardado para este equipo.';
+    showStatus(dom,'Logo guardado para este equipo.','success');
   };
-  button.addEventListener('click', async () => {
+  app.pickTeamLogo=async teamId=>{
     if (app.busy || app.switching) return;
-    selectedTeamId = app.workspace.activeProfileId;
+    if(!getProfileDefinition(teamId,{catalog:app.catalog}))return;
+    selectedTeamId = teamId;
     const id = selectedTeamId;
     if (app.mode !== 'native') { input.value = ''; input.click(); return; }
     setBusy(dom, app, true);
@@ -2297,9 +2266,10 @@ function wireTeamLogo(dom, app) {
       const result = await app.bridge.request('IMPORT_IMAGE', {}, {timeoutMs:300000});
       if (!result.ok) throw Error(result.message || 'No se eligió un logo.');
       await accept(result.data?.imageDataUrl, id);
-    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.'; }
+    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.';showStatus(dom,feedback.textContent,'warning'); }
     finally { setBusy(dom, app, false); void renderTeamLogo(app, app.workspace.activeProfileId); }
-  });
+  };
+  button.addEventListener('click',()=>void app.pickTeamLogo(app.workspace.activeProfileId));
   input.addEventListener('change', async () => {
     const id = selectedTeamId;
     const file = input.files?.[0];
@@ -2311,7 +2281,7 @@ function wireTeamLogo(dom, app) {
       if (file.type !== 'image/png') throw Error('Selecciona un logo en formato PNG.');
       const prepared = await prepareImageFile(file, {minDimension:1});
       await accept(prepared.dataUrl, id);
-    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.'; }
+    } catch (error) { feedback.textContent = error.message || 'No se pudo guardar el logo.';showStatus(dom,feedback.textContent,'warning'); }
     finally { setBusy(dom, app, false); void renderTeamLogo(app, app.workspace.activeProfileId); }
   });
 }
@@ -4224,6 +4194,7 @@ function wireUiEvents(dom, app) {
   });
 
   dom.profileList.addEventListener('click', (event) => {
+    const logoButton=event.target.closest('[data-edit-team-logo]');if(logoButton){if(!logoButton.disabled)void app.pickTeamLogo?.(logoButton.dataset.editTeamLogo);return;}
     const coverButton = event.target.closest('[data-edit-cover]');
     if (coverButton) {
       if (coverButton.disabled) return;
@@ -4774,7 +4745,7 @@ async function boot() {
   app.laminationStudio=createLaminationStudio(()=>({storage:app.storage}));
   document.getElementById('open-lamination').addEventListener('click',()=>launchTeamTool(dom,app,'lamination'));
   await seedStarterImagesOnBoot(dom, app);
-  app.cloud=createCloudWorkspace(()=>({bridge:app.bridge,mode:app.mode,openTeamSpace:async id=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;if(id!==app.workspace?.activeProfileId&&!(await switchWorkspaceProfile(dom,app,id)))return false;return openTeamTools(dom,app,id);},openPersonalSpace:async()=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;const id=app.workspace?.activeProfileId;const definition=getProfileDefinition(id,{catalog:app.catalog});if(definition&&(!app.selectedPlantId||plantForTeam(definition)===app.selectedPlantId)){openTeamTools(dom,app,id);}else{app.teamToolsOpen=false;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});}return true;},isEditing:()=>app.busy||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]:not(#cloud-dialog)'))||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]'))||!document.getElementById('admin-dashboard').hidden||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),flush:()=>flushDraftBeforeLeaving(dom,app),setSyncing:value=>{document.getElementById('sync-indicator').hidden=!value;},setLocked:value=>{app.cloudManualBusy=value;app.busy=value;renderAll(dom,app,{syncFields:false});},commitReceive:async task=>{const manual=app.cloudManualBusy===true;if((app.busy&&!manual)||app.switching||app.dirty||app.listening||(!manual&&(app.workspaceView===WORKSPACE_VIEW_OPEN||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen()||document.querySelector('dialog[open]'))))throw Object.assign(Error('Se aplaza la recepción mientras trabajas.'),{code:'deferred'});const wasBusy=app.busy;app.busy=true;try{return await enqueueStorageTask(app,task);}finally{app.busy=wasBusy;}},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
+  app.cloud=createCloudWorkspace(()=>({bridge:app.bridge,mode:app.mode,openTeamSpace:async id=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;if(id!==app.workspace?.activeProfileId&&!(await switchWorkspaceProfile(dom,app,id)))return false;return openTeamTools(dom,app,id);},openPersonalSpace:async()=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;const id=app.workspace?.activeProfileId;const definition=getProfileDefinition(id,{catalog:app.catalog});if(definition&&(!app.selectedPlantId||plantForTeam(definition)===app.selectedPlantId)){openTeamTools(dom,app,id);}else{app.teamToolsOpen=false;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});}return true;},isEditing:()=>app.busy||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]:not(#cloud-dialog)'))||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]'))||!document.getElementById('admin-dashboard').hidden||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),flush:()=>flushDraftBeforeLeaving(dom,app),setSyncing:value=>{document.getElementById('sync-indicator').hidden=!value;},setLocked:value=>{app.cloudManualBusy=value;app.busy=value;renderAll(dom,app,{syncFields:false});},commitReceive:async task=>{const manual=app.cloudManualBusy===true;if((app.busy&&!manual)||app.switching||app.dirty||app.listening||(!manual&&(app.workspaceView===WORKSPACE_VIEW_OPEN||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen()||document.querySelector('dialog[open]'))))throw Object.assign(Error('Se aplaza la recepción mientras trabajas.'),{code:'deferred'});const wasBusy=app.busy;app.busy=true;try{return await enqueueStorageTask(app,task);}finally{app.busy=wasBusy;}},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.teamLogoCache?.clear();app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
   void app.cloud.start();
   await processWidgetLaunch();
   await processReportWidgetLaunch();
