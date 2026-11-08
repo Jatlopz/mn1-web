@@ -2909,6 +2909,10 @@
 
 /* Panoramic desktop scenes. Mobile retains the original portrait assets. */
 @media (min-width:1000px) and (min-aspect-ratio:1/1){
+:root[data-theme=ice]{--scene-art:linear-gradient(180deg,#06101e12 0%,#07142608 48%,#050b1833 100%),url('./themes/ice-aurora-desktop.9f9194e873d97063.jpg')}
+:root[data-theme=lime]{--scene-art:linear-gradient(180deg,#06170f14 0%,#07180d08 48%,#04100b35 100%),url('./themes/lime-forest-desktop.5333a47af2aa228f.jpg')}
+:root[data-theme=violet]{--scene-art:linear-gradient(180deg,#130b2418 0%,#150c2808 48%,#09081738 100%),url('./themes/violet-eclipse-desktop.d363ca64123994c8.jpg')}
+:root[data-theme=amber]{--scene-art:linear-gradient(180deg,#1b0e0718 0%,#1b0e0708 48%,#0c080638 100%),url('./themes/amber-topology-desktop.e1992b41c96628f1.jpg')}
 :root[data-theme=halloween]{--scene-art:url('./themes/halloween-desktop-4k.344a5f1d7bd0d7c3.webp')}
 :root[data-theme=halloween][data-wallpaper=moon]{--scene-art:url('./themes/halloween-moon-desktop-4k.02f9bd8c5ac84c40.webp')}
 :root[data-theme=winter]{--scene-art:url('./themes/winter-desktop-4k.b0c5d358abef9729.webp')}
@@ -2916,6 +2920,9 @@
 :root[data-theme=winter][data-winter-wallpaper=snow]{--scene-art:url('./themes/winter-snow-desktop-4k.73c847bbb35b189b.webp')}
 :root[data-theme] body::before,:root[data-theme] .admin-dashboard::before,:root[data-theme] .production-studio::before{position:fixed;inset:0;width:auto;height:auto;background-size:cover;background-repeat:no-repeat;background-position:center center}
 }
+
+@media(min-width:1000px) and (min-aspect-ratio:1/1){:root[data-night=on]{--theme-night-art:url('./themes/night-neural-desktop.a298bbf3273b0d98.jpg')}}
+:root[data-night=on] body::after{background-image:var(--theme-night-art,url('./themes/night-neural.a240614da278ac75.webp')),var(--theme-atmosphere);background-size:cover,420px 340px;background-repeat:no-repeat,repeat;background-position:center;opacity:.22}
 
 /* Buzón: un solo eje de alineación y un pie con espacio propio. */
 :root[data-theme] #ideas-dialog .idea-image-editor{margin:16px 0 0;display:grid;gap:8px}
@@ -2956,3 +2963,7 @@
 :root[data-theme] #about-dialog .about-content>p{font-size:.9rem;line-height:1.7;margin:12px 0;color:var(--text-muted)}
 :root[data-theme] #about-dialog .about-content>p:first-of-type{font-size:1rem;line-height:1.65;color:var(--text)}
 :root[data-theme] #about-dialog .contact-value{overflow-wrap:anywhere}
+
+/* Mantener visible el arte de los cuatro temas básicos a pantalla completa. */
+:root[data-theme=ice] body::after,:root[data-theme=violet] body::after,:root[data-theme=amber] body::after,:root[data-theme=lime] body::after{background:linear-gradient(90deg,#06091314,transparent 50%,#06091308),linear-gradient(0deg,#06091310,transparent 60%);opacity:1}
+:root[data-night=on][data-theme] body::after{background-image:var(--theme-night-art,url('./themes/night-neural.a240614da278ac75.webp')),var(--theme-atmosphere);background-size:cover,420px 340px;background-repeat:no-repeat,repeat;background-position:center;opacity:.22}
