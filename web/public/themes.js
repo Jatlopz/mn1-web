@@ -1,4 +1,5 @@
 export const THEME_KEY = 'mn1.appearance.theme';
+export const THEME_BOOTSTRAP_KEY = 'mn1.appearance.theme.bootstrap.v1';
 export const NIGHT_MODE_KEY = 'mn1.appearance.night.v1';
 export const APPEARANCE_KEY = 'mn1.appearance.surfaces.v1';
 export const DEFAULT_APPEARANCE = Object.freeze({wallpaper:'original',winterWallpaper:'aurora',cards:18,windows:8});
@@ -65,18 +66,24 @@ export const THEMES = Object.freeze([
  {id:'winter',name:'Fin de año',accent:'#9ce8dd',seasonal:true},
 ]);
 export const normalizeTheme = value => THEMES.some(t=>t.id===value) ? value : DEFAULT_THEME;
+function writeThemeBootstrap(value,root) {
+ try { (root.defaultView?.localStorage ?? globalThis.localStorage)?.setItem(THEME_BOOTSTRAP_KEY,normalizeTheme(value)); } catch { /* Durable app storage remains authoritative. */ }
+}
 export async function installThemes(storage, root=document, events=window) {
  const dialog=root.getElementById('theme-dialog');
  const error=root.getElementById('theme-error');
  const nightToggle=root.getElementById('night-mode-toggle');
- let selected=DEFAULT_THEME,saving=false;
+ // The head bootstrap already applies the last saved theme before CSS paints.
+ // Preserve it here; resetting to Halloween would flash the wrong palette on boot.
+ let selected=normalizeTheme(root.documentElement.dataset.theme),saving=false;
  const apply=id=>{
   selected=normalizeTheme(id);root.documentElement.dataset.theme=selected;
+  writeThemeBootstrap(selected,root);
   const backgrounds=root.getElementById('halloween-backgrounds');if(backgrounds)backgrounds.hidden=selected!=='halloween';
   const winterBackgrounds=root.getElementById('winter-backgrounds');if(winterBackgrounds)winterBackgrounds.hidden=selected!=='winter';
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
- apply(DEFAULT_THEME);
+ apply(selected);
  let nightMode=false,nightSaving=false;
  const applyNight=value=>{nightMode=Boolean(value);root.documentElement.dataset.night=nightMode?'on':'off';nightToggle?.setAttribute('aria-checked',String(nightMode));};
  applyNight(false);
@@ -97,7 +104,7 @@ export async function installThemes(storage, root=document, events=window) {
  const seasonClock=events.setInterval?.(updateSeasonMark,60_000);
  seasonClock?.unref?.();
  void seasonClock;
- try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
+ try {apply(await storage.getText(THEME_KEY));writeThemeBootstrap(selected,root);}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
  const section=value=>{
   const base=root.getElementById('base-themes'),season=root.getElementById('seasonal-themes');
   if(!base||!season)return;
