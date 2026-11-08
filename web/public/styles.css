@@ -2136,3 +2136,5 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 
 /* Desktop installation is a navigation link, styled like the other Settings actions. */
 a.settings-option{text-decoration:none}
+
+.idea-image-editor{margin:16px 0}.idea-image-actions{display:flex;gap:8px;flex-wrap:wrap}.idea-image-editor img,.idea-attachment img{display:block;max-width:100%;max-height:360px;width:auto;height:auto;object-fit:contain;border-radius:12px;margin:12px auto}.idea-attachment{margin:12px 0}.idea-attachment summary{cursor:pointer;color:var(--lime);font-weight:650;padding:10px 0}.idea-image-editor [hidden]{display:none!important}

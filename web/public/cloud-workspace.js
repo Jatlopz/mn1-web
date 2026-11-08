@@ -1,3 +1,4 @@
+import {isIdeaImage,prepareIdeaImage,prepareNativeIdeaImage,appendIdeaAttachment} from './idea-attachment.js';
 import {createRegistryAdmin} from './registry-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
@@ -469,10 +470,13 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   async function restoreCreatorPhoto(){try{const row=JSON.parse(await storage.getText(creatorCacheKey)||'null');if(row&&Number.isSafeInteger(row.revision)&&(row.photo===null||isCreatorPhoto(row.photo))){creatorRevision=row.revision;showCreatorPhoto(row.photo);}}catch{}void loadCreatorPhoto();}
   void restoreCreatorPhoto();
   const ideasDialog=$('ideas-dialog'),ideaStatus=$('ideas-status');
+  let ideaImage=null;
   let ideaBusy=false,ideaRequest=null,ideaOffset=0,ideaDraftLoaded=false,ideaTeamId=null;
   const ideaDraftKey=id=>'mn1.idea.draft.'+id;
+  const ideaImageKey=id=>'mn1.idea.pic.'+id;
+  const renderIdeaImage=()=>{const preview=$('idea-image-preview');preview.hidden=!ideaImage;$('idea-image-remove').hidden=!ideaImage;if(ideaImage)preview.src=ideaImage;else preview.removeAttribute('src');};
   const ideaRequestKey=id=>'mn1.idea.req.'+id;
-  const ideasLock=value=>{ideaBusy=value;for(const control of ideasDialog.querySelectorAll('button,input,select,textarea'))control.disabled=value;$('idea-send').disabled=value||!IDEAS_ENABLED;};
+  const ideasLock=value=>{ideaBusy=value;for(const control of ideasDialog.querySelectorAll('button,input,select,textarea'))control.disabled=value;$('idea-send').disabled=value||!IDEAS_ENABLED||!ideaDraftLoaded;};
   $('ideas-close').addEventListener('click',()=>{if(!ideaBusy)ideasDialog.close();});
   ideasDialog.addEventListener('cancel',event=>{if(ideaBusy)event.preventDefault();});
   async function openIdeas({toolId=null,teamId=null}={}) {
@@ -482,34 +486,50 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     const requestNote=toolId?toolRequestNote(toolId,team):null;
     ideaStatus.textContent=IDEAS_ENABLED?'':'Buzón preparado. El envío estará disponible cuando se active la nube de ideas.';ideaRequest=null;ideaDraftLoaded=false;ideaTeamId=team.id;
     $('my-ideas-panel').hidden=true;$('ideas-form').hidden=false;$('ideas-inbox').hidden=true;$('ideas-team').textContent='Equipo: '+team.name;
-    $('idea-note').value='';ideasDialog.showModal();ideasLock(true);
+    $('idea-note').value='';ideaImage=null;renderIdeaImage();$('idea-image-input').value='';ideasDialog.showModal();ideasLock(true);
     try{
       const existing=await services.storage.getText(ideaDraftKey(team.id))||'';
       const merged=requestNote?mergeToolRequestDraft(existing,requestNote):existing;
-      $('idea-note').value=merged??existing;ideaDraftLoaded=true;
+      const image=await services.storage.getText(ideaImageKey(team.id));if(image&&!isIdeaImage(image))throw Error('Adjunto anterior no válido');
+      $('idea-note').value=merged??existing;ideaImage=image||null;renderIdeaImage();ideaDraftLoaded=true;
       if(merged===null)ideaStatus.textContent='Tu borrador anterior se conserva. Hay que acortarlo para añadir la solicitud de adaptación.';
     }catch{ideaStatus.textContent='No se pudo leer tu borrador anterior. No se reemplazará al cerrar.';}finally{ideasLock(false);}
     return true;
   }
   $('open-ideas').addEventListener('click',()=>void openIdeas());
   $('idea-note').addEventListener('input',()=>{ideaRequest=null;});
+  $('idea-image-add').addEventListener('click',async()=>{
+    if(ideaBusy||!ideaDraftLoaded)return;const services=getServices();
+    if(services.mode!=='native'){$('idea-image-input').click();return;}
+    ideasLock(true);ideaStatus.textContent='Elige la imagen que quieres adjuntar…';
+    try{const result=await services.bridge.request('IMPORT_IMAGE',{}, {timeoutMs:300000});if(!result?.ok)throw Error(result?.message||'No se eligió una imagen.');const image=await prepareNativeIdeaImage(result.data?.imageDataUrl);await services.storage.putText(ideaImageKey(ideaTeamId),image);ideaImage=image;ideaRequest=null;renderIdeaImage();ideaStatus.textContent='Imagen lista. Se enviará junto con tu idea.';}
+    catch(e){ideaStatus.textContent=e.message+' El adjunto anterior se conserva.';}finally{ideasLock(false);}
+  });
+  $('idea-image-input').addEventListener('change',async()=>{
+    const file=$('idea-image-input').files?.[0];if(!file||ideaBusy||!ideaDraftLoaded)return;ideasLock(true);ideaStatus.textContent='Preparando imagen…';
+    try{const image=await prepareIdeaImage(file);await getServices().storage.putText(ideaImageKey(ideaTeamId),image);ideaImage=image;ideaRequest=null;renderIdeaImage();ideaStatus.textContent='Imagen lista. Se enviará junto con tu idea.';}
+    catch(e){ideaStatus.textContent=e.message+' El adjunto anterior se conserva.';}finally{$('idea-image-input').value='';ideasLock(false);}
+  });
+  $('idea-image-remove').addEventListener('click',async()=>{if(ideaBusy||!ideaDraftLoaded)return;ideasLock(true);try{await getServices().storage.putText(ideaImageKey(ideaTeamId),'');ideaImage=null;ideaRequest=null;renderIdeaImage();ideaStatus.textContent='Imagen quitada del borrador.';}catch{ideaStatus.textContent='No se pudo quitar la imagen. El borrador se conserva.';}finally{ideasLock(false);}});
   ideasDialog.addEventListener('close',()=>{
     if(!$('ideas-form').hidden&&ideaDraftLoaded){const id=ideaTeamId;void getServices().storage.putText(ideaDraftKey(id),$('idea-note').value).catch(()=>{});}
   });
   $('ideas-form').addEventListener('submit',async event=>{
-    event.preventDefault();if(ideaBusy||!IDEAS_ENABLED)return;
+    event.preventDefault();if(ideaBusy||!IDEAS_ENABLED||!ideaDraftLoaded)return;
     const note=$('idea-note').value.trim(),team=getServices().activeProfileId;
+    if(team!==ideaTeamId){ideaStatus.textContent='Vuelve a abrir el buzón desde el equipo correspondiente.';return;}
     if(note.length<10||note.length>1500){ideaStatus.textContent='Describe la idea entre 10 y 1500 caracteres.';return;}
     ideasLock(true);ideaStatus.textContent='Enviando tu propuesta…';
     try{
       await getServices().storage.putText(ideaDraftKey(team),note);
       let device=await getServices().storage.getText('mn1.idea.client');
       if(!/^[0-9a-f-]{36}$/.test(device||'')){device=crypto.randomUUID();await getServices().storage.putText('mn1.idea.client',device);}
-      if(!ideaRequest){let pending=null;try{pending=JSON.parse(await getServices().storage.getText(ideaRequestKey(team)));}catch{}ideaRequest=pending?.note===note&&/^[0-9a-f-]{36}$/.test(pending.id)?pending.id:crypto.randomUUID();await getServices().storage.putText(ideaRequestKey(team),JSON.stringify({id:ideaRequest,note}));}
-      await client.submitIdea(ideaRequest,device,team,note);
-      $('idea-note').value='';await getServices().storage.putText(ideaDraftKey(team),'');await getServices().storage.putText(ideaRequestKey(team),'');
+      const imageHash=ideaImage?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(ideaImage)))).map(n=>n.toString(16).padStart(2,'0')).join(''):null;
+      if(!ideaRequest){let pending=null;try{pending=JSON.parse(await getServices().storage.getText(ideaRequestKey(team)));}catch{}ideaRequest=pending?.note===note&&(pending.imageHash||null)===imageHash&&/^[0-9a-f-]{36}$/.test(pending.id)?pending.id:crypto.randomUUID();await getServices().storage.putText(ideaRequestKey(team),JSON.stringify({id:ideaRequest,note,imageHash}));}
+      await client.submitIdea(ideaRequest,device,team,note,ideaImage);
+      await getServices().storage.putText(ideaDraftKey(team),'');await getServices().storage.putText(ideaImageKey(team),'');await getServices().storage.putText(ideaRequestKey(team),'');$('idea-note').value='';ideaImage=null;renderIdeaImage();
       ideaStatus.textContent='Idea enviada al administrador general. Gracias por ayudar a mejorar SuperTools.';ideaRequest=null;
-    }catch(e){ideaStatus.textContent=e.message+' Tu nota se conserva. Si el equipo es nuevo, el administrador debe publicarlo primero.';}finally{ideasLock(false);}
+    }catch(e){ideaStatus.textContent=e.message+' Tu nota y la imagen se conservan. Si el equipo es nuevo, el administrador debe publicarlo primero.';}finally{ideasLock(false);}
   });
   async function loadIdeas(append=false){
     if(ideaBusy)return;ideasLock(true);ideaStatus.textContent='Cargando bandeja…';
@@ -517,7 +537,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       if(!(await client.access()).admin)throw Error('Sólo el administrador general puede leer esta bandeja.');
       if(!append){ideaOffset=0;$('ideas-list').replaceChildren();}
       const ideas=await client.listIdeas(ideaOffset);ideaOffset+=ideas.length;$('ideas-more').hidden=ideas.length<50;
-      for(const idea of ideas){const card=document.createElement('article');card.className='idea-card';const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');const note=document.createElement('p');note.textContent=idea.note;const select=document.createElement('select');select.setAttribute('aria-label','Estado de la idea de '+idea.team_name);for(const [value,label] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=idea.status;select.addEventListener('change',async()=>{const previous=idea.status;ideasLock(true);try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;ideaStatus.textContent='Estado guardado.';}catch{select.value=previous;ideaStatus.textContent='No se pudo cambiar el estado. Recarga la bandeja antes de reintentar.';}finally{ideasLock(false);}});card.append(title,date,note,select);$('ideas-list').append(card);}
+      for(const idea of ideas){const card=document.createElement('article');card.className='idea-card';const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');const note=document.createElement('p');note.textContent=idea.note;const select=document.createElement('select');select.setAttribute('aria-label','Estado de la idea de '+idea.team_name);for(const [value,label] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=idea.status;select.addEventListener('change',async()=>{const previous=idea.status;ideasLock(true);try{await client.updateIdea(idea.id,previous,select.value);idea.status=select.value;ideaStatus.textContent='Estado guardado.';}catch{select.value=previous;ideaStatus.textContent='No se pudo cambiar el estado. Recarga la bandeja antes de reintentar.';}finally{ideasLock(false);}});card.append(title,date,note,select);appendIdeaAttachment(card,idea,{client});$('ideas-list').append(card);}
       ideaStatus.textContent=ideaOffset?ideaOffset+' propuestas cargadas.':'Todavía no hay propuestas.';
     }catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
   }
@@ -558,12 +578,12 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     if(!access?.admin||document.hidden||adminBusy)return;
     try{incoming(await client.ideaDashboard(seenCursor));}catch(e){if(['401','403'].includes(e.code)){access={...access,admin:false};$('open-admin-dashboard').hidden=true;$('admin-incoming').hidden=true;hideAdmin();render();}}
   }
-  function appendRequest(host,idea,{editable=false}={}){
+  function appendRequest(host,idea,{editable=false,receipt=null}={}){
     const card=document.createElement('article');card.className='idea-card';card.dataset.state=idea.status;
     const title=document.createElement('strong');title.textContent=idea.team_name+' · '+(idea.plant_id==='polietileno'?'Polietileno':'Sacos');
     const date=document.createElement('small');date.textContent=new Date(idea.created_at).toLocaleString('es-HN');
     const note=document.createElement('p');note.textContent=idea.note;
-    const badge=document.createElement('span');badge.className='idea-state';badge.textContent=IDEA_STATES[idea.status]||'Pendiente';card.append(title,date,note,badge);
+    const badge=document.createElement('span');badge.className='idea-state';badge.textContent=IDEA_STATES[idea.status]||'Pendiente';card.append(title,date,note,badge);appendIdeaAttachment(card,idea,{client,receipt});
     if(editable){
       const label=document.createElement('label');label.className='field';label.textContent='Cambiar estado';const select=document.createElement('select');select.className='select';
       for(const [value,text] of Object.entries(IDEA_STATES)){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}select.value=idea.status;
@@ -599,9 +619,10 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   $('admin-to-about').addEventListener('click',()=>{hideAdmin();$('open-about').click();});
   async function loadMine(append=false){
     if(ideaBusy)return;ideasLock(true);ideaStatus.textContent='Consultando tus solicitudes…';
-    try{if(!append){myOffset=0;$('my-ideas-list').replaceChildren();}const device=await getServices().storage.getText('mn1.idea.client');const ideas=device?await client.myIdeas(device,myOffset):[];myOffset+=ideas.length;for(const idea of ideas)appendRequest($('my-ideas-list'),idea);$('my-ideas-more').hidden=ideas.length<50;ideaStatus.textContent=myOffset?myOffset+' solicitudes cargadas.':'Todavía no has enviado solicitudes desde este teléfono.';}catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
+    try{if(!append){myOffset=0;$('my-ideas-list').replaceChildren();}const device=await getServices().storage.getText('mn1.idea.client');const ideas=device?await client.myIdeas(device,myOffset):[];myOffset+=ideas.length;for(const idea of ideas)appendRequest($('my-ideas-list'),idea,{receipt:device});$('my-ideas-more').hidden=ideas.length<50;ideaStatus.textContent=myOffset?myOffset+' solicitudes cargadas.':'Todavía no has enviado solicitudes desde este teléfono.';}catch(e){ideaStatus.textContent=e.message;}finally{ideasLock(false);}
   }
   $('my-ideas-open').addEventListener('click',async()=>{
+    if(!ideaDraftLoaded){ideaStatus.textContent='Vuelve a abrir el buzón para recuperar tu borrador.';return;}
     try{await getServices().storage.putText(ideaDraftKey(getServices().activeProfileId),$('idea-note').value);$('ideas-form').hidden=true;$('ideas-inbox').hidden=true;$('my-ideas-panel').hidden=false;await loadMine();}catch{ideaStatus.textContent='No se pudo conservar el borrador. No se cambió de pantalla.';}
   });
   $('my-ideas-refresh').addEventListener('click',()=>void loadMine());$('my-ideas-more').addEventListener('click',()=>void loadMine(true));
