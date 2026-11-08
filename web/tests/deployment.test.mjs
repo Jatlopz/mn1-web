@@ -16,7 +16,7 @@ const MODULE_PATTERN = /^(team-carousel|corporate-board|creator-info|idea-attach
 test('published bundle contains every module with coherent content hashes', async () => {
   const out = await mkdtemp(path.join(tmpdir(), 'mn1-pages-'));
   const files = await buildSite(publicPath, out);
-  assert.equal(files.length, 52);
+  assert.equal(files.length, 58);
   assert.deepEqual((await readdir(path.join(out, 'templates'))).sort(), ['indestructibles.c9e3d4ac8d3d6f3f.png', 'super-guerreros.8200d4c6f9ede505.png']);
 
   const html = await readFile(path.join(out, 'index.html'), 'utf8');
@@ -59,7 +59,7 @@ test('published bundle contains every module with coherent content hashes', asyn
   assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...STARTER_PNGS,BRAND_SYMBOL.path,'brand/desktop-clear-192.png','brand/desktop-clear-512.png'].sort());
   for (const file of files) {
     assert.ok(
-      MODULE_PATTERN.test(file) || /^(install\.html|app\.webmanifest|desktop-install\.[a-f0-9]{16}\.css|brand\/desktop-clear-(192|512)\.png)$/.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file) || THEME_ART.some(art=>art.path===file) || file===CREATOR_PHOTO.path || file===BRAND_SYMBOL.path,
+      MODULE_PATTERN.test(file) || /^(install\.html|app\.webmanifest|desktop-install\.[a-f0-9]{16}\.css|brand\/desktop-clear-(192|512)\.png)$/.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file) || THEME_ART.some(art=>art.path===file) || /^themes\/texture-(ice|violet|amber|lime|halloween|winter)\.svg$/.test(file) || file===CREATOR_PHOTO.path || file===BRAND_SYMBOL.path,
       `Archivo no permitido en el paquete: ${file}`,
     );
   }
