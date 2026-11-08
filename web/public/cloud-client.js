@@ -1,3 +1,4 @@
+import {isIdeaImage} from './idea-attachment.js';
 // Public client configuration, not a secret. Permissions are enforced in PostgreSQL.
 export const CLOUD_CONFIG = Object.freeze({
   url: "https://wnfqqqorktjiruxlzvlr.supabase.co",
@@ -108,7 +109,9 @@ export class CloudClient {
         authCode = error.code || error.error_code || "";
       } catch {}
       throw new CloudError(
-        path.startsWith("/auth/v1/token?grant_type=password") && (authCode === "invalid_credentials" || result.status === 400)
+        result.status === 402
+          ? "La nube está restringida por su límite de uso. El administrador debe revisar el servicio. Tu borrador se conserva."
+          : path.startsWith("/auth/v1/token?grant_type=password") && (authCode === "invalid_credentials" || result.status === 400)
           ? "Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo."
           : result.status === 429
           ? "El servidor recibió demasiados intentos. Espera un momento antes de volver a entrar."
@@ -164,13 +167,15 @@ export class CloudClient {
   publicList() {
     return this.request('/functions/v1/team-catalog', {method:'GET',auth:false});
   }
-  submitIdea(id,client,team,note) {
+  submitIdea(id,client,team,note,image=null) {
+    if(image!==null){if(!isIdeaImage(image))throw new CloudError('La imagen adjunta no es válida.');return this.request('/rest/v1/rpc/mn1_submit_idea_image',{auth:false,body:{p_id:id,p_client:client,p_team:team,p_note:note,p_image:image}}); }
     return this.request('/rest/v1/rpc/mn1_submit_idea',{auth:false,body:{p_id:id,p_client:client,p_team:team,p_note:note}});
   }
+  ideaImage(id,client=null){return this.request('/rest/v1/rpc/mn1_idea_image',{auth:client===null,body:{p_id:id,p_client:client}});}
   ideaDashboard(after=0) {return this.request('/rest/v1/rpc/mn1_idea_dashboard',{body:{p_after:after}});}
   myIdeas(client,offset=0) {return this.request('/rest/v1/rpc/mn1_my_ideas',{auth:false,body:{p_client:client,p_offset:offset}});}
   listIdeas(offset=0,status='') {
-    return this.request('/rest/v1/mn1_ideas?select=id,team_id,team_name,plant_id,note,status,created_at,updated_at&order=created_at.desc,id.desc&limit=50&offset='+offset+(status?'&status=eq.'+encodeURIComponent(status):''),{method:'GET'});
+    return this.request('/rest/v1/mn1_ideas?select=id,team_id,team_name,plant_id,note,has_attachment,status,created_at,updated_at&order=created_at.desc,id.desc&limit=50&offset='+offset+(status?'&status=eq.'+encodeURIComponent(status):''),{method:'GET'});
   }
   updateIdea(id,expected,status) {
     return this.request('/rest/v1/rpc/mn1_update_idea',{body:{p_id:id,p_expected:expected,p_status:status}});
