@@ -2930,3 +2930,29 @@
 :root[data-theme] #ideas-dialog #ideas-status{margin:18px 0 0;line-height:1.6;overflow-wrap:anywhere}
 :root[data-theme] #ideas-dialog #ideas-status:empty{display:none}
 @media(max-width:480px){:root[data-theme] #ideas-dialog .ideas-footer{margin-top:20px;gap:16px}:root[data-theme] #ideas-dialog .ideas-submit-actions{gap:8px}}
+
+/* About: stationary close toolbar; only the inner content scrolls. */
+:root[data-theme] #about-dialog{padding:0;overflow:hidden;max-height:88vh;max-height:88dvh}
+:root[data-theme] #about-dialog .about-toolbar{display:flex;justify-content:flex-end;align-items:center;height:52px;padding:8px 12px 0;flex-shrink:0}
+:root[data-theme] #about-dialog .about-toolbar #close-about{position:static;margin:0;width:44px;height:44px;flex:0 0 44px}
+:root[data-theme] #about-dialog .about-content{padding:0 24px 24px;max-height:calc(88vh - 54px);max-height:calc(88dvh - 54px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+:root[data-theme] #about-dialog .about-content>.dialog-head{margin:0 0 24px}
+:root[data-theme] #about-dialog [hidden]{display:none!important}
+:root[data-theme] #about-dialog .creator-info-editor{margin:20px 0;padding:16px 0;border-block:1px solid var(--line-soft)}
+:root[data-theme] #about-dialog .creator-info-editor>summary{cursor:pointer;font-weight:700;color:var(--lime);padding:8px 0}
+:root[data-theme] #about-dialog .creator-info-editor form{display:grid;gap:16px;margin-top:12px}
+:root[data-theme] #about-dialog .creator-info-editor :is(h3,p){margin:0;line-height:1.6}
+:root[data-theme] #about-dialog .creator-visibility{display:grid;gap:12px}
+:root[data-theme] #about-dialog .creator-visibility label{display:flex;gap:10px;align-items:center;min-height:40px}
+:root[data-theme] #about-dialog .creator-visibility input{width:20px;height:20px;flex:0 0 20px;accent-color:var(--lime)}
+:root[data-theme] #about-dialog .creator-contact-edit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-bottom:12px}
+:root[data-theme] #about-dialog .creator-contact-edit label{display:grid;gap:6px;min-width:0;font-size:.85rem}
+:root[data-theme] #about-dialog .creator-contact-edit input{width:100%;min-width:0;padding:12px;font:inherit;font-size:16px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:12px}
+:root[data-theme] #about-dialog :is(.creator-add-contacts,.creator-info-actions){display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+:root[data-theme] #about-dialog .creator-contact-edit .button{min-width:0;padding:10px 0;min-height:44px}
+:root[data-theme] #about-dialog .creator-info-actions .button{min-height:44px}
+@media(max-width:480px){:root[data-theme] #about-dialog .about-content{padding:0 20px 20px}}
+
+:root[data-theme] #about-dialog .about-content>p{font-size:.9rem;line-height:1.7;margin:12px 0;color:var(--text-muted)}
+:root[data-theme] #about-dialog .about-content>p:first-of-type{font-size:1rem;line-height:1.65;color:var(--text)}
+:root[data-theme] #about-dialog .contact-value{overflow-wrap:anywhere}
