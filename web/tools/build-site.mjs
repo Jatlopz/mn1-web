@@ -37,6 +37,11 @@ export const STARTER_IMAGES = Object.freeze([
 export const BRAND_SYMBOL=Object.freeze({"path":"brand/supertools-symbol.dde519ee1d6b5bbf.png","sha256":"dde519ee1d6b5bbfcc0c70332c81d3beb6f0af39c1d270219b6300d9a59fa6e3","size":586169});
 export const CREATOR_PHOTO=Object.freeze({"path":"about/joel-triminio.2b1337ff184694b0.jpg","sha256":"2b1337ff184694b09ae27fb0a015ec32cdd3979aec1f157af0011841a33955b5","size":83059});
 export const THEME_ART = Object.freeze([
+  {"id":"ice-aurora","path":"themes/ice-aurora.1f8a7f5195899fec.webp","sha256":"1f8a7f5195899fec30bd51e55aa3dbfab68da2193a7a8ed09917b7cc5e2e4d9b","size":62192,"width":1672,"height":941},
+  {"id":"lime-forest","path":"themes/lime-forest.171611d1d7ec124f.webp","sha256":"171611d1d7ec124fca35e04e2d52ce188618334fcb79ef9e73a543409855d587","size":96584,"width":1672,"height":941},
+  {"id":"night-neural","path":"themes/night-neural.a240614da278ac75.webp","sha256":"a240614da278ac75a3b54fe1757099f319f7d8ad2ea144312f2a129a6094f592","size":63854,"width":1672,"height":941},
+  {"id":"violet-eclipse","path":"themes/violet-eclipse.fcaf7e41bdd1727b.webp","sha256":"fcaf7e41bdd1727ba9649ababb77a78afef5d32131b1ef7f4505abbf5739bb65","size":34034,"width":1672,"height":941},
+  {"id":"amber-topology","path":"themes/amber-topology.1d1bbae34676b97f.webp","sha256":"1d1bbae34676b97f2fe3680b7b32998e98e57fafbb2068cd1c74df98befd39a3","size":118390,"width":1672,"height":941},
   {"id":"halloween-desktop","path":"themes/halloween-desktop-4k.344a5f1d7bd0d7c3.webp","sha256":"344a5f1d7bd0d7c32e9ab25fa83de4a71214c690f1eecda2da79afc8cebbc9fd","size":665704,"width":3840,"height":2160,"desktop":true},
   {"id":"halloween-moon-desktop","path":"themes/halloween-moon-desktop-4k.02f9bd8c5ac84c40.webp","sha256":"02f9bd8c5ac84c40ae4f04d338eca77bd89b193ae20e65a4044986fd719794a6","size":994814,"width":3840,"height":2160,"desktop":true},
   {"id":"winter-desktop","path":"themes/winter-desktop-4k.b0c5d358abef9729.webp","sha256":"b0c5d358abef972935016638e51536a0c0c685f71627b2b8c587fdf3a89c5ce5","size":684908,"width":3840,"height":2160,"desktop":true},

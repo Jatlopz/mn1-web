@@ -2005,10 +2005,10 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 .team-shortcuts{display:flex;flex-wrap:wrap;align-items:center;gap:18px}.team-shortcut{width:60px;height:60px;min-width:48px;min-height:48px;padding:10px;display:grid;place-items:center;border:0;border-radius:18px;background:transparent!important;box-shadow:none;color:var(--lime);transition:transform .18s,color .18s}.team-shortcut:hover{transform:translateY(-3px);color:var(--text)}.team-shortcut:focus-visible{outline:2px solid var(--focus);outline-offset:4px}.team-shortcut:active{transform:scale(.94)}.team-shortcut .shortcut-icon svg{width:36px;height:36px;filter:drop-shadow(0 3px 9px var(--accent-glow))}@media(prefers-reduced-motion:reduce){.team-shortcut{transition:none;transform:none}}
 
 /* Ambientes completos: escenario único y cristal, sin estampados repetidos. */
-:root{--scene-art:radial-gradient(ellipse at 95% 15%,#4582a36b,transparent 42%),radial-gradient(ellipse at 5% 90%,#263f7866,transparent 48%),linear-gradient(135deg,#06101e,#132132 55%,#060d18);--glass-edge:#b5deff26;--glass-sheen:#d0efff10;--panel-glass:#101c2bd9}
-:root[data-theme=violet]{--scene-art:radial-gradient(ellipse at 100% 0,#9468c666,transparent 45%),radial-gradient(ellipse at 5% 90%,#5c397b77,transparent 55%),linear-gradient(145deg,#0d091c,#21142f 60%,#100e21);--glass-edge:#dbb9ff30;--glass-sheen:#ebd4ff10;--panel-glass:#1b162bd9}
-:root[data-theme=amber]{--scene-art:radial-gradient(ellipse at 90% 90%,#a45c2977,transparent 45%),radial-gradient(ellipse at 0 10%,#846b4266,transparent 50%),linear-gradient(135deg,#130e0b,#292019 60%,#110f0e);--glass-edge:#ffdcaa30;--glass-sheen:#ffebcc0d;--panel-glass:#241c16d9}
-:root[data-theme=lime]{--scene-art:radial-gradient(ellipse at 100% 10%,#607b3466,transparent 45%),radial-gradient(ellipse at 0 80%,#1b574966,transparent 55%),linear-gradient(135deg,#07150f,#17251b 55%,#0a100b);--glass-edge:#c2f39a2b;--glass-sheen:#d8ffb810;--panel-glass:#152019d9}
+:root{--scene-art:linear-gradient(180deg,#06101e35 0%,#07142612 48%,#050b18a6 100%),url('./themes/ice-aurora.1f8a7f5195899fec.webp');--glass-edge:#b5deff26;--glass-sheen:#d0efff10;--panel-glass:#101c2bd9}
+:root[data-theme=violet]{--scene-art:linear-gradient(180deg,#130b2450 0%,#150c281c 48%,#090817b3 100%),url('./themes/violet-eclipse.fcaf7e41bdd1727b.webp');--glass-edge:#dbb9ff30;--glass-sheen:#ebd4ff10;--panel-glass:#1b162bd9}
+:root[data-theme=amber]{--scene-art:linear-gradient(180deg,#1b0e0750 0%,#1b0e071c 48%,#0c0806b3 100%),url('./themes/amber-topology.1d1bbae34676b97f.webp');--glass-edge:#ffdcaa30;--glass-sheen:#ffebcc0d;--panel-glass:#241c16d9}
+:root[data-theme=lime]{--scene-art:linear-gradient(180deg,#06170f42 0%,#07180d16 48%,#04100bb3 100%),url('./themes/lime-forest.171611d1d7ec124f.webp');--glass-edge:#c2f39a2b;--glass-sheen:#d8ffb810;--panel-glass:#152019d9}
 :root[data-theme=halloween]{--scene-art:url('./themes/halloween.270bd76a04c0f76c.webp');--glass-edge:#f6b57435;--glass-sheen:#ffe1bd0c;--panel-glass:#20172bbd;--surface-high:#302235d4;--line:#9b765d66;--line-soft:#b08b6633}
 :root[data-theme=winter]{--scene-art:url('./themes/winter.2b84eaa69482468d.webp');--glass-edge:#bce8f54d;--glass-sheen:#d5ffff0d;--panel-glass:#0b2633bd;--surface-high:#163b46d4;--line:#8dbfc266;--line-soft:#8dbfc233}
 :root body::before,:root[data-theme=halloween] body::before,:root[data-theme=winter] body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:1;background-image:var(--scene-art);background-size:cover;background-repeat:no-repeat;background-position:center}
@@ -2033,7 +2033,7 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--theme-atmosphere);background-repeat:repeat;background-size:420px 340px;opacity:var(--theme-atmosphere-opacity);mix-blend-mode:screen}
 :root[data-theme=halloween] body::after,:root[data-theme=winter] body::after{background-image:var(--theme-atmosphere),linear-gradient(90deg,#06091350,transparent 50%,#06091318),linear-gradient(0deg,#06091330,transparent 60%);background-size:420px 340px,auto,auto;background-repeat:repeat,no-repeat,no-repeat}
 :root[data-night=on] body::before{filter:brightness(.62) saturate(.76);transition:filter .35s ease}
-:root[data-night=on] body::after{opacity:.1}
+:root[data-night=on] body::after{background-image:url('./themes/night-neural.a240614da278ac75.webp'),var(--theme-atmosphere);background-size:cover,420px 340px;background-repeat:no-repeat,repeat;background-position:center;opacity:.14}
 @media(prefers-reduced-motion:reduce){:root[data-night=on] body::before{transition:none}}
 @media(prefers-reduced-transparency:reduce){body::after{display:none!important}}
 @media(forced-colors:active){body::after{display:none!important}}
@@ -2054,6 +2054,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .theme-violet .theme-sample{background-image:url('./themes/texture-violet.svg'),linear-gradient(145deg,#3d3158,#14101d);background-size:cover,auto}
 .theme-amber .theme-sample{background-image:url('./themes/texture-amber.svg'),linear-gradient(145deg,#4b3a28,#18120d);background-size:260px 240px,auto}
 .theme-lime .theme-sample{background-image:url('./themes/texture-lime.svg'),linear-gradient(145deg,#33412a,#0d170e);background-size:280px 240px,auto}
+.theme-ice .theme-sample{background-image:linear-gradient(0deg,#06101e70,#06101e10),url('./themes/ice-aurora.1f8a7f5195899fec.webp');background-size:cover;background-position:center}
+.theme-violet .theme-sample{background-image:linear-gradient(0deg,#130b2475,#130b2410),url('./themes/violet-eclipse.fcaf7e41bdd1727b.webp');background-size:cover;background-position:center}
+.theme-amber .theme-sample{background-image:linear-gradient(0deg,#1b0e0775,#1b0e0710),url('./themes/amber-topology.1d1bbae34676b97f.webp');background-size:cover;background-position:center}
+.theme-lime .theme-sample{background-image:linear-gradient(0deg,#06170f75,#06170f10),url('./themes/lime-forest.171611d1d7ec124f.webp');background-size:cover;background-position:center}
+.theme-ice .theme-sample::before,.theme-violet .theme-sample::before,.theme-amber .theme-sample::before,.theme-lime .theme-sample::before{display:none}
 .theme-halloween .season-art{background-image:url('./themes/texture-halloween.svg')}
 .theme-winter .season-art{background-image:url('./themes/texture-winter.svg')}
 @media(max-width:480px){.brand-seasonal-hat{width:25px;height:21px;right:-4px;top:-6px}}
