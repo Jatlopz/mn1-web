@@ -6,6 +6,14 @@ import {fileURLToPath} from 'node:url';
 const MODULES = ['team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
+const THEME_TEXTURES = Object.freeze([
+  'themes/texture-ice.svg',
+  'themes/texture-violet.svg',
+  'themes/texture-amber.svg',
+  'themes/texture-lime.svg',
+  'themes/texture-halloween.svg',
+  'themes/texture-winter.svg',
+]);
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 // Metadatos aprobados en docs/STARTER-IMAGES.json. Se fijan aquí para que el empaquetado
 // no dependa de un JSON móvil y sólo pueda publicar estas dos imágenes.
@@ -180,6 +188,13 @@ export async function buildSite(source, destination) {
   for (const image of STARTER_IMAGES) output[image.path] = await readStarterImage(source, sourceReal, image);
 
   for (const art of THEME_ART) output[art.path] = await readThemeArt(source, sourceReal, art);
+  for (const texture of THEME_TEXTURES) {
+    const file = path.join(source, texture), info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 32 * 1024 || !isWithin(await realpath(file), sourceReal)) throw Error('Invalid theme texture: ' + texture);
+    const svg = await readFile(file, 'utf8');
+    if (!/^<svg\s/.test(svg) || !svg.includes('</svg>') || /<script\b|\son\w+\s*=|(?:href|src)\s*=\s*["'](?:https?:|\/\/|javascript:)/i.test(svg)) throw Error('Unsafe theme texture: ' + texture);
+    output[texture] = svg;
+  }
   const creatorFile=path.join(source,CREATOR_PHOTO.path),creatorStat=await lstat(creatorFile);
   if(!creatorStat.isFile()||creatorStat.isSymbolicLink()||creatorStat.size>512*1024||!isWithin(await realpath(creatorFile),sourceReal))throw Error('Invalid creator photo');
   const creatorBytes=await readFile(creatorFile);

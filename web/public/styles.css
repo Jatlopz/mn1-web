@@ -2022,6 +2022,42 @@ body{background:radial-gradient(ellipse at 85% 0,var(--accent-glow),transparent 
 @media(prefers-reduced-transparency:reduce){.plant-card,.tools-category,.settings-dialog,.team-tools-home .report-entry{background:var(--surface);backdrop-filter:none}}
 @media(prefers-reduced-motion:reduce){.team-shortcut{transform:none!important}}@media(forced-colors:active){body::before,body::after{display:none!important}.plant-card,.tools-category,.settings-dialog,.team-tools-home .report-entry{background:Canvas;border-color:ButtonText}}
 
+/* Texturas atmosféricas ligadas al tema, con contraste bajo para no competir con el contenido. */
+:root{--theme-atmosphere:url('./themes/texture-ice.svg');--theme-atmosphere-opacity:.19}
+:root[data-theme=ice]{--theme-atmosphere:url('./themes/texture-ice.svg');--theme-atmosphere-opacity:.2}
+:root[data-theme=violet]{--theme-atmosphere:url('./themes/texture-violet.svg');--theme-atmosphere-opacity:.32}
+:root[data-theme=amber]{--theme-atmosphere:url('./themes/texture-amber.svg');--theme-atmosphere-opacity:.24}
+:root[data-theme=lime]{--theme-atmosphere:url('./themes/texture-lime.svg');--theme-atmosphere-opacity:.22}
+:root[data-theme=halloween]{--theme-atmosphere:url('./themes/texture-halloween.svg');--theme-atmosphere-opacity:.25}
+:root[data-theme=winter]{--theme-atmosphere:url('./themes/texture-winter.svg');--theme-atmosphere-opacity:.28}
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--theme-atmosphere);background-repeat:repeat;background-size:420px 340px;opacity:var(--theme-atmosphere-opacity);mix-blend-mode:screen}
+:root[data-theme=halloween] body::after,:root[data-theme=winter] body::after{background-image:var(--theme-atmosphere),linear-gradient(90deg,#06091350,transparent 50%,#06091318),linear-gradient(0deg,#06091330,transparent 60%);background-size:420px 340px,auto,auto;background-repeat:repeat,no-repeat,no-repeat}
+:root[data-night=on] body::before{filter:brightness(.62) saturate(.76);transition:filter .35s ease}
+:root[data-night=on] body::after{opacity:.1}
+@media(prefers-reduced-motion:reduce){:root[data-night=on] body::before{transition:none}}
+@media(prefers-reduced-transparency:reduce){body::after{display:none!important}}
+@media(forced-colors:active){body::after{display:none!important}}
+
+/* Modo noche: ajuste global que no altera las preferencias de color del tema. */
+.night-mode-toggle{display:grid;grid-template-columns:40px minmax(0,1fr) 48px;align-items:center;gap:12px;width:100%;min-height:68px;margin:0 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(120deg,var(--glass-sheen,#ffffff0a),transparent 55%),var(--surface-high);color:var(--text);text-align:left;cursor:pointer}
+.night-mode-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:13px;background:var(--accent-glow);color:var(--lime);font-size:22px}
+.night-mode-toggle strong,.night-mode-toggle small{display:block}.night-mode-toggle strong{font-size:.9rem}.night-mode-toggle small{margin-top:2px;color:var(--text-muted);font-size:.72rem;line-height:1.35}
+.night-mode-track{display:flex;align-items:center;width:44px;height:26px;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--page-deep);transition:background .2s,border-color .2s}
+.night-mode-track i{display:block;width:18px;height:18px;border-radius:50%;background:var(--text-muted);transition:transform .2s,background .2s}
+.night-mode-toggle[aria-checked=true] .night-mode-track{border-color:var(--lime);background:color-mix(in srgb,var(--lime) 28%,var(--page-deep))}.night-mode-toggle[aria-checked=true] .night-mode-track i{transform:translateX(18px);background:var(--lime)}
+.night-mode-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.brand-emblem{position:relative;overflow:visible}
+.brand-seasonal-hat{display:none;position:absolute;z-index:2;right:-5px;top:-7px;width:31px;height:25px;transform:rotate(13deg);filter:drop-shadow(0 2px 3px #0009);pointer-events:none}
+.brand-seasonal-hat svg{display:block;width:100%;height:100%;overflow:visible}
+:root[data-holiday=christmas] .brand-seasonal-hat{display:block}
+.theme-ice .theme-sample{background-image:url('./themes/texture-ice.svg'),linear-gradient(145deg,#26364e,#0b111d);background-size:cover,auto}
+.theme-violet .theme-sample{background-image:url('./themes/texture-violet.svg'),linear-gradient(145deg,#3d3158,#14101d);background-size:cover,auto}
+.theme-amber .theme-sample{background-image:url('./themes/texture-amber.svg'),linear-gradient(145deg,#4b3a28,#18120d);background-size:260px 240px,auto}
+.theme-lime .theme-sample{background-image:url('./themes/texture-lime.svg'),linear-gradient(145deg,#33412a,#0d170e);background-size:280px 240px,auto}
+.theme-halloween .season-art{background-image:url('./themes/texture-halloween.svg')}
+.theme-winter .season-art{background-image:url('./themes/texture-winter.svg')}
+@media(max-width:480px){.brand-seasonal-hat{width:25px;height:21px;right:-4px;top:-6px}}
+
 .theme-option[aria-pressed=true]::after{content:'';background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 12 4 4 8-8' fill='none' stroke='%230b1820' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-size:17px;background-position:center;background-repeat:no-repeat}
 
 .sync-indicator{display:inline-grid;place-items:center;width:28px;height:40px;flex:0 0 28px;color:var(--lime);pointer-events:none}.sync-indicator[hidden]{display:none!important}.sync-indicator svg{width:20px;height:20px;animation:spin 1.4s linear infinite}@media(prefers-reduced-motion:reduce){.sync-indicator svg{animation:none}}

@@ -1,4 +1,5 @@
 export const THEME_KEY = 'mn1.appearance.theme';
+export const NIGHT_MODE_KEY = 'mn1.appearance.night.v1';
 export const APPEARANCE_KEY = 'mn1.appearance.surfaces.v1';
 export const DEFAULT_APPEARANCE = Object.freeze({wallpaper:'original',winterWallpaper:'aurora',cards:18,windows:8});
 export function normalizeAppearance(value) {
@@ -67,6 +68,7 @@ export const normalizeTheme = value => THEMES.some(t=>t.id===value) ? value : DE
 export async function installThemes(storage, root=document, events=window) {
  const dialog=root.getElementById('theme-dialog');
  const error=root.getElementById('theme-error');
+ const nightToggle=root.getElementById('night-mode-toggle');
  let selected=DEFAULT_THEME,saving=false;
  const apply=id=>{
   selected=normalizeTheme(id);root.documentElement.dataset.theme=selected;
@@ -75,6 +77,26 @@ export async function installThemes(storage, root=document, events=window) {
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
  apply(DEFAULT_THEME);
+ let nightMode=false,nightSaving=false;
+ const applyNight=value=>{nightMode=Boolean(value);root.documentElement.dataset.night=nightMode?'on':'off';nightToggle?.setAttribute('aria-checked',String(nightMode));};
+ applyNight(false);
+ try{applyNight((await storage.getText(NIGHT_MODE_KEY))==='true');}catch{error.textContent='No se pudo leer el modo noche. Puedes volver a activarlo.';}
+ nightToggle?.addEventListener('click',async()=>{
+  if(nightSaving)return;
+  const previous=nightMode,next=!previous;nightSaving=true;error.textContent='';applyNight(next);
+  try{await storage.putText(NIGHT_MODE_KEY,String(next));}
+  catch{applyNight(previous);error.textContent='No se pudo guardar el modo noche. Se restauró el ajuste anterior.';}
+  finally{nightSaving=false;}
+ });
+ const updateSeasonMark=()=>{
+  const now=new Date(),isDecember=now.getMonth()===11&&now.getDate()>=1;
+  if(isDecember)root.documentElement.dataset.holiday='christmas';else delete root.documentElement.dataset.holiday;
+ };
+ updateSeasonMark();
+ root.addEventListener?.('visibilitychange',updateSeasonMark);
+ const seasonClock=events.setInterval?.(updateSeasonMark,60_000);
+ seasonClock?.unref?.();
+ void seasonClock;
  try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
  const section=value=>{
   const base=root.getElementById('base-themes'),season=root.getElementById('seasonal-themes');
