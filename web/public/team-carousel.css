@@ -56,3 +56,28 @@
 @media(max-width:760px){:root[data-theme] #welcome-screen .plant-count{min-height:2.6em}}
 
 @media(max-width:280px){:root[data-theme] #welcome-screen .plant-grid{grid-template-columns:1fr}}
+
+/* Team selection is a complete screen: navigation/title above, logo stage below. */
+:root[data-theme] .app:has(>#teams-screen:not([hidden])){min-height:100svh;max-width:1480px;padding:16px 28px;display:grid;grid-template-rows:auto 1fr;gap:12px}
+:root[data-theme] .app:has(>#teams-screen:not([hidden]))>.app-header{max-width:none;margin:0;padding:4px 0 12px;align-self:start}
+:root[data-theme] #teams-screen{display:grid;grid-template-columns:minmax(0,1fr) auto;align-self:center;align-items:center;column-gap:20px;row-gap:8px;min-width:0;width:100%;max-width:none;padding:0;margin:0}
+:root[data-theme] #teams-screen .plant-navigation{display:contents}
+:root[data-theme] #teams-screen #back-to-plants{grid-column:1;grid-row:1;justify-self:start;margin:0;padding:6px 10px;min-height:44px}
+:root[data-theme] #teams-screen #teams-iso-calendar-open{grid-column:2;grid-row:1;justify-self:center;width:104px;min-height:54px;margin:0;padding:4px 8px}
+:root[data-theme] #teams-screen #plant-clock{grid-column:2;grid-row:2;justify-self:center;width:auto;max-width:120px;min-height:36px;margin:0;padding:4px;font-size:13px}
+:root[data-theme] #teams-screen .teams-intro{grid-column:1;grid-row:2;margin:0;padding:0;min-width:0}
+:root[data-theme] #teams-screen .teams-intro h1{font-size:clamp(24px,3vw,36px);line-height:1.12;margin:0;letter-spacing:-.04em}
+:root[data-theme] #teams-screen .teams-copy{font-size:14px;line-height:1.4;margin:6px 0 0}
+:root[data-theme] #teams-screen .team-carousel{grid-column:1/-1;grid-row:3;margin:0;min-width:0}
+:root[data-theme] #teams-screen .team-carousel-track{padding-top:18px;padding-bottom:10px}
+:root[data-theme] #teams-screen .team-carousel-track .profile-card{padding-top:8px}
+:root[data-theme] #teams-screen .team-carousel-track .profile-card-logo,:root[data-theme] #teams-screen .team-carousel-track .profile-logo-fallback{height:clamp(180px,32svh,320px)}
+:root[data-theme] #teams-screen .team-carousel-track .profile-name{font-size:clamp(20px,2vw,26px);min-height:2.4em;margin:12px 0 4px;line-height:1.2}
+:root[data-theme] #teams-screen .team-carousel-track .profile-meta{font-size:13px;min-height:18px}
+:root[data-theme] #teams-screen .team-carousel-track .profile-enter{font-size:13px;min-height:20px;margin-top:8px}
+:root[data-theme] #teams-screen .team-carousel-controls{margin:0 0 4px;gap:18px}
+:root[data-theme] #teams-screen .team-carousel-hint{margin:0;font-size:12px}
+:root[data-theme] #teams-screen>.plant-empty,:root[data-theme] #teams-screen>.profiles-notice{grid-column:1/-1;margin:8px 0}
+@media(max-width:600px){:root[data-theme] .app:has(>#teams-screen:not([hidden])){padding:12px 16px;gap:10px}:root[data-theme] #teams-screen{gap:6px 12px}:root[data-theme] #teams-screen #teams-iso-calendar-open{width:90px;min-height:48px}:root[data-theme] #teams-screen .teams-intro h1{font-size:25px}:root[data-theme] #teams-screen .teams-copy{font-size:13px}:root[data-theme] #teams-screen .team-carousel-track .profile-card-logo,:root[data-theme] #teams-screen .team-carousel-track .profile-logo-fallback{height:clamp(160px,28svh,260px)}:root[data-theme] #teams-screen .team-carousel-controls .team-carousel-arrow{height:40px;width:44px}}
+@media(max-height:700px) and (max-width:600px){:root[data-theme] .app:has(>#teams-screen:not([hidden])){padding:8px 12px;gap:6px}:root[data-theme] .app:has(>#teams-screen:not([hidden]))>.app-header{padding-bottom:4px}:root[data-theme] #teams-screen{row-gap:4px}:root[data-theme] #teams-screen .teams-intro h1{font-size:22px}:root[data-theme] #teams-screen .teams-copy{font-size:12px;margin-top:4px}:root[data-theme] #teams-screen .team-carousel-track{padding-top:12px;padding-bottom:4px}:root[data-theme] #teams-screen .team-carousel-track .profile-card-logo,:root[data-theme] #teams-screen .team-carousel-track .profile-logo-fallback{height:clamp(120px,24svh,160px)}:root[data-theme] #teams-screen .team-carousel-track .profile-name{font-size:20px;min-height:2.4em;margin-top:8px}:root[data-theme] #teams-screen .team-carousel-track .profile-enter,:root[data-theme] #teams-screen .team-carousel-hint{display:none}:root[data-theme] #teams-screen .team-carousel-controls{margin:0}:root[data-theme] #teams-screen #teams-iso-calendar-open{min-height:44px}}
+@media(max-width:600px){:root[data-theme] #teams-screen .team-carousel-controls .team-carousel-arrow{position:absolute;top:38%;width:44px;height:44px;z-index:5}:root[data-theme] #teams-screen .team-carousel-controls .team-carousel-arrow:first-child{left:2px}:root[data-theme] #teams-screen .team-carousel-controls .team-carousel-arrow:last-child{right:2px}}
