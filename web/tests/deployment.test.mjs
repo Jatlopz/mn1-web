@@ -56,10 +56,10 @@ test('published bundle contains every module with coherent content hashes', asyn
   assert.equal(version.protocol, 1);
   assert.ok(files.includes('.nojekyll'));
 
-  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...STARTER_PNGS,BRAND_SYMBOL.path,'brand/desktop-192.png','brand/desktop-512.png'].sort());
+  assert.deepEqual(files.filter((file) => /\.png$/i.test(file)).sort(), [...STARTER_PNGS,BRAND_SYMBOL.path,'brand/desktop-clear-192.png','brand/desktop-clear-512.png'].sort());
   for (const file of files) {
     assert.ok(
-      MODULE_PATTERN.test(file) || /^(install\.html|app\.webmanifest|desktop-install\.[a-f0-9]{16}\.css|brand\/desktop-(192|512)\.png)$/.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file) || THEME_ART.some(art=>art.path===file) || file===CREATOR_PHOTO.path || file===BRAND_SYMBOL.path,
+      MODULE_PATTERN.test(file) || /^(install\.html|app\.webmanifest|desktop-install\.[a-f0-9]{16}\.css|brand\/desktop-clear-(192|512)\.png)$/.test(file) || file === 'index.html' || /^styles\.[a-f0-9]{16}\.css$/.test(file) || file === 'version.json' || file === '.nojekyll' || STARTER_PNGS.includes(file) || THEME_ART.some(art=>art.path===file) || file===CREATOR_PHOTO.path || file===BRAND_SYMBOL.path,
       `Archivo no permitido en el paquete: ${file}`,
     );
   }
