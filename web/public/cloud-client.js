@@ -109,7 +109,9 @@ export class CloudClient {
         authCode = error.code || error.error_code || "";
       } catch {}
       throw new CloudError(
-        path.startsWith("/auth/v1/token?grant_type=password") && (authCode === "invalid_credentials" || result.status === 400)
+        result.status === 402
+          ? "La nube está restringida por su límite de uso. El administrador debe revisar el servicio. Tu borrador se conserva."
+          : path.startsWith("/auth/v1/token?grant_type=password") && (authCode === "invalid_credentials" || result.status === 400)
           ? "Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo."
           : result.status === 429
           ? "El servidor recibió demasiados intentos. Espera un momento antes de volver a entrar."

@@ -26,3 +26,5 @@ test('formulario integra adjunto y usa el selector Android existente sin nueva A
  for(const id of ['idea-image-input','idea-image-add','idea-image-remove','idea-image-preview'])assert.ok(html.includes('id="'+id+'"'));
  assert.match(js,/prepareNativeIdeaImage/);assert.match(js,/services\.bridge\.request\('IMPORT_IMAGE'/);assert.match(js,/imageHash/);assert.match(js,/appendIdeaAttachment\(card,idea,\{client,receipt\}\)/);
 });
+
+test('restricción de cuota402 se distingue de error de conexión y conserva código',async()=>{const c=new CloudClient({}, {fetcher:async()=>Response.json({message:'restricted'},{status:402})});await assert.rejects(c.submitIdea('id','receipt','champions','Una propuesta'),e=>e.code==='402'&&/límite de uso/.test(e.message)&&/borrador se conserva/.test(e.message));});
