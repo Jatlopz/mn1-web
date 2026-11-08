@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="./styles.css?v=0.5.17">
   <link rel="stylesheet" href="./production.css"><link rel="stylesheet" href="./looms.css">
   <link rel="stylesheet" href="./premium.css">
+  <link rel="stylesheet" href="./corporate-board.css">
 </head>
 <body>
   <a class="skip-link" href="#welcome-screen">Saltar al contenido</a>
@@ -35,6 +36,7 @@
 <button class="admin-entry" id="open-admin-dashboard" type="button" aria-label="Abrir panel de administrador" hidden>Admin<span id="admin-unread" class="admin-unread" hidden></span></button>
       <span class="sync-indicator" id="sync-indicator" role="status" aria-live="polite" aria-label="Sincronizando equipos" title="Sincronizando equipos" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M19 12a7 7 0 0 0-12-5L4 10m1 2a7 7 0 0 0 12 5l3-3"/></svg></span>
       <button class="about-button" id="open-web-settings" type="button" aria-haspopup="dialog" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 3-.6 2.5-2.2 1.3L3.8 6 2 9l1.8 1.8v2.4L2 15l1.8 3 2.4-.8 2.2 1.3L9 21h6l.6-2.5 2.2-1.3 2.4.8 1.8-3-1.8-1.8v-2.4L22 9l-1.8-3-2.4.8-2.2-1.3L15 3Z"/><circle cx="12" cy="12" r="3.2"/></svg></button>
+      <button class="about-button" id="open-board" type="button" aria-haspopup="dialog" aria-label="Pizarra corporativa" title="Pizarra corporativa"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 3v4m8-4v4M8 11h8m-8 4h5"/></svg></button>
       <button class="about-button" id="open-about" type="button" aria-haspopup="dialog" aria-label="Acerca de SuperTools">ⓘ</button>
     </header>
 
@@ -550,5 +552,16 @@
   </noscript>
 
   <script type="module" src="./app.js?v=0.5.17"></script>
+  <dialog id="board-dialog" aria-labelledby="board-heading">
+    <header class="board-head"><div><p class="board-eyebrow">SUPERTOOLS · EQUIPO AL DÍA</p><h2 id="board-heading">Pizarra corporativa</h2></div><button id="board-close" type="button" aria-label="Cerrar pizarra">×</button></header>
+    <div class="board-content">
+      <div class="board-controls"><label class="sr-only" for="board-filter">Mostrar recordatorios</label><select id="board-filter"><option value="active">Vigentes</option><option value="archived">Archivados</option></select><button id="board-refresh" class="button button-secondary" type="button">Actualizar</button><button id="board-new" class="button button-primary" type="button" hidden>+ Recordatorio</button></div>
+      <p id="board-status" role="status" aria-live="polite"></p><button id="board-login" class="button button-primary" type="button">Iniciar sesión</button>
+      <form id="board-editor" hidden><h3 id="board-editor-title">Nuevo recordatorio</h3><div class="board-fields"><label class="board-wide">Título<input id="board-title" maxlength="120" required></label><label class="board-wide">Recordatorio<textarea id="board-body" maxlength="4000" rows="5" required></textarea></label><label>Prioridad<select id="board-priority"><option value="normal">Normal</option><option value="important">Importante</option><option value="urgent">Urgente</option></select></label><label>Fecha y hora de referencia (opcional)<input id="board-due" type="datetime-local"></label><label class="board-check"><input id="board-pinned" type="checkbox">Fijar en la parte superior</label></div><div class="board-editor-actions"><button id="board-cancel" class="button button-secondary" type="button">Cancelar</button><button class="button button-primary" type="submit">Publicar recordatorio</button></div></form>
+      <div id="board-notes"></div><button id="board-more" class="button button-secondary" type="button" hidden>Ver más</button>
+      <details id="board-publishers" hidden><summary>Administrar publicadores</summary><p class="hint">Autoriza cuentas existentes para publicar y editar recordatorios. Este permiso sólo aplica a la pizarra.</p><ul id="board-publisher-list"></ul><form id="board-grant-form"><label>Correo de la cuenta<input id="board-publisher-email" type="email" maxlength="254" required autocomplete="off"></label><button id="board-grant-submit" class="button button-secondary" type="submit">Autorizar</button></form></details>
+      <p class="board-push-note">Los recordatorios son privados para usuarios con sesión iniciada. Las notificaciones push aún no están activadas; la fecha de referencia no programa un aviso.</p>
+    </div>
+  </dialog>
 </body>
 </html>

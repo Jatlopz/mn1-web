@@ -3,7 +3,7 @@ import {readFile, mkdir, writeFile, lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const MODULES = ['creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
+const MODULES = ['corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -123,7 +123,7 @@ export async function buildSite(source, destination) {
   if (path.resolve(source) === path.resolve(destination)) throw new Error('Use a separate output directory');
   const sourceFiles = Object.fromEntries(await Promise.all(MODULES.map(async name => [name, await readFile(path.join(source, name), 'utf8')])));
   const htmlSource = await readFile(path.join(source, 'index.html'), 'utf8');
-  const css = await readFile(path.join(source, 'styles.css'), 'utf8')+'\n'+await readFile(path.join(source, 'production.css'), 'utf8')+'\n'+await readFile(path.join(source, 'looms.css'), 'utf8')+'\n'+await readFile(path.join(source, 'premium.css'), 'utf8');
+  const css = await readFile(path.join(source, 'styles.css'), 'utf8')+'\n'+await readFile(path.join(source, 'production.css'), 'utf8')+'\n'+await readFile(path.join(source, 'looms.css'), 'utf8')+'\n'+await readFile(path.join(source, 'premium.css'), 'utf8')+'\n'+await readFile(path.join(source, 'corporate-board.css'), 'utf8');
   const version = JSON.parse(await readFile(path.join(source, 'version.json'), 'utf8'));
   if (version.protocol !== 1 || !/^\d+\.\d+\.\d+$/.test(version.version)) throw new Error('Invalid version/protocol');
 
@@ -168,7 +168,7 @@ export async function buildSite(source, destination) {
   const cssName = `styles.${shortHash(css)}.css`;
   const appName = outputNames.get('app.js');
   if (!appName) throw new Error('app.js was not built');
-  const html = htmlSource.replace(/\s*<link rel="stylesheet" href="\.\/looms\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/production\.css">/,'')
+  const html = htmlSource.replace(/\s*<link rel="stylesheet" href="\.\/corporate-board\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/looms\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/production\.css">/,'')
     .replace(/\s*<link rel="stylesheet" href="\.\/premium\.css">/,'')
     .replace(/\.\/app\.js(?:\?v=[\d.]+)?/, `./${appName}`)
     .replace(/\.\/styles\.css(?:\?v=[\d.]+)?/, `./${cssName}`);

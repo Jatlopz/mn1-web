@@ -1,3 +1,4 @@
+import {installCorporateBoard} from './corporate-board.js';
 import {installCreatorInfo} from './creator-info.js';
 import {isIdeaImage,prepareIdeaImage,prepareNativeIdeaImage,appendIdeaAttachment} from './idea-attachment.js';
 import {createRegistryAdmin} from './registry-admin.js';
@@ -74,7 +75,7 @@ export async function performCloudSync(operation,{background=false,setSyncing=()
  try{return await operation();}finally{if(!background)setLocked(false);setSyncing(false);}
 }
 export function createCloudWorkspace(getServices,{client:providedClient=null}={}) {
-  let creatorInfo=null;
+  let creatorInfo=null,corporateBoard=null;
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
     client = providedClient || new CloudClient(getServices().storage);
@@ -100,7 +101,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const definitions = () => getServices().catalog;
   function render() {
     const logged = Boolean(client.session);
-    applyAccountVisibility(access);creatorInfo?.setAdmin(access?.admin===true);
+    applyAccountVisibility(access);creatorInfo?.setAdmin(access?.admin===true);corporateBoard?.setIdentity(client.session?.user?.id||null);
     $("cloud-login").hidden = logged;
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
@@ -630,6 +631,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   });
   $('my-ideas-refresh').addEventListener('click',()=>void loadMine());$('my-ideas-more').addEventListener('click',()=>void loadMine(true));
 
+  corporateBoard=installCorporateBoard({client,openAccount:()=>void openCloud()});
   async function start() {
     try {
       const raw = await storage.getText(CLOUD_META_KEY);
