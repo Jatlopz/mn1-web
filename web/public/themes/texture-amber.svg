@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="380" viewBox="0 0 260 380">
+  <g fill="#ffd08a" fill-opacity=".3" font-family="monospace" font-size="12">
+    <text x="18" y="28">01<tspan x="18" dy="16">10</tspan><tspan x="18" dy="16">A7</tspan><tspan x="18" dy="16">C0</tspan><tspan x="18" dy="16">11</tspan><tspan x="18" dy="16">∆3</tspan><tspan x="18" dy="16">01</tspan></text>
+    <text x="94" y="72">A9<tspan x="94" dy="16">00</tspan><tspan x="94" dy="16">B4</tspan><tspan x="94" dy="16">10</tspan><tspan x="94" dy="16">7F</tspan><tspan x="94" dy="16">01</tspan></text>
+    <text x="188" y="35">10<tspan x="188" dy="16">F1</tspan><tspan x="188" dy="16">01</tspan><tspan x="188" dy="16">8C</tspan><tspan x="188" dy="16">∆0</tspan><tspan x="188" dy="16">10</tspan></text>
+  </g>
+  <g stroke="#ffd08a" stroke-opacity=".15"><path d="M14 12v116M90 58v116M184 21v116"/></g>
+</svg>

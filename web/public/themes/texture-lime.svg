@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="400" viewBox="0 0 280 400">
+ <g fill="#c8f751" fill-opacity=".28" font-family="monospace" font-size="13">
+  <text x="14" y="27">0101<tspan x="14" dy="17">1100</tspan><tspan x="14" dy="17">0100</tspan><tspan x="14" dy="17">1011</tspan><tspan x="14" dy="17">0001</tspan><tspan x="14" dy="17">1110</tspan><tspan x="14" dy="17">0101</tspan><tspan x="14" dy="17">1000</tspan></text>
+  <text x="108" y="90">1001<tspan x="108" dy="17">0010</tspan><tspan x="108" dy="17">1111</tspan><tspan x="108" dy="17">0100</tspan><tspan x="108" dy="17">1101</tspan><tspan x="108" dy="17">0011</tspan></text>
+  <text x="220" y="42">0110<tspan x="220" dy="17">1010</tspan><tspan x="220" dy="17">0101</tspan><tspan x="220" dy="17">1110</tspan><tspan x="220" dy="17">0001</tspan><tspan x="220" dy="17">1001</tspan></text>
+ </g><g stroke="#c8f751" stroke-opacity=".1"><path d="M10 10v142M104 72v130M216 24v136"/></g>
+</svg>
