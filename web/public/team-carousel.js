@@ -35,6 +35,20 @@ export function createTeamCarousel(track){
   rendered.forEach((item,n)=>{item.dataset.carouselPosition=n===i?'center':Math.abs(n-i)===1?'near':'far';const b=item.querySelector('[data-profile-id]');if(b){b.tabIndex=item.classList.contains('profile-card-wrap-clone')?-1:(logicalAt(item)===logical?0:-1);b.removeAttribute('role');b.removeAttribute('aria-checked');if(!item.classList.contains('profile-card-wrap-clone')&&logicalAt(item)===logical)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');}});
   prev.disabled=false;next.disabled=false;const label=items[logical].querySelector('.profile-name')?.textContent||'Equipo';count.textContent=`${logical+1} / ${items.length}`;count.setAttribute('aria-label',`${label}, equipo ${logical+1} de ${items.length}`);
  }
+ function applyLogo(item,url){
+  const image=item?.querySelector('.profile-card-logo'),fallback=item?.querySelector('.profile-logo-fallback');
+  if(!image||!fallback)return;
+  const token=(Number(item.dataset.logoToken)||0)+1;item.dataset.logoToken=String(token);
+  if(!url){item.dataset.logoState='missing';image.hidden=true;fallback.hidden=false;return;}
+  const source=String(url);item.dataset.logoState='loading';image.hidden=true;fallback.hidden=false;
+  const ready=()=>{if(item.dataset.logoToken!==String(token))return;item.dataset.logoState='ready';image.hidden=false;fallback.hidden=true;};
+  const failed=()=>{if(item.dataset.logoToken!==String(token))return;item.dataset.logoState='missing';image.hidden=true;fallback.hidden=false;};
+  image.onload=ready;
+  image.onerror=failed;
+  image.src=source;
+  if(image.complete){if(image.naturalWidth>0)ready();else failed();}
+  else if(typeof image.decode==='function')void image.decode().then(ready).catch(()=>{});
+ }
  function go(i,{smooth=false,focus=false}={}){
   if(!items.length||track.clientWidth===0)return;win.clearTimeout(wrapTimer);pendingWrap=null;const target=wrapTeamIndex(i,items.length),wrapped=i<0||i>=items.length,animate=smooth&&!reduce();let visual=target+1;
   if(wrapped&&animate){visual=i>=items.length?rendered.length-1:0;pendingWrap={logical:target};}
@@ -79,5 +93,5 @@ export function createTeamCarousel(track){
  const resize=()=>{if(!disposed)go(Math.max(0,items.findIndex((_,i)=>idAt(i)===focusedId)));};
  const observer=typeof win.ResizeObserver==='function'?new win.ResizeObserver(resize):null;observer?.observe(track);if(!observer)win.addEventListener('resize',resize);
  shell.addEventListener('focusin',e=>{const item=e.target.closest('.profile-card-wrap');if(item&&e.target.matches(':focus-visible')){const i=items.indexOf(item);if(i>=0&&i!==index)go(i);}});
- return {refresh,center:id=>{const i=items.findIndex((_,n)=>idAt(n)===id);if(i>=0)go(i,{smooth:true});},dispose(){disposed=true;stopHoverLoop();root.removeEventListener('visibilitychange',visibility);accent?.cancel();win.clearTimeout(settleTimer);win.clearTimeout(wrapTimer);observer?.disconnect();if(frame)win.cancelAnimationFrame(frame);if(!observer)win.removeEventListener('resize',resize);}};
+ return {refresh,syncLogo(id,url){for(const item of rendered)if(idAt(logicalAt(item))===id)applyLogo(item,url);},center:id=>{const i=items.findIndex((_,n)=>idAt(n)===id);if(i>=0)go(i,{smooth:true});},dispose(){disposed=true;stopHoverLoop();root.removeEventListener('visibilitychange',visibility);accent?.cancel();win.clearTimeout(settleTimer);win.clearTimeout(wrapTimer);observer?.disconnect();if(frame)win.cancelAnimationFrame(frame);if(!observer)win.removeEventListener('resize',resize);}};
 }

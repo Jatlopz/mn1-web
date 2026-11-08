@@ -947,6 +947,7 @@ function renderProfiles(dom, app) {
     const template = app.workspace?.profiles?.[definition.id];
     const wrap = document.createElement('div');
     wrap.className = 'profile-card-wrap';
+    wrap.dataset.logoState = isWorkspace(app) && app.storage ? 'loading' : 'missing';
 
     const button = document.createElement('button');
     button.type = 'button';
@@ -965,7 +966,6 @@ function renderProfiles(dom, app) {
 
     const logo=document.createElement('img');logo.className='profile-card-logo';logo.alt='';logo.setAttribute('aria-hidden','true');logo.decoding='async';logo.hidden=true;
     const initials=document.createElement('span');initials.className='profile-logo-fallback';initials.textContent=teamInitials(definition.name);initials.setAttribute('aria-hidden','true');
-    logo.addEventListener('error',()=>{logo.hidden=true;initials.hidden=false;});
 
     const name = document.createElement('span');
     name.className = 'profile-name';
@@ -1002,7 +1002,7 @@ function renderProfiles(dom, app) {
     wrap.append(button, settings);
     dom.profileList.append(wrap);
 
-    if(isWorkspace(app)&&app.storage){void readTeamLogo(app.storage,definition.id).then(url=>{if(!url||!logo.isConnected)return;logo.src=url;logo.hidden=false;initials.hidden=true;}).catch(()=>{});}
+    if(isWorkspace(app)&&app.storage){void readTeamLogo(app.storage,definition.id).then(url=>{if(!wrap.isConnected)return;app.teamCarousel?.syncLogo(definition.id,url);}).catch(()=>{if(wrap.isConnected)app.teamCarousel?.syncLogo(definition.id,'');});}
 
   }
 

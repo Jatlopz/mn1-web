@@ -2924,6 +2924,10 @@
 @media(min-width:1000px) and (min-aspect-ratio:1/1){:root[data-night=on]{--theme-night-art:url('./themes/night-neural-desktop.a298bbf3273b0d98.jpg')}}
 :root[data-night=on] body::after{background-image:var(--theme-night-art,url('./themes/night-neural.a240614da278ac75.webp')),var(--theme-atmosphere);background-size:cover,420px 340px;background-repeat:no-repeat,repeat;background-position:center;opacity:.22}
 
+/* Keep seasonal and essential artwork vivid across every app screen. */
+:root[data-theme] body::before{filter:brightness(1.16) saturate(1.08)}
+:root[data-theme][data-night=on] body::before{filter:brightness(.94) saturate(.98)}
+
 /* Buzón: un solo eje de alineación y un pie con espacio propio. */
 :root[data-theme] #ideas-dialog .idea-image-editor{margin:16px 0 0;display:grid;gap:8px}
 :root[data-theme] #ideas-dialog .idea-image-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 24px}

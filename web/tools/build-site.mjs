@@ -239,6 +239,8 @@ export async function buildSite(source, destination) {
     output[name]=bytes;
   }
   output['index.html'] = html;
+  // Runs before stylesheets so a returning user sees the saved theme on first paint.
+  output['theme-bootstrap.js'] = await readFile(path.join(source, 'theme-bootstrap.js'));
   output[cssName] = css;
   output['version.json'] = JSON.stringify(version, null, 2);
   output['.nojekyll'] = '';
