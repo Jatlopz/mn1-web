@@ -1,3 +1,4 @@
+import {installCreatorInfo} from './creator-info.js';
 import {isIdeaImage,prepareIdeaImage,prepareNativeIdeaImage,appendIdeaAttachment} from './idea-attachment.js';
 import {createRegistryAdmin} from './registry-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
@@ -73,6 +74,7 @@ export async function performCloudSync(operation,{background=false,setSyncing=()
  try{return await operation();}finally{if(!background)setLocked(false);setSyncing(false);}
 }
 export function createCloudWorkspace(getServices,{client:providedClient=null}={}) {
+  let creatorInfo=null;
   const $ = (id) => document.getElementById(id),
     dialog = $("cloud-dialog"),
     client = providedClient || new CloudClient(getServices().storage);
@@ -98,7 +100,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const definitions = () => getServices().catalog;
   function render() {
     const logged = Boolean(client.session);
-    applyAccountVisibility(access);
+    applyAccountVisibility(access);creatorInfo?.setAdmin(access?.admin===true);
     $("cloud-login").hidden = logged;
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
@@ -443,6 +445,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     });
   });
   installCompanyLogo({getServices,client});
+  creatorInfo=installCreatorInfo({getServices,client});
   let creatorRevision=0,creatorBusy=false;const creatorCacheKey='mn1.creator.photo';
   const defaultCreatorSrc=$('creator-photo').getAttribute('src');
   function showCreatorPhoto(photo){$('creator-photo').src=photo||defaultCreatorSrc;$('creator-photo').classList.toggle('is-custom',Boolean(photo));}

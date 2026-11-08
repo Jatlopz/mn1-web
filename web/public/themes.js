@@ -126,6 +126,7 @@ export function installCoffeeLink({native=false,canOpenExternal=false}={},root=d
 export function installContactCopy(root=document,clipboard=globalThis.navigator?.clipboard){
  for(const [kind,label] of [['whatsapp','Número de WhatsApp'],['email','Correo']]){
   const button=root.getElementById('copy-creator-'+kind),value=root.getElementById('creator-'+kind),status=root.getElementById('creator-contact-status');
+  if(!button||!value||!status)continue;
   button.addEventListener('click',async()=>{try{if(!clipboard?.writeText)throw Error('Copiado no disponible');await clipboard.writeText(value.textContent.trim());status.textContent=label+' copiado.';}catch{status.textContent='Mantén pulsado el dato para copiarlo.';value.focus?.();}});
  }
 }

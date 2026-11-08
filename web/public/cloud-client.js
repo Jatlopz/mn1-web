@@ -154,6 +154,9 @@ export class CloudClient {
       await this.storage.removeText(CLOUD_SESSION_KEY);
     }
   }
+  creatorInfo(){return this.request('/rest/v1/rpc/mn1_creator_info',{auth:false,body:{}});}
+  creatorSettings(){return this.request('/rest/v1/rpc/mn1_creator_settings',{body:{}});}
+  setCreatorInfo(expected,info){return this.request('/rest/v1/rpc/mn1_set_creator_info',{body:{p_expected:expected,p_info:info}});}
   creatorProfile(){return this.request('/rest/v1/mn1_creator_profile?select=revision,photo&id=eq.1',{method:'GET',auth:false});}
   setCreatorPhoto(expected,photo){return this.request('/rest/v1/rpc/mn1_set_creator_photo',{body:{p_expected:expected,p_photo:photo}});}
   companyLogo(){return this.request('/rest/v1/mn1_creator_profile?select=logo_revision,logo&id=eq.1',{method:'GET',auth:false});}
