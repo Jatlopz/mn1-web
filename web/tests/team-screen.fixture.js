@@ -1,0 +1,14 @@
+document.getElementById('open-admin-dashboard').hidden=false;
+document.getElementById('teams-iso-calendar-open').hidden=false;
+const week=document.createElement('span');week.className='iso-calendar-week-number';week.textContent='45';document.getElementById('teams-iso-current-week').replaceChildren(document.createTextNode('Semana '),week);
+document.getElementById('teams-iso-current-date').textContent='08/noviembre/2026';document.getElementById('plant-clock').hidden=false;document.getElementById('plant-current-time').textContent='12:22 AM';document.getElementById('profiles-title').textContent='Equipos de Sacos';
+await import('./team-carousel.fixture.js');await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+const errors=[],check=(yes,label)=>{if(!yes)errors.push(label);},h=innerHeight,w=document.documentElement.clientWidth,center=document.querySelector('[data-carousel-position=center]'),rect=e=>e.getBoundingClientRect();
+check(document.documentElement.scrollHeight<=h+1,'Sin scroll vertical en la pantalla completa');
+check(document.documentElement.scrollWidth<=w+1,'Sin scroll horizontal de página');
+check(rect(document.getElementById('app-header')).top>=0,'Cabecera completa');
+check(rect(center.querySelector('.profile-meta')).bottom<=h,'Nombre y hora del equipo visibles');
+check(rect(document.querySelector('.team-carousel-controls')).bottom<=h,'Navegación visible');
+check(rect(document.getElementById('plant-clock')).bottom<=rect(document.querySelector('.team-carousel')).top,'Reloj separado del carrusel');
+const add=rect(document.getElementById('add-team'));check([...document.querySelectorAll('.team-carousel-arrow')].every(e=>{const a=rect(e);return a.right<=add.left||a.left>=add.right||a.bottom<=add.top||a.top>=add.bottom;}),'El botón de agregar no cubre las flechas');
+document.getElementById('team-screen-result').textContent=errors.length?'FAIL: '+errors.join(' · '):'PASS 7/7';document.title=(errors.length?'FAIL: '+errors.join(' · '):'PASS 7/7')+' · Equipos '+w+'×'+h;
