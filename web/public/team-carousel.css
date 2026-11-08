@@ -34,3 +34,25 @@
 @media(min-width:1000px){#teams-screen .teams-intro{margin:22px 0 8px}#teams-screen .team-carousel-controls .team-carousel-arrow{position:absolute;top:36%;width:54px;height:54px;z-index:5}#teams-screen .team-carousel-controls .team-carousel-arrow:first-child{left:8px}#teams-screen .team-carousel-controls .team-carousel-arrow:last-child{right:8px}}
 @media(prefers-reduced-motion:reduce){#teams-screen .team-carousel-track .profile-card-wrap{transition:none}#teams-screen .profile-grid.team-carousel-track{scroll-behavior:auto}}
 @media(forced-colors:active){#teams-screen .team-carousel-track .profile-card-wrap{opacity:1}#teams-screen .team-carousel-track .profile-card{color:CanvasText;background:Canvas}#teams-screen .team-carousel-track [data-carousel-position=center] .profile-card{outline:2px solid Highlight;outline-offset:4px}#teams-screen .team-carousel-settings summary,#teams-screen .team-carousel-arrow{color:ButtonText;background:Canvas}}
+
+/* Plant landing: one balanced viewport at normal text size; allow reflow when zoomed. */
+:root[data-theme] .app:has(>#welcome-screen:not([hidden])){min-height:100svh;display:grid;grid-template-rows:auto 1fr;align-content:stretch;gap:16px;padding:clamp(12px,2.5vw,28px) clamp(16px,3vw,40px);max-width:1440px}
+:root[data-theme] .app:has(>#welcome-screen:not([hidden]))>.app-header{max-width:none;margin:0;padding:4px 0 12px;align-self:start}
+:root[data-theme] #welcome-screen{display:grid;width:100%;max-width:1200px;grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr);align-items:center;align-self:center;gap:clamp(24px,4vw,64px);margin:0 auto;padding:clamp(12px,3svh,32px) 0;min-height:0}
+:root[data-theme] #welcome-screen .welcome-copy{margin:0;padding:0;min-width:0}
+:root[data-theme] #welcome-screen .welcome-copy h1{font-size:clamp(32px,4.5vw,64px);line-height:1.06;margin:12px 0 16px;letter-spacing:-.05em}
+:root[data-theme] #welcome-screen .welcome-copy>p:last-child{font-size:clamp(14px,1.4vw,17px);line-height:1.5;margin:0}
+:root[data-theme] #welcome-screen .plant-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0;min-width:0}
+:root[data-theme] #welcome-screen .plant-card{display:grid;align-content:center;justify-items:start;gap:6px;min-height:clamp(220px,32svh,310px);padding:24px;min-width:0;max-width:100%}
+:root[data-theme] #welcome-screen .plant-symbol{width:40px;height:40px;margin:0 0 8px;background:none;border:0;box-shadow:none}
+:root[data-theme] #welcome-screen .plant-card strong{font-size:clamp(23px,2.3vw,32px);line-height:1.15;margin:0;overflow-wrap:anywhere}
+:root[data-theme] #welcome-screen .plant-caption{font-size:10px}
+:root[data-theme] #welcome-screen .plant-count{font-size:13px}
+:root[data-theme] #welcome-screen .plant-open{width:100%;font-size:13px;padding-top:12px;margin-top:10px;gap:8px}
+:root[data-theme] #welcome-screen .welcome-footnote{grid-column:1/-1;text-align:center;margin:0;line-height:1.5;font-size:13px;max-width:none}
+@media(max-width:760px){:root[data-theme] #welcome-screen{grid-template-columns:minmax(0,1fr);gap:20px;max-width:540px;padding:8px 0 16px}:root[data-theme] #welcome-screen .welcome-copy{text-align:center}:root[data-theme] #welcome-screen .welcome-copy h1{font-size:clamp(30px,5.2svh,42px);margin:8px 0 12px}:root[data-theme] #welcome-screen .welcome-copy>p:last-child{margin-inline:auto}:root[data-theme] #welcome-screen .plant-grid{gap:12px}:root[data-theme] #welcome-screen .plant-card{min-height:205px;padding:18px 14px;gap:5px}:root[data-theme] #welcome-screen .plant-card strong{font-size:23px}:root[data-theme] #welcome-screen .plant-symbol{margin-bottom:4px}:root[data-theme] #welcome-screen .welcome-footnote{font-size:12px}}
+@media(max-height:700px) and (max-width:760px){:root[data-theme] .app:has(>#welcome-screen:not([hidden])){gap:8px;padding:10px 16px}:root[data-theme] .app:has(>#welcome-screen:not([hidden]))>.app-header{padding-bottom:4px}:root[data-theme] #welcome-screen{gap:14px;padding:4px 0 8px}:root[data-theme] #welcome-screen .welcome-copy>.welcome-eyebrow{display:none}:root[data-theme] #welcome-screen .welcome-copy h1{font-size:30px;margin:4px 0 8px}:root[data-theme] #welcome-screen .plant-card{min-height:164px;padding:12px;gap:3px}:root[data-theme] #welcome-screen .plant-symbol{width:30px;height:30px;margin:0}:root[data-theme] #welcome-screen .plant-card strong{font-size:21px}:root[data-theme] #welcome-screen .plant-caption{display:none}:root[data-theme] #welcome-screen .plant-open{font-size:12px;margin-top:4px;padding-top:6px}}
+@media(min-width:761px) and (max-height:650px){:root[data-theme] #welcome-screen{gap:24px;padding:8px 0}:root[data-theme] #welcome-screen .welcome-copy h1{font-size:38px}:root[data-theme] #welcome-screen .plant-card{min-height:200px;padding:16px}}
+@media(max-width:760px){:root[data-theme] #welcome-screen .plant-count{min-height:2.6em}}
+
+@media(max-width:280px){:root[data-theme] #welcome-screen .plant-grid{grid-template-columns:1fr}}
