@@ -11,7 +11,7 @@
   "background_color": "#0a101b",
   "theme_color": "#0a101b",
   "icons": [
-    {"src":"./brand/desktop-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
-    {"src":"./brand/desktop-512.png","sizes":"512x512","type":"image/png","purpose":"any"}
+    {"src":"./brand/desktop-clear-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./brand/desktop-clear-512.png","sizes":"512x512","type":"image/png","purpose":"any"}
   ]
 }

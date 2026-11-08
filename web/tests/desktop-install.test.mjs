@@ -37,7 +37,7 @@ test('manifest e iconos permiten instalar en el mismo origen y perfil sin caché
  const root=new URL('../public/',import.meta.url),m=JSON.parse(await readFile(new URL('app.webmanifest',root),'utf8'));
  assert.equal(m.id,'./');assert.equal(m.start_url,'./');assert.equal(m.scope,'./');assert.equal(m.display,'standalone');assert.equal(m.name,'SuperTools');
  assert.deepEqual(m.icons.map(i=>i.sizes),['192x192','512x512']);
- for(const icon of m.icons){const b=await readFile(new URL(icon.src,root));const size=Number(icon.sizes.split('x')[0]);assert.equal(b.readUInt32BE(16),size);assert.equal(b.readUInt32BE(20),size);}
+ for(const icon of m.icons){const b=await readFile(new URL(icon.src,root));const size=Number(icon.sizes.split('x')[0]);assert.equal(b.readUInt32BE(16),size);assert.equal(b.readUInt32BE(20),size);assert.equal(b[25],6,'El icono debe conservar canal alfa RGBA');assert.match(icon.src,/desktop-clear-/,'Ruta nueva para renovar iconos cacheados');}
  for(const name of ['index.html','install.html']){const html=await readFile(new URL(name,root),'utf8');assert.match(html,/rel="manifest" href="\.\/app.webmanifest"/);assert.match(html,/manifest-src 'self'/);assert.match(html,/worker-src 'none'/);}
  const js=await readFile(new URL('desktop-install.js',root),'utf8');assert.doesNotMatch(js,/localStorage|indexedDB|serviceWorker|fetch\(/);
 });

@@ -199,7 +199,7 @@ export async function buildSite(source, destination) {
   output['install.html']=(await readFile(path.join(source,'install.html'),'utf8')).replace('./desktop-install.js','./'+outputNames.get('desktop-install.js')).replace('./desktop-install.css','./'+installerCssName);
   output['app.webmanifest']=await readFile(path.join(source,'app.webmanifest'),'utf8');
   for(const size of [192,512]) {
-    const name='brand/desktop-'+size+'.png',bytes=await readFile(path.join(source,name));
+    const name='brand/desktop-clear-'+size+'.png',bytes=await readFile(path.join(source,name));
     if(!bytes.subarray(0,8).equals(PNG_SIGNATURE)||bytes.readUInt32BE(16)!==size||bytes.readUInt32BE(20)!==size||bytes.length>512*1024)throw Error('Invalid desktop icon');
     output[name]=bytes;
   }
