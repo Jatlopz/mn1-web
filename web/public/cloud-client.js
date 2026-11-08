@@ -154,6 +154,10 @@ export class CloudClient {
       await this.storage.removeText(CLOUD_SESSION_KEY);
     }
   }
+  boardFeed(archived=false,offset=0){return this.request('/rest/v1/rpc/mn1_board_feed',{body:{p_archived:archived,p_offset:offset}});}
+  saveBoardNote(id,expected,value){return this.request('/rest/v1/rpc/mn1_board_save',{body:{p_id:id,p_expected:expected,p_title:value.title,p_body:value.body,p_priority:value.priority,p_pinned:value.pinned,p_due_at:value.due_at,p_archived:value.archived}});}
+  boardPublishers(){return this.request('/rest/v1/rpc/mn1_board_publishers',{body:{}});}
+  grantBoardPublisher(email,allowed){return this.request('/rest/v1/rpc/mn1_board_grant',{body:{p_email:email,p_allowed:allowed}});}
   creatorInfo(){return this.request('/rest/v1/rpc/mn1_creator_info',{auth:false,body:{}});}
   creatorSettings(){return this.request('/rest/v1/rpc/mn1_creator_settings',{body:{}});}
   setCreatorInfo(expected,info){return this.request('/rest/v1/rpc/mn1_set_creator_info',{body:{p_expected:expected,p_info:info}});}
