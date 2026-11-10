@@ -2,7 +2,7 @@
 <style>body{margin:0;background:#e6ecef;color:#183142;font:16px/1.5 system-ui}header{padding:22px;max-width:850px;margin:auto}h1{font-size:22px}button{background:#176a69;color:white;border:0;padding:14px 22px;border-radius:12px;cursor:pointer}canvas{display:block;width:min(95%,595px);height:auto;margin:20px auto;box-shadow:0 3px 15px #0002}</style>
 <header><h1>Reporte de estatus y eficiencias de planta</h1><p>Ejemplo ficticio. Barras en79%,80%,89%,90% y100%. Inactivos conservan sus datos, pero el reporte los deja en blanco.</p><button id="pdf-download" disabled>Descargar PDF de prueba</button><p id="pdf-result" role="status">Generando…</p></header><main id="pdf-pages"></main>
 <script type="module">
-import {defaultCatalog} from '../public/plant-catalog.js';import {createProductionReport} from '../public/production-model.js';import {createProductionPdf} from '../public/production-pdf.js';
+import {defaultCatalog} from '../public/plant-catalog.js';import {createProductionReport} from '../public/production-model.js';import {createProductionPdf,createProductionImages} from '../public/production-pdf.js';
 import {createProductionExample} from '../public/team-tool-library.js';
 try{
  let catalog,report;
@@ -12,9 +12,10 @@ try{
  report.rows.telares.runningCount='2';report.rows.telares.totalCount='3';
  }
  const before=JSON.stringify(report),pages=[];const bytes=createProductionPdf(report,catalog,{createCanvas:()=>{const page=document.createElement('canvas');pages.push(page);return page;}});
+ const images=createProductionImages(report,catalog);if(images.length!==pages.length||images.some(i=>!i.dataUrl.startsWith('data:image/png;base64,')||!i.section))throw Error('No se generaron imágenes para todas las páginas');
  if(JSON.stringify(report)!==before)throw Error('El render modificó datos');
  for(const page of pages)document.getElementById('pdf-pages').append(page);
- document.getElementById('pdf-result').textContent='PASS · '+pages.length+' páginas · datos originales conservados';
+ document.getElementById('pdf-result').textContent='PASS · '+pages.length+' páginas e imágenes · datos originales conservados';
  const button=document.getElementById('pdf-download');button.disabled=false;button.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const link=document.createElement('a');link.href=url;link.download='ejemplo-reporte-planta-colores.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 }catch(error){document.getElementById('pdf-result').textContent='FAIL · '+error.message;}
 </script></html>
