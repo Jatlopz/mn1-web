@@ -91,9 +91,10 @@ test('eficiencias vacías se omiten; una captura parcial exige completarse y cer
  assert.deepEqual(efficiencyRows(r),[]);
  assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.extrusion.target='100';
- assert.equal(efficiencyRows(r).length,1);
- assert.ok(validateProductionReport(r,c).some(e=>/producción real/i.test(e)));
+ assert.equal(efficiencyRows(r).length,0,'una meta fija sin captura del turno no se incluye');
+ assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.extrusion.actual='0';r.rows.extrusion.efficiencyComment='Sin producción por avería';
+ assert.equal(efficiencyRows(r).length,1);
  assert.equal(efficiencyRows(r)[0][1].actual,'0');assert.deepEqual(validateProductionReport(r,c),[]);
 });
 
@@ -112,7 +113,7 @@ test('totales en vivo agrupan unidades y ponderan real/meta sin mezclar kg, metr
  Object.assign(r.rows['conversion-1'],{target:'100',actual:'50'});
  Object.assign(r.rows['conversion-3'],{target:'300',actual:'300'});
  Object.assign(r.rows.extrusion,{target:'1000',actual:'1100'});
- Object.assign(r.rows.laminado,{target:'200',actual:''});
+ Object.assign(r.rows.laminado,{target:'',actual:'50'});
  const totals=productionTotals(r);
  assert.deepEqual(totals.find(t=>t.unit==='sacos'),{unit:'sacos',target:400,actual:350,efficiency:87.5,processes:2,pending:0});
  assert.ok(Math.abs(totals.find(t=>t.unit==='kg').efficiency-110)<1e-10);
