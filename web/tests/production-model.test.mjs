@@ -47,6 +47,14 @@ test('eficiencia distingue cero de faltante, admite coma decimal y no limita res
 });
 
 test('acepta miles con coma y decimales con punto en eficiencia y desperdicio',()=>{const r=calculateEfficiency({target:'10,504.4',actual:'10,504.4',wasteTarget:'0.25',wasteActual:'0.75'});assert.equal(r.efficiency,100);assert.equal(r.wasteTarget,.25);assert.equal(r.wasteActual,.75);assert.deepEqual(r.errors,[]);});
+test('desperdicio acepta porcentaje de Sysprod o cálculo con dos cantidades',()=>{
+ const direct=calculateEfficiency({target:'10,504.4',actual:'10,504.4',wasteTarget:'0.25',wasteMode:'direct',wasteActual:'0.75'});
+ assert.equal(direct.efficiency,100);assert.equal(direct.wasteActual,.75);assert.deepEqual(direct.errors,[]);
+ const calculated=calculateEfficiency({target:'100',actual:'90',wasteTarget:'1.5',wasteMode:'calculated',wasteBase:'10,504.4',wasteAmount:'78.783'});
+ assert.ok(Math.abs(calculated.wasteActual-.75)<1e-10);assert.deepEqual(calculated.errors,[]);
+ assert.ok(calculateEfficiency({target:'100',actual:'90',wasteMode:'calculated',wasteBase:'0',wasteAmount:'1'}).errors.some(e=>/base/i.test(e)));
+ assert.ok(calculateEfficiency({target:'100',actual:'90',wasteMode:'calculated',wasteBase:'10',wasteAmount:''}).errors.some(e=>/desperdicio/i.test(e)));
+});
 
 test('los valores inválidos no generan porcentajes válidos ni descartan sus errores',()=>{
  for(const value of ['-1','NaN','Infinity','1e3','1,23.4','1,234,5']) {
@@ -83,9 +91,10 @@ test('eficiencias vacías se omiten; una captura parcial exige completarse y cer
  assert.deepEqual(efficiencyRows(r),[]);
  assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.extrusion.target='100';
- assert.equal(efficiencyRows(r).length,1);
- assert.ok(validateProductionReport(r,c).some(e=>/producción real/i.test(e)));
+ assert.equal(efficiencyRows(r).length,0,'una meta fija sin captura del turno no se incluye');
+ assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.extrusion.actual='0';r.rows.extrusion.efficiencyComment='Sin producción por avería';
+ assert.equal(efficiencyRows(r).length,1);
  assert.equal(efficiencyRows(r)[0][1].actual,'0');assert.deepEqual(validateProductionReport(r,c),[]);
 });
 
@@ -104,7 +113,7 @@ test('totales en vivo agrupan unidades y ponderan real/meta sin mezclar kg, metr
  Object.assign(r.rows['conversion-1'],{target:'100',actual:'50'});
  Object.assign(r.rows['conversion-3'],{target:'300',actual:'300'});
  Object.assign(r.rows.extrusion,{target:'1000',actual:'1100'});
- Object.assign(r.rows.laminado,{target:'200',actual:''});
+ Object.assign(r.rows.laminado,{target:'',actual:'50'});
  const totals=productionTotals(r);
  assert.deepEqual(totals.find(t=>t.unit==='sacos'),{unit:'sacos',target:400,actual:350,efficiency:87.5,processes:2,pending:0});
  assert.ok(Math.abs(totals.find(t=>t.unit==='kg').efficiency-110)<1e-10);

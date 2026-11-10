@@ -1,6 +1,6 @@
 /* Cálculos y borradores de producción. No consulta Sysprod ni publica datos. */
 import {defaultCatalog,normalizeCatalog,catalogText,isProcessId,PROCESS_LIMITS} from './plant-catalog.js';
-const numericFields=['runningCount','totalCount','target','actual','wasteTarget','wasteActual'];
+const numericFields=['runningCount','totalCount','target','actual','wasteTarget','wasteActual','wasteBase','wasteAmount'];
 const text=(value,limit=100)=>catalogText(typeof value==='number'?String(value):value,limit);
 function localDate(date=new Date()){return String(date.getFullYear()).padStart(4,'0')+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');}
 /** Shift dates follow the shift's start day, including the hours after midnight. */
@@ -12,7 +12,7 @@ export function productionTimingFor(now=new Date()) {
  return {date:localDate(statusDay),efficiencyDate:localDate(efficiencyDay),efficiencyShift:day?'TC':'TA',statusShift:day?'TA':'TC',period:day?'day':'night'};
 }
 function cleanCatalog(catalog,plant){return normalizeCatalog(catalog,plant??catalog?.plantId??'sacos');}
-function defaultRow(process){return {name:process.name,countKind:process.countKind==='station'?'station':process.countKind==='machine'?'machine':null,active:null,product:'',action:'',comment:'',efficiencyComment:'',runningCount:'',totalCount:'',target:'',actual:'',wasteTarget:'',wasteActual:'',unit:process.unit,includeEfficiency:process.efficiency};}
+function defaultRow(process){return {name:process.name,countKind:process.countKind==='station'?'station':process.countKind==='machine'?'machine':null,active:null,product:'',action:'',comment:'',efficiencyComment:'',runningCount:'',totalCount:'',target:'',actual:'',wasteTarget:'',wasteActual:'',wasteMode:'direct',wasteBase:'',wasteAmount:'',unit:process.unit,includeEfficiency:process.efficiency};}
 export function productionDraftKey(teamId){if(!isProcessId(teamId))throw Error('Identificador de equipo no válido.');return 'mn1.production.'+teamId;}
 export function createProductionReport(catalog,context={}) {
  const c=cleanCatalog(catalog??defaultCatalog(context.plantId),context.plantId);
@@ -23,7 +23,7 @@ export function createProductionReport(catalog,context={}) {
 function normalizeRow(raw,definition){
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Fila de proceso no válida.');
  if(raw.countKind!=null&&!['machine','station'].includes(raw.countKind))throw Error('Tipo de recurso no válido.');
- const row={...defaultRow(definition),countKind:raw.countKind==='station'?'station':raw.countKind==='machine'?'machine':definition.countKind==='station'?'station':definition.countKind==='machine'?'machine':null,name:text(raw.name??definition.name),active:raw.active===true?true:raw.active===false?false:null,product:text(raw.product,200),action:text(raw.action,100),comment:text(raw.comment,2000),efficiencyComment:text(raw.efficiencyComment??raw.comment,2000),unit:text(raw.unit??definition.unit,24),includeEfficiency:typeof raw.includeEfficiency==='boolean'?raw.includeEfficiency:definition.efficiency};
+ const row={...defaultRow(definition),countKind:raw.countKind==='station'?'station':raw.countKind==='machine'?'machine':definition.countKind==='station'?'station':definition.countKind==='machine'?'machine':null,name:text(raw.name??definition.name),active:raw.active===true?true:raw.active===false?false:null,product:text(raw.product,200),action:text(raw.action,100),comment:text(raw.comment,2000),efficiencyComment:text(raw.efficiencyComment??raw.comment,2000),unit:text(raw.unit??definition.unit,24),includeEfficiency:typeof raw.includeEfficiency==='boolean'?raw.includeEfficiency:definition.efficiency,wasteMode:raw.wasteMode==='calculated'?'calculated':'direct'};
  for(const key of numericFields){const value=typeof raw[key]==='number'?String(raw[key]):raw[key]??'';if(typeof value!=='string'||value.length>64)throw Error('Dato numérico no válido o demasiado largo.');row[key]=value.trim();}
  return row;
 }
@@ -60,6 +60,24 @@ function decimal(value){
  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw))return {kind:'invalid',value:null};
  const n=Number(raw);return Number.isFinite(n)&&n>=0?{kind:'number',value:n,normalized:raw}:{kind:'invalid',value:null};
 }
+export const parseProductionNumber=decimal;
+export function calculateWaste(row={}){
+ const errors=[];let wasteActual=null;
+ if(row.wasteMode==='calculated'){
+  const base=decimal(row.wasteBase),amount=decimal(row.wasteAmount);
+  if(base.kind==='missing'&&amount.kind==='missing')return {wasteActual:null,errors};
+  if(base.kind!=='number'||base.value<=0)errors.push('La base del cálculo debe ser mayor que cero.');
+  if(amount.kind!=='number')errors.push('Indica una cantidad de desperdicio válida.');
+  if(base.kind==='number'&&base.value>0&&amount.kind==='number')wasteActual=amount.value/base.value*100;
+ }else{
+  const parsed=decimal(row.wasteActual);
+  if(parsed.kind==='missing')return {wasteActual:null,errors};
+  if(parsed.kind!=='number')errors.push('El desperdicio de Sysprod debe ser un número válido.');
+  else wasteActual=parsed.value;
+ }
+ if(wasteActual!==null&&(!Number.isFinite(wasteActual)||wasteActual>100))errors.push('El desperdicio real debe estar entre 0 y 100 %.');
+ return {wasteActual:errors.length?null:wasteActual,errors};
+}
 export function calculateEfficiency(row={}) {
  if(!row||typeof row!=='object')row={};
  const errors=[],target=decimal(row.target),actual=decimal(row.actual);let efficiency=null;
@@ -69,7 +87,8 @@ export function calculateEfficiency(row={}) {
   const result=actual.value/target.value*100;if(Number.isFinite(result))efficiency=result;else errors.push('La eficiencia excede el rango numérico permitido.');
  }
  const percentage=(key,label)=>{const parsed=decimal(row[key]);if(parsed.kind==='missing')return null;if(parsed.kind!=='number'||parsed.value>100){errors.push(label+' debe estar entre 0 y 100 %.');return null;}return parsed.value;};
- return {efficiency,wasteTarget:percentage('wasteTarget','La meta de desperdicio'),wasteActual:percentage('wasteActual','El desperdicio real'),errors};
+ const waste=calculateWaste(row);errors.push(...waste.errors);
+ return {efficiency,wasteTarget:percentage('wasteTarget','La meta de desperdicio'),wasteActual:waste.wasteActual,errors};
 }
 function validDate(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const d=new Date(value+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===value;}
 export function validateProductionReport(report,catalog) {
@@ -101,7 +120,8 @@ export function validateProductionReport(report,catalog) {
 
 /** A blank machine is omitted; a partially captured machine must still be validated. */
 export function hasEfficiencyInput(row={}) {
- return ['target','actual','wasteActual'].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
+ const wasteKeys=row.wasteMode==='calculated'?['wasteBase','wasteAmount']:['wasteActual'];
+ return ['actual',...wasteKeys].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
 }
 export function efficiencyRows(report) {
  return Object.entries(report?.rows??{}).filter(([,row])=>row.includeEfficiency===true&&hasEfficiencyInput(row));
