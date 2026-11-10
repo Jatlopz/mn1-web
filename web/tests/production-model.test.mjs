@@ -46,7 +46,8 @@ test('eficiencia distingue cero de faltante, admite coma decimal y no limita res
  assert.equal(calculateEfficiency({target:'5',actual:'2'}).wasteActual,null);
 });
 
-test('desperdicio acepta porcentaje de Sysprod o cálculo base/merma',()=>{
+test('acepta miles con coma y decimales con punto en eficiencia y desperdicio',()=>{const r=calculateEfficiency({target:'10,504.4',actual:'10,504.4',wasteTarget:'0.25',wasteActual:'0.75'});assert.equal(r.efficiency,100);assert.equal(r.wasteTarget,.25);assert.equal(r.wasteActual,.75);assert.deepEqual(r.errors,[]);});
+test('desperdicio acepta porcentaje de Sysprod o cálculo con dos cantidades',()=>{
  const direct=calculateEfficiency({target:'10,504.4',actual:'10,504.4',wasteTarget:'0.25',wasteMode:'direct',wasteActual:'0.75'});
  assert.equal(direct.efficiency,100);assert.equal(direct.wasteActual,.75);assert.deepEqual(direct.errors,[]);
  const calculated=calculateEfficiency({target:'100',actual:'90',wasteTarget:'1.5',wasteMode:'calculated',wasteBase:'10,504.4',wasteAmount:'78.783'});
@@ -54,6 +55,7 @@ test('desperdicio acepta porcentaje de Sysprod o cálculo base/merma',()=>{
  assert.ok(calculateEfficiency({target:'100',actual:'90',wasteMode:'calculated',wasteBase:'0',wasteAmount:'1'}).errors.some(e=>/base/i.test(e)));
  assert.ok(calculateEfficiency({target:'100',actual:'90',wasteMode:'calculated',wasteBase:'10',wasteAmount:''}).errors.some(e=>/desperdicio/i.test(e)));
 });
+
 test('los valores inválidos no generan porcentajes válidos ni descartan sus errores',()=>{
  for(const value of ['-1','NaN','Infinity','1e3','1,23.4','1,234,5']) {
   const result=calculateEfficiency({target:value,actual:'2'});assert.equal(result.efficiency,null);assert.ok(result.errors.length>0,value);
@@ -88,18 +90,17 @@ test('eficiencias vacías se omiten; una captura parcial exige completarse y cer
  for(const row of Object.values(r.rows))row.active=false;
  assert.deepEqual(efficiencyRows(r),[]);
  assert.deepEqual(validateProductionReport(r,c),[]);
- r.rows.extrusion.actual='100';
- assert.equal(efficiencyRows(r).length,1);
- assert.ok(validateProductionReport(r,c).some(e=>/meta mensual/i.test(e)));
  r.rows.extrusion.target='100';
+ assert.equal(efficiencyRows(r).length,1);
+ assert.ok(validateProductionReport(r,c).some(e=>/producción real/i.test(e)));
  r.rows.extrusion.actual='0';r.rows.extrusion.efficiencyComment='Sin producción por avería';
  assert.equal(efficiencyRows(r)[0][1].actual,'0');assert.deepEqual(validateProductionReport(r,c),[]);
 });
 
-test('se exige una razón al obtener 90% o menos y se conserva al guardar',()=>{
+test('se exige una razón al obtener menos del 90% y se conserva al guardar',()=>{
  const {c,r}=completed();r.rows.mixing.target='100';
- for(const actual of ['0','89','90']){r.rows.mixing.actual=actual;r.rows.mixing.efficiencyComment='  ';assert.ok(validateProductionReport(r,c).some(e=>/razón|comentario/i.test(e)));}
- r.rows.mixing.actual='90.01';assert.deepEqual(validateProductionReport(r,c),[]);
+ for(const actual of ['0','89','89.99']){r.rows.mixing.actual=actual;r.rows.mixing.efficiencyComment='  ';assert.ok(validateProductionReport(r,c).some(e=>/razón|comentario/i.test(e)));}
+ r.rows.mixing.actual='90';assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.mixing.actual='90';r.rows.mixing.efficiencyComment='Cambio de producto';
  assert.deepEqual(validateProductionReport(r,c),[]);
  assert.equal(normalizeProductionReport(r,c,context).rows.mixing.efficiencyComment,'Cambio de producto');
@@ -115,7 +116,8 @@ test('totales en vivo agrupan unidades y ponderan real/meta sin mezclar kg, metr
  const totals=productionTotals(r);
  assert.deepEqual(totals.find(t=>t.unit==='sacos'),{unit:'sacos',target:400,actual:350,efficiency:87.5,processes:2,pending:0});
  assert.ok(Math.abs(totals.find(t=>t.unit==='kg').efficiency-110)<1e-10);
- assert.equal(totals.find(t=>t.unit==='m'),undefined);
+ assert.equal(totals.find(t=>t.unit==='m').pending,1);
+ assert.equal(totals.find(t=>t.unit==='m').efficiency,null);
 });
 
 
@@ -145,8 +147,8 @@ test('un reporte nuevo usa la hora; recuperar uno existente conserva fechas, tur
 test('el umbral obligatorio usa decimales exactos aunque el porcentaje binario quede encima de90',async()=>{
  const {requiresEfficiencyReason}=await import('../public/production-model.js');
  const {c,r}=completed();Object.assign(r.rows.mixing,{target:'0.3',actual:'0.27',efficiencyComment:''});
- assert.equal(requiresEfficiencyReason(r.rows.mixing),true);assert.ok(validateProductionReport(r,c).some(e=>/razón|comentario/i.test(e)));
- assert.equal(requiresEfficiencyReason({target:'0,3',actual:'0,27'}),true);
+ assert.equal(requiresEfficiencyReason(r.rows.mixing),false);assert.deepEqual(validateProductionReport(r,c),[]);
+ assert.equal(requiresEfficiencyReason({target:'0,3',actual:'0,27'}),false);
  assert.equal(requiresEfficiencyReason({target:'1',actual:'0.9000000000000000000001'}),false);
  assert.equal(requiresEfficiencyReason({target:'1',actual:'0.8999999999999999999999'}),true);
  assert.equal(requiresEfficiencyReason({target:'',actual:''}),false);
@@ -170,6 +172,8 @@ test('estatus inactivo oculta campos auxiliares sin borrar valores guardados',as
 
 test('capacidad fija no exige inventar máquinas activas y sólo meta de desperdicio no incluye eficiencia',async()=>{
  const {hasEfficiencyInput,productionStatusDisplay,efficiencyMeetsTarget,efficiencyCommentDisplay}=await import('../public/production-model.js');const {c,r}=completed();r.rows.mixing.totalCount='23';r.rows.mixing.runningCount='';assert.deepEqual(validateProductionReport(r,c),[]);assert.equal(hasEfficiencyInput({wasteTarget:'0.25'}),false);assert.equal(hasEfficiencyInput({wasteActual:'0'}),true);
- assert.equal(efficiencyMeetsTarget({target:'0.3',actual:'0.3'}),true);assert.equal(efficiencyMeetsTarget({target:'100',actual:'99.99'}),false);assert.equal(efficiencyCommentDisplay({target:'100',actual:'100',comment:'Nota retenida'}),'OK');assert.equal(efficiencyCommentDisplay({target:'100',actual:'98',comment:'Nota retenida'}),'Nota retenida');
+ assert.equal(efficiencyMeetsTarget({target:'0.3',actual:'0.3'}),true);assert.equal(efficiencyMeetsTarget({target:'100',actual:'99.99'}),true);assert.equal(efficiencyCommentDisplay({target:'100',actual:'100',comment:'Nota retenida'}),'OK');assert.equal(efficiencyCommentDisplay({target:'100',actual:'89',comment:'Nota retenida'}),'Nota retenida');
  assert.equal(productionStatusDisplay({active:true,countKind:'station',runningCount:'2',totalCount:'3'}).observations,'2/3 estaciones activas');
 });
+
+test('OK desde90 exacto, incluido95.56, sin borrar comentarios originales',async()=>{const {efficiencyMeetsTarget,efficiencyCommentDisplay,requiresEfficiencyReason}=await import('../public/production-model.js');for(const actual of ['90','95.56','100','110']){const row={target:'100',actual,efficiencyComment:'Nota conservada'};assert.equal(efficiencyMeetsTarget(row),true);assert.equal(efficiencyCommentDisplay(row),'OK');assert.equal(requiresEfficiencyReason(row),false);assert.equal(row.efficiencyComment,'Nota conservada');}assert.equal(efficiencyMeetsTarget({target:'100',actual:'89.99'}),false);assert.equal(efficiencyMeetsTarget({target:'',actual:''}),false);});

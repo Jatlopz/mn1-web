@@ -45,7 +45,7 @@ export function normalizeProductionReport(raw,catalog,context={}) {
  }));
  return {...base,teamId:text(context.teamId??raw.teamId,48),teamName:text(context.teamName??raw.teamName),date:text(raw.date??base.date,40),efficiencyDate:text(raw.efficiencyDate??raw.date??base.efficiencyDate,40),timingMode:raw.timingMode==='automatic'?'automatic':'manual',efficiencyShift:text(raw.efficiencyShift??base.efficiencyShift,16),statusShift:text(raw.statusShift??base.statusShift,16),rows,catalogSnapshot:{version:1,plantId:plant,processes:definitions},updatedAt:typeof raw.updatedAt==='string'?raw.updatedAt:base.updatedAt};
 }
-export function parseProductionNumber(value){
+function decimal(value){
  if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return {kind:'missing',value:null};
  let raw=typeof value==='number'?String(value):typeof value==='string'?value.trim().replace(/[\s\u00a0]/g,''):'';
  if(raw.length>64)return {kind:'invalid',value:null};
@@ -60,7 +60,7 @@ export function parseProductionNumber(value){
  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw))return {kind:'invalid',value:null};
  const n=Number(raw);return Number.isFinite(n)&&n>=0?{kind:'number',value:n,normalized:raw}:{kind:'invalid',value:null};
 }
-const decimal=parseProductionNumber;
+export const parseProductionNumber=decimal;
 export function calculateWaste(row={}){
  const errors=[];let wasteActual=null;
  if(row.wasteMode==='calculated'){
@@ -81,8 +81,8 @@ export function calculateWaste(row={}){
 export function calculateEfficiency(row={}) {
  if(!row||typeof row!=='object')row={};
  const errors=[],target=decimal(row.target),actual=decimal(row.actual);let efficiency=null;
- if(target.kind==='missing')errors.push('Falta la meta mensual. Configúrala en Valores fijos.');else if(target.kind!=='number'||target.value<=0)errors.push('La meta mensual debe ser un número mayor que cero.');
- if(actual.kind==='missing')errors.push('Falta la producción real.');else if(actual.kind!=='number')errors.push('La producción real debe ser un número no negativo.');
+ if(target.kind==='missing')errors.push('Falta la meta.');else if(target.kind!=='number'||target.value<=0)errors.push('La meta debe ser un número mayor que cero, en un formato numérico válido (por ejemplo, 10,504.4).');
+ if(actual.kind==='missing')errors.push('Falta la producción real.');else if(actual.kind!=='number')errors.push('La producción real debe ser un número no negativo, en un formato numérico válido (por ejemplo, 10,504.4).');
  if(target.kind==='number'&&target.value>0&&actual.kind==='number'){
   const result=actual.value/target.value*100;if(Number.isFinite(result))efficiency=result;else errors.push('La eficiencia excede el rango numérico permitido.');
  }
@@ -109,7 +109,7 @@ export function validateProductionReport(report,catalog) {
   if(!isProcessId(id)||!row||typeof row!=='object'||Array.isArray(row)){errors.push(label+': fila de proceso no válida.');continue;}
   if(row.active!==true&&row.active!==false)errors.push(label+': confirma el estatus activo o inactivo.');
   if(typeof row.includeEfficiency!=='boolean')errors.push(label+': confirma si se incluye en eficiencias.');
-  if(row.includeEfficiency===true&&hasEfficiencyInput(row)){const result=calculateEfficiency(row);for(const error of result.errors)errors.push(label+': '+error);if(!text(row.unit,24))errors.push(label+': indica la unidad de producción.');if(requiresEfficiencyReason(row)&&!text(row.efficiencyComment??row.comment,2000))errors.push(label+': agrega una razón o comentario porque la eficiencia es de 90 % o menos.');}
+  if(row.includeEfficiency===true&&hasEfficiencyInput(row)){const result=calculateEfficiency(row);for(const error of result.errors)errors.push(label+': '+error);if(!text(row.unit,24))errors.push(label+': indica la unidad de producción.');if(requiresEfficiencyReason(row)&&!text(row.efficiencyComment??row.comment,2000))errors.push(label+': agrega una razón o comentario porque la eficiencia es menor del 90 %.');}
   const running=decimal(row.runningCount),total=decimal(row.totalCount);if(total.kind==='invalid'||(total.kind==='number'&&!Number.isSafeInteger(total.value)))errors.push(label+': el total debe ser un entero no negativo.');
   if(running.kind!=='missing'){
    if(running.kind!=='number'||total.kind!=='number'||!Number.isSafeInteger(running.value)||!Number.isSafeInteger(total.value)||running.value>total.value)errors.push(label+': las cantidades operativas deben ser enteros no negativos y la cantidad activa no puede superar el total.');
@@ -143,16 +143,16 @@ export function productionTotals(report) {
 function compareEfficiencyTo(row,percent) {
  const target=decimal(row.target),actual=decimal(row.actual);
  if(target.kind!=='number'||target.value<=0||actual.kind!=='number')return null;
- const parts=value=>{const parsed=decimal(value);if(parsed.kind!=='number')return null;const [whole,fraction='']=parsed.normalized.split('.');return {integer:BigInt((whole||'0')+fraction),scale:fraction.length};};
- const t=parts(row.target),a=parts(row.actual);if(!t||!a)return null;const scale=Math.max(t.scale,a.scale);
+ const parts=value=>{const normalized=decimal(value).normalized;const [whole,fraction='']=normalized.split('.');return {integer:BigInt((whole||'0')+fraction),scale:fraction.length};};
+ const t=parts(row.target),a=parts(row.actual),scale=Math.max(t.scale,a.scale);
  const left=a.integer*10n**BigInt(scale-a.scale)*100n,right=t.integer*10n**BigInt(scale-t.scale)*BigInt(percent);
  return left<right?-1:left>right?1:0;
 }
-export function efficiencyMeetsTarget(row={}) { const comparison=compareEfficiencyTo(row,100);return comparison!==null&&comparison>=0; }
+export function efficiencyMeetsTarget(row={}) { const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison>=0; }
 export function efficiencyCommentDisplay(row={}) {return efficiencyMeetsTarget(row)?'OK':(row.efficiencyComment??row.comment)||'—';}
 export function productionCountLabels(row={}) {return row.countKind==='station'?{active:'Estaciones activas',total:'Total de estaciones',noun:'estaciones activas'}:{active:'Máquinas activas',total:'Total de máquinas',noun:'máquinas'};}
 export function requiresEfficiencyReason(row={}) {
- const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<=0;
+ const comparison=compareEfficiencyTo(row,90);return comparison!==null&&comparison<0;
 }
 export function efficiencyBand(row={}) {
  const lower=compareEfficiencyTo(row,80);if(lower===null)return 'empty';
