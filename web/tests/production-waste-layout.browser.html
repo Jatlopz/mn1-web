@@ -4,11 +4,12 @@
 import {createProductionStudio} from '../public/production-studio.js';
 import {defaultCatalog,catalogKey} from '../public/plant-catalog.js';
 import {createProductionReport,productionDraftKey} from '../public/production-model.js';
+import {createProductionImages} from '../public/production-pdf.js';
 const context={teamId:'prueba',teamName:'Equipo ficticio',plantId:'sacos',date:'2026-11-09'},catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,context);
 for(const row of Object.values(report.rows))row.active=false;
 Object.assign(report.rows.extrusion,{target:'10,000',actual:'9,500',wasteTarget:'0.75',wasteActual:'0.25'});
 const data=new Map([[catalogKey('sacos'),JSON.stringify(catalog)],[productionDraftKey(context.teamId),JSON.stringify(report)]]);
-const studio=createProductionStudio(()=>({storage:{getText:async key=>data.get(key)??null,putText:async(key,value)=>data.set(key,value)}}));
+let shared;const studio=createProductionStudio(()=>({storage:{getText:async key=>data.get(key)??null,putText:async(key,value)=>data.set(key,value)},onPrepareImages:createProductionImages,onShareImage:async image=>{shared=image;return 'Selector simulado';}}));
 await studio.open(context);
 const root=document.getElementById('production-studio');[...root.querySelectorAll('button')].find(b=>b.textContent==='Eficiencias').click();
 const card=root.querySelector('[data-row-id="extrusion"].prod-efficiency-card'),fields=[...card.querySelectorAll('.prod-efficiency-capture input')],set=(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}));};
@@ -18,7 +19,10 @@ try{
  set(fields[1],'10,504.4');if(!card.querySelector('.prod-efficiency-result').textContent.includes('105,04')&&!card.querySelector('.prod-efficiency-result').textContent.includes('105.04'))throw Error('No reconoce comas de miles');
  const mode=card.querySelector('.prod-waste-capture select');mode.value='calculated';mode.dispatchEvent(new Event('change',{bubbles:true}));const quantities=card.querySelectorAll('.prod-waste-capture .prod-two-fields input');set(quantities[0],'1,000');set(quantities[1],'25');if(!card.querySelector('.prod-waste-result').textContent.includes('2,5')&&!card.querySelector('.prod-waste-result').textContent.includes('2.5'))throw Error('Cálculo de desperdicio incorrecto');
  mode.value='direct';mode.dispatchEvent(new Event('change',{bubbles:true}));if(card.querySelector('.prod-waste-capture input').value!=='0.25')throw Error('Se perdió el porcentaje directo');
+ if(root.querySelector('.prod-totals'))throw Error('La barra de totales sigue visible');
+ if(!card.textContent.includes('Libras de producción')||!card.textContent.includes('Libras de desperdicio'))throw Error('Etiquetas de Sysprod incorrectas');
  if(innerWidth>=1000){const cells=[card.querySelector('.prod-process-head'),fields[0],fields[1],card.querySelector('.prod-result-wrap'),card.querySelector('.prod-waste-target'),card.querySelector('.prod-waste-capture')].map(e=>e.getBoundingClientRect());for(let i=1;i<cells.length;i++)if(cells[i].left<cells[i-1].right-1)throw Error('Las columnas se superponen');}
- document.documentElement.dataset.qa='pass';document.getElementById('qa-status').textContent='PASS · captura, cálculo y alineación';
+ [...root.querySelectorAll('button')].find(b=>b.textContent==='Compartir imágenes').click();await new Promise(resolve=>setTimeout(resolve,200));const dialog=root.querySelector('.prod-images-dialog');if(!dialog.open||dialog.querySelectorAll('.prod-image-card').length<2)throw Error('No aparecen las imágenes del reporte');dialog.querySelector('.prod-image-card button').click();await new Promise(resolve=>setTimeout(resolve,20));if(!shared?.dataUrl.startsWith('data:image/png;base64,'))throw Error('No se preparó la imagen para compartir');
+ document.documentElement.dataset.qa='pass';document.getElementById('qa-status').textContent='PASS · captura e imágenes';
 }catch(error){document.documentElement.dataset.qa='fail';document.getElementById('qa-status').textContent='FAIL · '+error.message;}
 </script></html>
