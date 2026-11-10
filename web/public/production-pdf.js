@@ -28,7 +28,7 @@ export function wrapReportText(ctx,value,width){
 export function createProductionPdf(report,catalog,{createCanvas=()=>document.createElement('canvas'),onPage=null}={}){
  const errors=validateProductionReport(report,catalog);if(errors.length)throw Error(errors.slice(0,5).join('\n'));
  const pages=[];let canvas,ctx,y,section='';
- const fmt=value=>{const parsed=parseProductionNumber(value);return parsed.kind==='number'?parsed.value.toLocaleString('es-HN',{maximumFractionDigits:2}):'Sin dato';};
+ const fmt=value=>{const parsed=typeof value==='number'&&Number.isFinite(value)?{kind:'number',value}:parseProductionNumber(value);return parsed.kind==='number'?parsed.value.toLocaleString('es-HN',{maximumFractionDigits:2}):'Sin dato';};
  const pct=value=>value===null?'Sin dato':fmt(value)+' %';
  const text=(value,x,top,size=10,color='#183142',weight=400)=>{ctx.font=weight+' '+size+'px Arial, sans-serif';ctx.fillStyle=color;ctx.textBaseline='top';ctx.fillText(String(value),x,top);};
  const rect=(x,top,width,height,color)=>{ctx.fillStyle=color;ctx.fillRect(x,top,width,height);};
