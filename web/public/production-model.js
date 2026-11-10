@@ -47,16 +47,24 @@ export function normalizeProductionReport(raw,catalog,context={}) {
 }
 function decimal(value){
  if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return {kind:'missing',value:null};
- const raw=typeof value==='number'?String(value):typeof value==='string'?value.trim():'';
+ let raw=typeof value==='number'?String(value):typeof value==='string'?value.trim().replace(/[\s\u00a0]/g,''):'';
  if(raw.length>64)return {kind:'invalid',value:null};
- if(!/^(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(raw))return {kind:'invalid',value:null};
- const n=Number(raw.replace(',','.'));return Number.isFinite(n)&&n>=0?{kind:'number',value:n}:{kind:'invalid',value:null};
+ if(raw.includes(',')&&raw.includes('.')){
+  if(!/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(raw))return {kind:'invalid',value:null};
+  raw=raw.replaceAll(',','');
+ }else if(raw.includes(',')){
+  if(/^\d{1,3}(?:,\d{3})+$/.test(raw))raw=raw.replaceAll(',','');
+  else if(/^(?:\d+(?:,\d*)?|,\d+)$/.test(raw))raw=raw.replace(',','.');
+  else return {kind:'invalid',value:null};
+ }
+ if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw))return {kind:'invalid',value:null};
+ const n=Number(raw);return Number.isFinite(n)&&n>=0?{kind:'number',value:n,normalized:raw}:{kind:'invalid',value:null};
 }
 export function calculateEfficiency(row={}) {
  if(!row||typeof row!=='object')row={};
  const errors=[],target=decimal(row.target),actual=decimal(row.actual);let efficiency=null;
- if(target.kind==='missing')errors.push('Falta la meta.');else if(target.kind!=='number'||target.value<=0)errors.push('La meta debe ser un número mayor que cero, sin separadores de miles.');
- if(actual.kind==='missing')errors.push('Falta la producción real.');else if(actual.kind!=='number')errors.push('La producción real debe ser un número no negativo, sin separadores de miles.');
+ if(target.kind==='missing')errors.push('Falta la meta.');else if(target.kind!=='number'||target.value<=0)errors.push('La meta debe ser un número mayor que cero, en un formato numérico válido (por ejemplo, 10,504.4).');
+ if(actual.kind==='missing')errors.push('Falta la producción real.');else if(actual.kind!=='number')errors.push('La producción real debe ser un número no negativo, en un formato numérico válido (por ejemplo, 10,504.4).');
  if(target.kind==='number'&&target.value>0&&actual.kind==='number'){
   const result=actual.value/target.value*100;if(Number.isFinite(result))efficiency=result;else errors.push('La eficiencia excede el rango numérico permitido.');
  }
@@ -115,7 +123,7 @@ export function productionTotals(report) {
 function compareEfficiencyTo(row,percent) {
  const target=decimal(row.target),actual=decimal(row.actual);
  if(target.kind!=='number'||target.value<=0||actual.kind!=='number')return null;
- const parts=value=>{const [whole,fraction='']=String(value).trim().replace(',','.').split('.');return {integer:BigInt((whole||'0')+fraction),scale:fraction.length};};
+ const parts=value=>{const normalized=decimal(value).normalized;const [whole,fraction='']=normalized.split('.');return {integer:BigInt((whole||'0')+fraction),scale:fraction.length};};
  const t=parts(row.target),a=parts(row.actual),scale=Math.max(t.scale,a.scale);
  const left=a.integer*10n**BigInt(scale-a.scale)*100n,right=t.integer*10n**BigInt(scale-t.scale)*BigInt(percent);
  return left<right?-1:left>right?1:0;
