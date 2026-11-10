@@ -45,8 +45,11 @@ test('eficiencia distingue cero de faltante, admite coma decimal y no limita res
  assert.equal(calculateEfficiency({target:'5',actual:''}).efficiency,null);
  assert.equal(calculateEfficiency({target:'5',actual:'2'}).wasteActual,null);
 });
+
+test('acepta miles con coma y decimales con punto en eficiencia y desperdicio',()=>{const r=calculateEfficiency({target:'10,504.4',actual:'10,504.4',wasteTarget:'1,000',wasteActual:'0.75'});assert.equal(r.efficiency,100);assert.equal(r.wasteTarget,1000);assert.equal(r.wasteActual,.75);assert.deepEqual(r.errors,[]);});
+
 test('los valores inválidos no generan porcentajes válidos ni descartan sus errores',()=>{
- for(const value of ['-1','NaN','Infinity','1e3','1,234.5','1 000']) {
+ for(const value of ['-1','NaN','Infinity','1e3','1,23.4','1,234,5']) {
   const result=calculateEfficiency({target:value,actual:'2'});assert.equal(result.efficiency,null);assert.ok(result.errors.length>0,value);
  }
  for(const value of ['-1','100.01','abc'])assert.ok(calculateEfficiency({target:'1',actual:'1',wasteActual:value}).errors.length>0);
