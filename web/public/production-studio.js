@@ -1,5 +1,5 @@
 import { defaultCatalog, normalizeCatalog, catalogKey } from './plant-catalog.js';
-import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, efficiencyMeetsTarget, efficiencyCommentDisplay, productionCountLabels, PRODUCTION_REPORT_TITLE } from './production-model.js';
+import { createProductionReport, normalizeProductionReport, parseProductionNumber, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTotals, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, efficiencyMeetsTarget, efficiencyCommentDisplay, productionCountLabels, PRODUCTION_REPORT_TITLE } from './production-model.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const fmt = value => value === null ? 'Sin datos' : new Intl.NumberFormat('es-HN', {maximumFractionDigits:2}).format(value);
@@ -23,7 +23,7 @@ export function normalizeProductionProducts(raw) {
 }
 
 export const productionDefaultsKey = plant => 'mn1.prod.defaults.'+plant;
-const initialValues=(id)=>({wasteTarget:'',totalCount:id==='telares'?'23':'',countKind:['liner','empaque'].includes(id)?'station':'machine'});
+const initialValues=(id)=>({target:'',wasteTarget:'',totalCount:id==='telares'?'23':'',countKind:['liner','empaque'].includes(id)?'station':'machine'});
 function validDefaultsMonth(month){return typeof month==='string'&&/^[2-9]\d{3}-(0[1-9]|1[0-2])$/.test(month);}
 export function normalizeProductionDefaults(raw){
  if(raw==null)return {version:1,months:{}};
@@ -32,10 +32,12 @@ export function normalizeProductionDefaults(raw){
   if(!validDefaultsMonth(month)||!entries||typeof entries!=='object'||Array.isArray(entries)||Object.keys(entries).length>40)throw Error('Mes o procesos de valores fijos no válidos.');
   const values={};for(const [id,entry]of Object.entries(entries)){
    if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(id)||['constructor','prototype','__proto__'].includes(id)||!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('Proceso de valores fijos no válido.');
-   const waste=String(entry.wasteTarget??'').trim().replace(',','.'),total=String(entry.totalCount??'').trim();
-   if(waste!==''&&(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(waste)||!Number.isFinite(Number(waste))||Number(waste)>100||waste.length>32))throw Error('La meta de desperdicio debe estar entre 0 y 100 %.');
-   if(total!==''&&(!/^\d{1,6}$/.test(total)||Number(total)>100000))throw Error('La cantidad debe ser un entero entre 0 y 100000.');
-   if(!['machine','station'].includes(entry.countKind))throw Error('Elige máquinas o estaciones.');values[id]={wasteTarget:waste,totalCount:total,countKind:entry.countKind};
+   const target=String(entry.target??'').trim(),waste=String(entry.wasteTarget??'').trim(),total=String(entry.totalCount??'').trim();
+   const targetNumber=parseProductionNumber(target),wasteNumber=parseProductionNumber(waste),totalNumber=parseProductionNumber(total);
+   if(target!==''&&(targetNumber.kind!=='number'||targetNumber.value<=0||target.length>32))throw Error('La meta de producción debe ser un número mayor que cero.');
+   if(waste!==''&&(wasteNumber.kind!=='number'||wasteNumber.value>100||waste.length>32))throw Error('La meta de desperdicio debe estar entre 0 y 100 %.');
+   if(total!==''&&(totalNumber.kind!=='number'||!Number.isSafeInteger(totalNumber.value)||totalNumber.value>100000))throw Error('La cantidad debe ser un entero entre 0 y 100000.');
+   if(!['machine','station'].includes(entry.countKind))throw Error('Elige máquinas o estaciones.');values[id]={target:targetNumber.kind==='number'?targetNumber.normalized:'',wasteTarget:wasteNumber.kind==='number'?wasteNumber.normalized:'',totalCount:totalNumber.kind==='number'?totalNumber.normalized:'',countKind:entry.countKind};
   }months[month]=values;
  }return {version:1,months};
 }
@@ -46,7 +48,8 @@ export function productionDefaultsFor(defaults,month,id){
 export function applyProductionDefaults(report,defaults,{replace=false,month=null}={}){
  const next=clone(report),effMonth=(report.efficiencyDate??report.date).slice(0,7),statusMonth=report.date.slice(0,7);for(const [id,row]of Object.entries(next.rows)){
   const eff=validDefaultsMonth(effMonth)?productionDefaultsFor(defaults,effMonth,id):null,status=validDefaultsMonth(statusMonth)?productionDefaultsFor(defaults,statusMonth,id):null;
-  if(eff&&(replace&&(!month||month===effMonth)||row.wasteTarget==null||row.wasteTarget===''))row.wasteTarget=eff.wasteTarget;
+   if(eff&&(replace&&(!month||month===effMonth)||row.target==null||row.target===''))row.target=eff.target;
+   if(eff&&(replace&&(!month||month===effMonth)||row.wasteTarget==null||row.wasteTarget===''))row.wasteTarget=eff.wasteTarget;
   if(status&&(replace&&(!month||month===statusMonth)||row.totalCount==null||row.totalCount===''))row.totalCount=status.totalCount;
   if(status&&(replace&&(!month||month===statusMonth)||!['machine','station'].includes(row.countKind)))row.countKind=status.countKind;
  }return next;
@@ -69,13 +72,6 @@ export function productionOrderedRows(report, order=null) {
 }
 export function productionChartRows(report,order=null){
   return productionOrderedRows(report,order).filter(([,row])=>row.includeEfficiency&&hasEfficiencyInput(row)).map(([id,row])=>({id,name:row.name||id,...calculateEfficiency(row)})).filter(row=>row.efficiency!==null).map(row=>({...row,level:row.efficiency<80?'low':row.efficiency<90?'warning':'good'}));
-}
-
-export function productionWasteBar(row){
- const actual=row.wasteActual,target=row.wasteTarget;
- if(actual===null||target===null)return null;
- const maximum=Math.max(target*1.25,actual,.01);
- return {actual,target,maximum,fill:actual/maximum*100,marker:target/maximum*100,level:actual>target?'low':'good'};
 }
 
 export function productionChartGroups(report,order=null){
@@ -223,8 +219,7 @@ export function createProductionStudio(getServices) {
     const top=node('div','prod-chart-top'),copy=node('div');copy.append(node('p','prod-eyebrow','RENDIMIENTO DEL TURNO'),node('h3','','Eficiencias por proceso'));top.append(copy,node('span','prod-chart-shift',report.efficiencyShift));section.append(top);
     if(!rows.length){section.append(node('p','prod-chart-empty','Ingresa una meta y producción real para ver tus barras aquí.'));return section;}
     const maximum=Math.max(100,Math.ceil(Math.max(...rows.map(row=>row.efficiency))/20)*20),scale=node('div','prod-chart-scale');scale.append(node('span','','0 %'),node('span','','Escala hasta '+fmt(maximum)+' %'));section.append(scale);
-    const list=node('div','prod-chart-bars');const groups=productionChartGroups(report,processOrder);list.dataset.groups=String(groups.length);for(const group of groups){const block=node('section','prod-chart-group'),groupRows=node('div','prod-chart-group-rows');block.setAttribute('aria-label',group.name);block.append(groupRows);for(const row of group.rows){const item=node('article','prod-chart-row');item.dataset.level=row.level;const head=node('div','prod-chart-label');head.append(node('strong','',row.name),node('output','',fmt(row.efficiency)+' %'));const track=node('div','prod-chart-track');track.setAttribute('role','meter');track.setAttribute('aria-label',row.name);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.setAttribute('aria-valuenow',String(row.efficiency));track.setAttribute('aria-valuetext',fmt(row.efficiency)+' por ciento; meta 100 por ciento');const fill=node('span','prod-chart-fill'),target=node('span','prod-chart-target');fill.style.width=(row.efficiency/maximum*100)+'%';target.style.left=(100/maximum*100)+'%';track.append(fill,target);item.append(head,track);
-const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-waste-label');wasteHead.append(node('span','','Desperdicio'),node('span','',fmt(row.wasteActual)+(row.wasteActual===null?'':' %')+' · Meta '+fmt(row.wasteTarget)+(row.wasteTarget===null?'':' %')));waste.append(wasteHead);const comparison=productionWasteBar(row);if(comparison){waste.dataset.level=comparison.level;const wasteTrack=node('div','prod-chart-track prod-chart-waste-track');wasteTrack.setAttribute('role','meter');wasteTrack.setAttribute('aria-label','Desperdicio de '+row.name);wasteTrack.setAttribute('aria-valuemin','0');wasteTrack.setAttribute('aria-valuemax',String(comparison.maximum));wasteTrack.setAttribute('aria-valuenow',String(comparison.actual));wasteTrack.setAttribute('aria-valuetext',fmt(comparison.actual)+' por ciento; meta máxima '+fmt(comparison.target)+' por ciento');const wasteFill=node('span','prod-chart-fill'),wasteMarker=node('span','prod-chart-target');wasteFill.style.width=comparison.fill+'%';wasteMarker.style.left=comparison.marker+'%';wasteTrack.append(wasteFill,wasteMarker);waste.append(wasteTrack);}item.append(waste);groupRows.append(item);}list.append(block);}section.append(node('h4','prod-chart-processes','Procesos'),list,node('p','prod-chart-legend','Verde ≥ 90 % · Naranja 80–89,99 % · Rojo < 80 % · Línea vertical: meta 100 %. Desperdicio: barra secundaria, menor es mejor; rojo si supera su meta.'));return section;
+    const list=node('div','prod-chart-bars');const groups=productionChartGroups(report,processOrder);list.dataset.groups=String(groups.length);for(const group of groups){const block=node('section','prod-chart-group'),groupRows=node('div','prod-chart-group-rows');block.append(node('h4','',group.name),groupRows);for(const row of group.rows){const item=node('article','prod-chart-row');item.dataset.level=row.level;const head=node('div','prod-chart-label');head.append(node('strong','',row.name),node('output','',fmt(row.efficiency)+' %'));const track=node('div','prod-chart-track');track.setAttribute('role','meter');track.setAttribute('aria-label',row.name);track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.setAttribute('aria-valuenow',String(row.efficiency));track.setAttribute('aria-valuetext',fmt(row.efficiency)+' por ciento; meta 100 por ciento');const fill=node('span','prod-chart-fill'),target=node('span','prod-chart-target');fill.style.width=(row.efficiency/maximum*100)+'%';target.style.left=(100/maximum*100)+'%';track.append(fill,target);item.append(head,track);groupRows.append(item);}list.append(block);}section.append(list,node('p','prod-chart-legend','Verde ≥ 90 % · Naranja 80–89,99 % · Rojo < 80 % · Línea vertical: meta 100 %'));return section;
   }
 
   const defaultsDialog=node('dialog','prod-defaults-dialog');defaultsDialog.setAttribute('aria-labelledby','prod-defaults-title');
@@ -232,12 +227,12 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
   const defaultsMonth=field('Mes de las metas','month'),defaultsList=node('div','prod-defaults-list'),defaultsError=node('p','prod-feedback');defaultsError.setAttribute('role','status');let defaultsDraft={};
   const replaceLabel=node('label','prod-check'),replaceDefaults=node('input');replaceDefaults.type='checkbox';replaceLabel.append(replaceDefaults,node('span','','Reemplazar estos valores en el borrador actual (se guardará una copia anterior)'));
   const defaultsSave=button('Guardar valores fijos','prod-primary',()=>void saveDefaults());const defaultsActions=node('div','prod-dialog-actions');defaultsActions.append(button('Cancelar','prod-secondary',()=>defaultsDialog.close()),defaultsSave);
-  defaultsDialog.append(defaultsTitle,node('p','prod-hint','Configura una vez la meta de desperdicio, el total disponible y si cuentas máquinas o estaciones. Se reutilizan en reportes nuevos y meses siguientes hasta que los cambies. No se precargan producción ni cantidades activas.'),defaultsMonth.wrap,defaultsList,replaceLabel,defaultsError,defaultsActions);root.append(defaultsDialog);
+  defaultsDialog.append(defaultsTitle,node('p','prod-hint','Configura por mes la meta de producción y de desperdicio, además del total disponible y si cuentas máquinas o estaciones. Se reutilizan en reportes nuevos y meses siguientes hasta que los cambies. No se precargan producción ni cantidades activas.'),defaultsMonth.wrap,defaultsList,replaceLabel,defaultsError,defaultsActions);root.append(defaultsDialog);
   defaultsMonth.input.addEventListener('change',()=>{if(validDefaultsMonth(defaultsMonth.input.value))renderDefaults();else defaultsError.textContent='Selecciona un mes válido.';});defaultsDialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
   function openDefaults(){if(busy||!report)return;const requested=(report.efficiencyDate??report.date).slice(0,7);defaultsMonth.input.value=validDefaultsMonth(requested)?requested:productionTimingFor().date.slice(0,7);replaceDefaults.checked=false;defaultsError.textContent=defaultsWritable?'':'No se pudo leer la configuración anterior. Reabre la herramienta para reintentar sin sobrescribirla.';renderDefaults();defaultsDialog.showModal();}
   function renderDefaults(){defaultsList.replaceChildren();defaultsDraft={};for(const [id,row]of productionOrderedRows(report,processOrder)){
-    const value=productionDefaultsFor(defaults,defaultsMonth.input.value,id);defaultsDraft[id]={...value};const entry=node('section','prod-defaults-row');entry.append(node('strong','',row.name));
-    entry.append(inputField('Meta desperdicio %',value.wasteTarget,v=>{defaultsDraft[id].wasteTarget=v;},{numeric:true,max:32}),inputField('Total disponible',value.totalCount,v=>{defaultsDraft[id].totalCount=v;},{numeric:true,max:6}));
+     const value=productionDefaultsFor(defaults,defaultsMonth.input.value,id),reportMonth=(report.efficiencyDate??report.date).slice(0,7);if(defaultsMonth.input.value===reportMonth&&!value.target&&row.target)value.target=row.target;if(defaultsMonth.input.value===reportMonth&&!value.wasteTarget&&row.wasteTarget)value.wasteTarget=row.wasteTarget;defaultsDraft[id]={...value};const entry=node('section','prod-defaults-row');entry.append(node('strong','',row.name));
+     entry.append(inputField('Meta de producción',value.target,v=>{defaultsDraft[id].target=v;},{numeric:true,max:32}),inputField('Meta desperdicio %',value.wasteTarget,v=>{defaultsDraft[id].wasteTarget=v;},{numeric:true,max:32}),inputField('Total disponible',value.totalCount,v=>{defaultsDraft[id].totalCount=v;},{numeric:true,max:12}));
     const label=node('label','prod-field'),kind=node('select');label.append(node('span','','Tipo de recurso'),kind);for(const [key,text]of [['machine','Máquinas'],['station','Estaciones']]){const option=node('option','',text);option.value=key;kind.append(option);}kind.value=value.countKind;kind.addEventListener('change',()=>defaultsDraft[id].countKind=kind.value);entry.append(label);defaultsList.append(entry);
   }}
   async function saveDefaults(){if(busy)return;if(!defaultsWritable){defaultsError.textContent='Reabre la herramienta para leer los valores anteriores antes de modificarlos.';return;}const month=defaultsMonth.input.value;let next;
@@ -295,7 +290,7 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
   }
   function renderEfficiency(){
     const summary=node('div','prod-totals');summary.setAttribute('aria-live','polite');
-    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),button('↕ Ordenar procesos','prod-text-button',openOrder),summary,node('p','prod-hint','Captura meta, producción y desperdicio en la misma fila. Puedes ajustar la unidad y el motivo sin cambiar la captura.'));
+    effPanel.replaceChildren(node('h2','prod-panel-title','Eficiencias del turno'),button('↕ Ordenar procesos','prod-text-button',openOrder),summary,node('p','prod-hint','La meta de producción se configura en Valores fijos. Captura la producción real y el desperdicio del turno, directamente desde Sysprod o calculándolo con dos cantidades.'));
     const updateTotals=()=>renderTotals(summary);
     const headings=node('div','prod-efficiency-headings');headings.setAttribute('aria-hidden','true');const group=node('div','prod-efficiency-heading-group');for(const text of ['Proceso / unidad','Meta','Producción real','Eficiencia','Desp. meta %','Desp. real %',''])group.append(node('span','',text));headings.append(group);const cards=node('div','prod-efficiency-grid');effPanel.append(headings,cards);
     for(const [id,row] of productionOrderedRows(report,processOrder)){
@@ -304,15 +299,19 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
       const content=node('div','prod-efficiency-fields');content.hidden=!row.includeEfficiency;const excluded=node('span','prod-efficiency-excluded','No incluida');excluded.hidden=row.includeEfficiency;card.append(excluded);
       const outcome=node('output','prod-efficiency-result');outcome.setAttribute('aria-label','Eficiencia de '+(row.name||id));
       const reason=inputField('Razón / comentario de eficiencia',row.efficiencyComment??row.comment??'',v=>{rowEdit(id,'efficiencyComment',v);update();},{multiline:true,max:2000});
-      const reasonHint=node('p','prod-hint','Obligatorio cuando la eficiencia es menor del 90 %.');reason.append(reasonHint);
-      const reasonNote=node('span','prod-reason-note'),ok=node('strong','prod-efficiency-ok','OK');ok.setAttribute('aria-label','Eficiencia de al menos 90 %');
+      const reasonHint=node('p','prod-hint','Obligatorio cuando la eficiencia es de 90 % o menos.');reason.append(reasonHint);
+      const reasonNote=node('span','prod-reason-note'),ok=node('strong','prod-efficiency-ok','OK');ok.setAttribute('aria-label','Meta de producción cumplida');
       const update=()=>{const result=calculateEfficiency(row),required=requiresEfficiencyReason(row);ok.hidden=!efficiencyMeetsTarget(row);outcome.textContent=result.efficiency===null?(hasEfficiencyInput(row)?'Completa la captura':'No se incluirá'):fmt(result.efficiency)+' %';outcome.dataset.level=result.efficiency===null?'empty':required?'below':'met';reason.hidden=!required&&!(row.efficiencyComment??row.comment??'').trim();reason.querySelector('textarea').required=required;reasonHint.hidden=!required;reasonNote.hidden=!required;reasonNote.textContent=(row.efficiencyComment??row.comment??'').trim()?'Motivo registrado':'Añade el motivo';reasonNote.dataset.pending=String(required&&!(row.efficiencyComment??row.comment??'').trim());updateTotals();};
       check.addEventListener('change',()=>{row.includeEfficiency=check.checked;content.hidden=!check.checked;excluded.hidden=check.checked;stamp();update();});
-      const grid=node('div','prod-two-fields');grid.append(inputField('Meta',row.target,v=>{rowEdit(id,'target',v);update();},{numeric:true,max:32}),inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}));
+      const grid=node('div','prod-efficiency-capture');const fixedTarget=node('output','prod-fixed-target');fixedTarget.textContent='Meta fija: '+(row.target||'Sin configurar');grid.append(fixedTarget,inputField('Producción real',row.actual,v=>{rowEdit(id,'actual',v);update();},{numeric:true,max:32}));
       const resultWrap=node('div','prod-result-wrap');resultWrap.append(node('span','','Eficiencia'),outcome,reasonNote,ok);
       const more=button('Motivo / unidad','prod-efficiency-more');more.setAttribute('aria-label','Unidad y motivo de '+(row.name||id));
       const unitField=inputField('Unidad',row.unit,v=>{rowEdit(id,'unit',v);unitTag.textContent=v;updateTotals();},{list:['sacos','m','kg','unidades'],max:24});
-      const wasteFields=node('div','prod-two-fields prod-waste-inline');wasteFields.append(inputField('Meta desperdicio %',row.wasteTarget,v=>{rowEdit(id,'wasteTarget',v);update();},{numeric:true,max:32}),inputField('Real desperdicio %',row.wasteActual,v=>{rowEdit(id,'wasteActual',v);update();},{numeric:true,max:32}));
+      const wasteFields=node('div','prod-waste-capture');const modeField=node('label','prod-field'),mode=node('select');modeField.append(node('span','','Cómo ingresar el desperdicio'),mode);for(const [value,label]of [['direct','Porcentaje indicado por Sysprod'],['calculated','Calcular con dos cantidades']]){const option=node('option','',label);option.value=value;mode.append(option);}mode.value=row.wasteMode||'direct';
+      const directWaste=inputField('Desperdicio real de Sysprod (%)',row.wasteActual,v=>{rowEdit(id,'wasteActual',v);update();},{numeric:true,max:32});
+      const calculatedWaste=node('div','prod-two-fields');calculatedWaste.append(inputField('Base del cálculo',row.wasteBase,v=>{rowEdit(id,'wasteBase',v);update();},{numeric:true,max:32}),inputField('Desperdicio generado',row.wasteAmount,v=>{rowEdit(id,'wasteAmount',v);update();},{numeric:true,max:32}));
+      const wasteHint=node('p','prod-hint','Porcentaje = desperdicio generado ÷ base del cálculo × 100. Usa la misma unidad en ambos campos.');
+      const syncWasteMode=()=>{const calculated=mode.value==='calculated';directWaste.hidden=calculated;calculatedWaste.hidden=!calculated;wasteHint.hidden=!calculated;update();};mode.addEventListener('change',()=>{rowEdit(id,'wasteMode',mode.value);syncWasteMode();});wasteFields.append(modeField,directWaste,calculatedWaste,wasteHint);syncWasteMode();
       const details=modalEditor('Eficiencia · '+(row.name||id),[unitField,reason],more,'efficiency');
       const line=node('div','prod-efficiency-bottom');line.append(resultWrap,more);content.append(grid,wasteFields,line,details);card.append(content);cards.append(card);update();
     }
