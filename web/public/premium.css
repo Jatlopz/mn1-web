@@ -2956,3 +2956,31 @@
 :root[data-theme] #about-dialog .about-content>p{font-size:.9rem;line-height:1.7;margin:12px 0;color:var(--text-muted)}
 :root[data-theme] #about-dialog .about-content>p:first-of-type{font-size:1rem;line-height:1.65;color:var(--text)}
 :root[data-theme] #about-dialog .contact-value{overflow-wrap:anywhere}
+
+/* Alinea la captura de producción y desperdicio con sus encabezados. */
+:root[data-theme] .prod-waste-target{display:grid;gap:4px;min-width:0;margin-top:10px;font-size:.74rem;color:var(--text-muted)}
+:root[data-theme] .prod-waste-target strong{color:var(--text);font-size:.9rem}
+:root[data-theme] .prod-waste-result{color:var(--lime);font-weight:700}
+:root[data-theme] .prod-waste-capture [hidden]{display:none!important}
+@media(max-width:599px){
+ :root[data-theme] .prod-efficiency-capture,:root[data-theme] .prod-waste-capture{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ :root[data-theme] .prod-waste-capture>.prod-field:first-child,:root[data-theme] .prod-waste-capture>.prod-field:nth-child(2){grid-column:auto}
+ :root[data-theme] .prod-waste-capture>.prod-two-fields,:root[data-theme] .prod-waste-capture>.prod-hint,:root[data-theme] .prod-waste-result{grid-column:1/-1}
+}
+@media(min-width:1000px){
+ :root[data-theme] .prod-efficiency-heading-group,:root[data-theme] .prod-efficiency-grid .prod-efficiency-card{grid-template-columns:minmax(140px,1.25fr) minmax(90px,.8fr) minmax(90px,.8fr) minmax(110px,.8fr) minmax(100px,.65fr) minmax(220px,1.5fr) minmax(85px,.6fr)}
+ :root[data-theme] .prod-efficiency-grid .prod-efficiency-capture{display:contents}
+ :root[data-theme] .prod-efficiency-grid .prod-efficiency-capture>.prod-field{grid-row:1}
+ :root[data-theme] .prod-efficiency-grid .prod-efficiency-capture>.prod-field:nth-child(1){grid-column:2}
+ :root[data-theme] .prod-efficiency-grid .prod-efficiency-capture>.prod-field:nth-child(2){grid-column:3}
+ :root[data-theme] .prod-efficiency-grid .prod-efficiency-capture>.prod-field>span,:root[data-theme] .prod-waste-target>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-target{grid-column:5;grid-row:1;margin:0}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture{grid-column:6;grid-row:1;margin:0;gap:4px 6px;grid-template-columns:minmax(90px,1fr) minmax(90px,1fr);align-items:center}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture>.prod-field:first-child,:root[data-theme] .prod-efficiency-grid .prod-waste-capture>.prod-field:nth-child(2){grid-column:auto}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture>.prod-field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture :is(input,select){min-height:38px;padding:6px;font-size:.8rem}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture>.prod-two-fields{grid-column:1/-1;gap:6px}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-capture>.prod-hint{grid-column:1/-1;font-size:.67rem;line-height:1.2}
+ :root[data-theme] .prod-efficiency-grid .prod-waste-result{grid-column:1/-1;font-size:.75rem}
+ :root[data-theme] .prod-efficiency-grid .prod-result-wrap{column-gap:8px}
+}
