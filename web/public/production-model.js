@@ -121,7 +121,7 @@ export function validateProductionReport(report,catalog) {
 /** A blank machine is omitted; a partially captured machine must still be validated. */
 export function hasEfficiencyInput(row={}) {
  const wasteKeys=row.wasteMode==='calculated'?['wasteBase','wasteAmount']:['wasteActual'];
- return ['actual',...wasteKeys].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
+ return ['target','actual',...wasteKeys].some(key=>row[key]!==null&&row[key]!==undefined&&String(row[key]).trim()!=='');
 }
 export function efficiencyRows(report) {
  return Object.entries(report?.rows??{}).filter(([,row])=>row.includeEfficiency===true&&hasEfficiencyInput(row));

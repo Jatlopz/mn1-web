@@ -91,8 +91,8 @@ test('eficiencias vacías se omiten; una captura parcial exige completarse y cer
  assert.deepEqual(efficiencyRows(r),[]);
  assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.extrusion.target='100';
- assert.equal(efficiencyRows(r).length,0,'una meta fija sin captura del turno no se incluye');
- assert.deepEqual(validateProductionReport(r,c),[]);
+ assert.equal(efficiencyRows(r).length,1,'una meta ingresada sin producción requiere completar la captura');
+ assert.ok(validateProductionReport(r,c).some(error=>/producción real/i.test(error)));
  r.rows.extrusion.actual='0';r.rows.extrusion.efficiencyComment='Sin producción por avería';
  assert.equal(efficiencyRows(r).length,1);
  assert.equal(efficiencyRows(r)[0][1].actual,'0');assert.deepEqual(validateProductionReport(r,c),[]);

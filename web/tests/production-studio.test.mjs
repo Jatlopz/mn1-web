@@ -5,6 +5,17 @@ import {createProductionReport,productionDraftKey} from '../public/production-mo
 import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey,productionWasteBar} from '../public/production-studio.js';
 const context={teamId:'champions',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24'};
 
+test('los valores fijos de desperdicio no sustituyen la meta de producción del turno',()=>{
+ const defs=normalizeProductionDefaults({version:1,months:{'2026-10':{extrusion:{target:'900',wasteTarget:'0.75',totalCount:'1',countKind:'machine'}}}});
+ const report=createProductionReport(defaultCatalog(),context);
+ Object.assign(report.rows.extrusion,{target:'100',actual:'95'});
+ const next=applyProductionDefaults(report,defs,{replace:true});
+ assert.equal(next.rows.extrusion.target,'100');
+ assert.equal(next.rows.extrusion.actual,'95');
+ assert.equal(next.rows.extrusion.wasteTarget,'0.75');
+ assert.equal(productionPreviewRows(next).find(r=>r.id==='extrusion').efficiency,95);
+});
+
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
  const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,context);
  report.rows.extrusion={...report.rows.extrusion,target:'100',actual:'125',unit:'kg',active:true,comment:'Dato de prueba'};
