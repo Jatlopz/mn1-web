@@ -9,7 +9,7 @@ export function productionReportFileName(report){return 'reporte-'+String(report
 export function productionShareMessage(report, now=new Date()){
  const hour=now.getHours(), greeting=hour<12?'Buenos días':hour<18?'Buenas tardes':'Buenas noches';
  const sent=[String(now.getDate()).padStart(2,'0'),String(now.getMonth()+1).padStart(2,'0'),now.getFullYear()].join('/');
- return greeting+', comparto eficiencias del turno '+report.efficiencyShift+' del '+(report.efficiencyDate??report.date).split('-').reverse().join('/')+' y estatus de planta del turno '+report.statusShift+' del '+report.date.split('-').reverse().join('/')+'. Enviado el '+sent+'. Equipo '+report.teamName+'.';
+ return greeting+', comparto eficiencias del turno '+report.efficiencyShift+' y estatus de planta para el turno '+report.statusShift+'. '+sent+'.';
 }
 export function encodeJpegPdf(pages){
  if(!Array.isArray(pages)||!pages.length||pages.length>100)throw Error('Número de páginas no válido.');
