@@ -3,7 +3,7 @@ import {readFile, mkdir, writeFile, lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const MODULES = ['team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
+const MODULES = ['theme-bootstrap.js','team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
 const THEME_TEXTURES = Object.freeze([
@@ -183,6 +183,7 @@ export async function buildSite(source, destination) {
   if (!appName) throw new Error('app.js was not built');
   const html = htmlSource.replace(/\s*<link rel="stylesheet" href="\.\/team-carousel\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/corporate-board\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/looms\.css">/,'').replace(/\s*<link rel="stylesheet" href="\.\/production\.css">/,'')
     .replace(/\s*<link rel="stylesheet" href="\.\/premium\.css">/,'')
+    .replace('./theme-bootstrap.js', `./${outputNames.get('theme-bootstrap.js')}`)
     .replace(/\.\/app\.js(?:\?v=[\d.]+)?/, `./${appName}`)
     .replace(/\.\/styles\.css(?:\?v=[\d.]+)?/, `./${cssName}`);
   if (html === htmlSource || html.includes('./app.js?') || html.includes('./styles.css?')) {
