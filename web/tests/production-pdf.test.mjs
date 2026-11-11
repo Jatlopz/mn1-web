@@ -30,9 +30,9 @@ test('no se genera un PDF con datos incompletos y el nombre no admite rutas',()=
 
 test('genera una imagen recortada por página y conserva los valores del reporte',async()=>{
  const {defaultCatalog}=await import('../public/plant-catalog.js');const {createProductionReport}=await import('../public/production-model.js');
- const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,{teamId:'fixture',teamName:'Equipo ficticio',date:'2026-11-09'});for(const row of Object.values(report.rows))row.active=false;Object.assign(report.rows.extrusion,{target:'10,000',actual:'10,504.4'});const before=JSON.stringify(report),captures=[];
- const createCanvas=()=>{const canvas={width:0,height:0,getContext:()=>({scale(){},fillRect(){},fillText(t){captures.push(String(t));},measureText:t=>({width:String(t).length*4}),drawImage(){}}),toDataURL:type=>type==='image/png'?'data:image/png;base64,AAAA':'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};return canvas;};
- const images=createProductionImages(report,catalog,{createCanvas});assert.deepEqual(images.map(i=>i.section),['Eficiencia y desperdicio','Estatus de planta']);assert.ok(images.every(i=>i.dataUrl.startsWith('data:image/png;base64,')));assert.ok(captures.some(t=>t.includes('10,504.4')));assert.equal(JSON.stringify(report),before);
+ const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,{teamId:'fixture',teamName:'Equipo ficticio',date:'2026-11-09'});for(const row of Object.values(report.rows))row.active=false;Object.assign(report.rows.extrusion,{target:'10,000',actual:'10,504.4'});const before=JSON.stringify(report),captures=[],canvases=[];
+ const createCanvas=()=>{const canvas={width:0,height:0,getContext:()=>({scale(){},fillRect(){},fillText(t){captures.push(String(t));},measureText:t=>({width:String(t).length*4}),drawImage(){}}),toDataURL:type=>type==='image/png'?'data:image/png;base64,AAAA':'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};canvases.push(canvas);return canvas;};
+ const images=createProductionImages(report,catalog,{createCanvas});assert.deepEqual(images.map(i=>i.section),['Eficiencia y desperdicio','Estatus de planta']);assert.ok(images.every(i=>i.dataUrl.startsWith('data:image/png;base64,')));assert.ok(canvases.every(canvas=>canvas.width===2856&&canvas.height<=4096));assert.ok(captures.some(t=>t.includes('10,504.4')));assert.equal(JSON.stringify(report),before);
 });
 
 test('PDF y mensaje conservan las fechas separadas y exportan sólo las eficiencias capturadas',async()=>{

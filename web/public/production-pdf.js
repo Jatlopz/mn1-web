@@ -1,6 +1,6 @@
 /** PDF local de alta resolución; el mismo snapshot produce tablas y gráfico. */
 import {calculateEfficiency,validateProductionReport,efficiencyRows,efficiencyBand,productionStatusDisplay,efficiencyMeetsTarget,efficiencyCommentDisplay,parseProductionNumber,PRODUCTION_REPORT_TITLE} from './production-model.js';
-const W=595,H=842,SCALE=2,M=32;
+const W=595,H=842,PDF_SCALE=2,IMAGE_SCALE=4.8,M=32;
 const encoder=new TextEncoder();
 const ascii=s=>encoder.encode(s);
 function join(chunks){const out=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let at=0;for(const c of chunks){out.set(c,at);at+=c.length;}return out;}
@@ -25,17 +25,17 @@ export function encodeJpegPdf(pages){
 export function wrapReportText(ctx,value,width){
  const result=[];for(const paragraph of String(value??'').split('\n')){let line='';for(const word of paragraph.split(/\s+/)){if(!word)continue;if(ctx.measureText(line?(line+' '+word):word).width<=width){line=line?line+' '+word:word;continue;}if(line){result.push(line);line='';}let fragment='';for(const c of word){if(fragment&&ctx.measureText(fragment+c).width>width){result.push(fragment);fragment='';}fragment+=c;}line=fragment;}result.push(line);}return result.length?result:[''];
 }
-export function createProductionPdf(report,catalog,{createCanvas=()=>document.createElement('canvas'),onPage=null}={}){
+export function createProductionPdf(report,catalog,{createCanvas=()=>document.createElement('canvas'),onPage=null,scale=PDF_SCALE,imagesOnly=false}={}){
  const errors=validateProductionReport(report,catalog);if(errors.length)throw Error(errors.slice(0,5).join('\n'));
- const pages=[];let canvas,ctx,y,section='';
+ const pages=[];let canvas,ctx,y,section='',pageCount=0;
  const fmt=value=>{const parsed=typeof value==='number'&&Number.isFinite(value)?{kind:'number',value}:parseProductionNumber(value);return parsed.kind==='number'?parsed.value.toLocaleString('es-HN',{maximumFractionDigits:2}):'Sin dato';};
  const pct=value=>value===null?'Sin dato':fmt(value)+' %';
  const text=(value,x,top,size=10,color='#183142',weight=400)=>{ctx.font=weight+' '+size+'px Arial, sans-serif';ctx.fillStyle=color;ctx.textBaseline='top';ctx.fillText(String(value),x,top);};
  const rect=(x,top,width,height,color)=>{ctx.fillStyle=color;ctx.fillRect(x,top,width,height);};
- const finish=()=>{if(!canvas)return;if(onPage)onPage(canvas,Math.min(H-42,Math.max(1,y+12))*SCALE,section,pages.length);text('SuperTools · '+report.teamName,M,H-32,8,'#687b87');text('Página '+(pages.length+1),W-85,H-32,8,'#687b87');const raw=atob(canvas.toDataURL('image/jpeg',.93).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(raw,c=>c.charCodeAt(0))});};
+ const finish=()=>{if(!canvas)return;if(onPage)onPage(canvas,Math.min(H-42,Math.max(1,y+12))*scale,section,pageCount);if(!imagesOnly){text('SuperTools · '+report.teamName,M,H-32,8,'#687b87');text('Página '+(pageCount+1),W-85,H-32,8,'#687b87');const raw=atob(canvas.toDataURL('image/jpeg',.93).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(raw,c=>c.charCodeAt(0))});}pageCount++;};
  const page=title=>{
-  finish();section=title.replace(/(?: \(continuación\))+$/,'');canvas=createCanvas();canvas.width=W*SCALE;canvas.height=H*SCALE;ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo dibujar el PDF.');
-  ctx.scale(SCALE,SCALE);rect(0,0,W,H,'#ffffff');rect(0,0,W,8,'#176a69');text('SUPERTOOLS',M,24,9,'#176a69',700);
+  finish();section=title.replace(/(?: \(continuación\))+$/,'');canvas=createCanvas();canvas.width=Math.round(W*scale);canvas.height=Math.round(H*scale);ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo dibujar el PDF.');
+  ctx.scale(scale,scale);rect(0,0,W,H,'#ffffff');rect(0,0,W,8,'#176a69');text('SUPERTOOLS',M,24,9,'#176a69',700);
   ctx.font='700 18px Arial';const titleLines=wrapReportText(ctx,PRODUCTION_REPORT_TITLE,W-2*M);titleLines.forEach((line,i)=>text(line,M,44+i*22,18,'#102e3f',700));y=44+titleLines.length*22+8;
   text(title,M,y,14,'#102e3f',700);y+=24;
   const plant=report.plantId==='sacos'?'Sacos':report.plantId==='polietileno'?'Polietileno':report.plantId;
@@ -57,13 +57,13 @@ if(hasWaste){const wasteMax=Math.max(c.wasteTarget*1.25,c.wasteActual,.01);text(
  page('Estatus de planta');const active=entries.filter(([,r])=>r.active).length;text(active+' procesos en funcionamiento · '+(entries.length-active)+' inactivos',M,y,10,'#176a69',700);y+=26;
  table(['Proceso','Estatus','Producto / acción','Observaciones'],[108,97,155,171],entries.map(([,r])=>{const display=productionStatusDisplay(r);return [r.name,display.status,display.productAction,display.observations];}),entries.map(([,r])=>r.active===true));
  room(40);text('Estatus: '+report.statusShift+' · Eficiencias: '+report.efficiencyShift,M,y,9,'#536b79');y+=18;text('La eficiencia reportada puede corresponder al turno que finaliza y el estatus al entrante.',M,y,8,'#687b87');
- finish();return encodeJpegPdf(pages);
+ finish();return imagesOnly?null:encodeJpegPdf(pages);
 }
 
 /** Imágenes recortadas al contenido, dibujadas con el mismo reporte que el PDF. */
 export function createProductionImages(report,catalog,{createCanvas=()=>document.createElement('canvas')}={}){
- const images=[];createProductionPdf(report,catalog,{createCanvas,onPage:(page,height,section,index)=>{
-  const crop=createCanvas();crop.width=page.width;crop.height=Math.ceil(height);const context=crop.getContext('2d');if(!context)throw Error('No se pudo preparar la imagen del reporte.');context.drawImage(page,0,0,page.width,crop.height,0,0,page.width,crop.height);
+ const images=[];createProductionPdf(report,catalog,{createCanvas,scale:IMAGE_SCALE,imagesOnly:true,onPage:(page,height,section,index)=>{
+  const crop=createCanvas();crop.width=page.width;crop.height=Math.min(page.height,Math.ceil(height));const context=crop.getContext('2d');if(!context)throw Error('No se pudo preparar la imagen del reporte.');context.drawImage(page,0,0,page.width,crop.height,0,0,page.width,crop.height);
   const dataUrl=crop.toDataURL('image/png');if(!dataUrl.startsWith('data:image/png;base64,')||dataUrl.length>8*1024*1024)throw Error('La imagen del reporte supera el tamaño admitido.');
   images.push({section,index:index+1,dataUrl});
  }});return images;

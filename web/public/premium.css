@@ -2984,3 +2984,8 @@
  :root[data-theme] .prod-efficiency-grid .prod-waste-result{grid-column:1/-1;font-size:.75rem}
  :root[data-theme] .prod-efficiency-grid .prod-result-wrap{column-gap:8px}
 }
+
+/* Resplandor interior para procesos activos, conservando la transparencia del tema. */
+:root[data-theme] .prod-status-grid .prod-process[data-state=on]{background-image:radial-gradient(ellipse at 24% 10%,rgba(42,219,128,.31),rgba(18,145,83,.14) 48%,transparent 100%);box-shadow:inset 3px 0 #8ae7b4,inset 0 0 32px rgba(39,211,126,.22)}
+:root[data-theme] .prod-status-grid .prod-status-counts{font-size:.83rem;font-variant-numeric:tabular-nums;min-width:52px}
+@media(forced-colors:active){:root[data-theme] .prod-status-grid .prod-process[data-state=on]{background-image:none;outline:2px solid Highlight}}

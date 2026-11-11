@@ -1,0 +1,17 @@
+<!doctype html><html lang="es" data-theme="amethyst"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Estatus de planta</title>
+<link rel="stylesheet" href="../public/styles.css"><link rel="stylesheet" href="../public/production.css"><link rel="stylesheet" href="../public/premium.css"><div id="app"></div><p id="qa-status" style="position:fixed;bottom:0;left:0;background:#112;color:white;z-index:5000"></p>
+<script type="module">
+import {createProductionStudio} from '../public/production-studio.js';import {defaultCatalog,catalogKey} from '../public/plant-catalog.js';import {createProductionReport,productionDraftKey} from '../public/production-model.js';
+const context={teamId:'status-demo',teamName:'Equipo ficticio',plantId:'sacos',date:'2026-11-10'},catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,context);report.rows.telares.active=null;
+const records=new Map([[catalogKey('sacos'),JSON.stringify(catalog)],[productionDraftKey(context.teamId),JSON.stringify(report)]]),storage={getText:async k=>records.get(k)??null,putText:async(k,v)=>records.set(k,v)},studio=createProductionStudio(()=>({storage}));await studio.open(context);
+const root=document.getElementById('production-studio'),find=t=>[...root.querySelectorAll('button')].find(e=>e.textContent===t),card=()=>root.querySelector('[data-row-id="telares"].prod-process'),wait=()=>new Promise(resolve=>setTimeout(resolve,40));
+try{
+ if([...root.querySelectorAll('button')].some(e=>/marcar todos inactivos|confirmar inactivo/i.test(e.textContent+' '+e.getAttribute('aria-label'))))throw Error('Aún aparecen controles de inactivo');
+ if(card().querySelector('[role=switch]').getAttribute('aria-checked')!=='false'||!card().textContent.includes('Inactivo'))throw Error('No se reconoció el estado apagado');
+ if(card().querySelector('.prod-status-counts').textContent!=='23/23')throw Error('No aparece la cantidad predeterminada');
+ card().querySelector('[role=switch]').click();if(card().querySelector('[role=switch]').getAttribute('aria-checked')!=='true'||getComputedStyle(card()).backgroundImage==='none')throw Error('Falta el indicador luminoso');
+ card().querySelector('.prod-status-counts').click();let dialog=card().querySelector('dialog[open]');const input=[...dialog.querySelectorAll('label')].find(label=>label.textContent.includes('Máquinas activas')).querySelector('input');if(input.value!=='23')throw Error('No se precargó 23/23');input.value='21';input.dispatchEvent(new Event('input',{bubbles:true}));[...dialog.querySelectorAll('button')].find(b=>b.textContent==='Listo').click();if(card().querySelector('.prod-status-counts').textContent!=='21/23')throw Error('No se actualizó la cantidad');
+ find('Guardar borrador').click();await wait();if(JSON.parse(records.get(productionDraftKey(context.teamId))).rows.telares.runningCount!=='21')throw Error('No se guardó la cantidad');await studio.close();await studio.open(context);if(card().querySelector('.prod-status-counts').textContent!=='21/23')throw Error('No se conservó la cantidad');
+ document.documentElement.dataset.qa='pass';document.getElementById('qa-status').textContent='PASS · estatus y cantidad predeterminada';
+}catch(error){document.documentElement.dataset.qa='fail';document.getElementById('qa-status').textContent='FAIL · '+error.message;}
+</script></html>
