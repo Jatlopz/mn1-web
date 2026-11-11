@@ -72,14 +72,3 @@ export function createProductionImages(report,catalog,{createCanvas=()=>document
   images.push({section,index:index+1,dataUrl});
  }});return images;
 }
-
-export async function combineProductionImages(images){
-    const loaded=await Promise.all(images.map(image=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('No se pudo abrir una imagen del reporte.'));img.src=image.dataUrl;})));
-    const width=Math.max(...loaded.map(image=>image.naturalWidth)),totalHeight=loaded.reduce((sum,image)=>sum+image.naturalHeight,0);
-    const scale=Math.min(1,Math.sqrt(30000000/(width*totalHeight)),16000/totalHeight);
-    const canvas=document.createElement('canvas');canvas.width=Math.floor(width*scale);canvas.height=Math.floor(totalHeight*scale);
-    const ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo preparar la imagen conjunta.');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-    let top=0;for(const image of loaded){const w=Math.floor(image.naturalWidth*scale),h=Math.floor(image.naturalHeight*scale);ctx.drawImage(image,0,top,w,h);top+=h;}
-    const dataUrl=canvas.toDataURL('image/png');if(dataUrl.length>8*1024*1024)throw Error('La imagen conjunta es demasiado grande. Comparte cada sección por separado.');
-    return {dataUrl,section:'Reporte completo',index:1};
-}

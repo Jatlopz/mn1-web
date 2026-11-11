@@ -418,3 +418,12 @@ test('PDF requiere tipo, nombre seguro, estructura completa y no relaja otras ac
  assert.equal(maxEnvelopeBytesForAction('SHARE_PDF'),MAX_GLOBAL_ENVELOPE_BYTES);
  assert.equal(maxEnvelopeBytesForAction('GET_STATE'),MAX_ENVELOPE_BYTES);
 });
+
+test('SHARE_PNGS y SAVE_PNGS validan imágenes separadas sin aceptar datos extra',()=>{
+ const png='data:image/png;base64,iVBORw0KGgo=',request=(action,payload)=>validateRequestEnvelope({version:1,requestId:'test-pngs',action,payload});
+ assert.equal(request('SHARE_PNGS',{images:[png,png],message:'Hola'}).ok,true);
+ assert.equal(request('SAVE_PNGS',{images:[png,png]}).ok,true);
+ for(const images of [[],[png,'data:image/jpeg;base64,AAAA'],Array(9).fill(png)])assert.equal(request('SHARE_PNGS',{images,message:'Hola'}).code,'invalid_payload');
+ assert.equal(request('SHARE_PNGS',{images:[png],message:' '}).code,'invalid_payload');
+ assert.equal(request('SAVE_PNGS',{images:[png],extra:true}).code,'invalid_payload');
+});

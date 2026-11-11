@@ -91,8 +91,8 @@ import {
 } from './renderer.js';
 import { createMeetingReport, REPORT_PREFS_KEY, reportLogoKey } from './meeting-report.js';
 import { createCloudWorkspace } from './cloud-workspace.js';
-import { createProductionStudio, productionImageShareMode } from './production-studio.js';
-import { createProductionPdf, createProductionImages, pdfBytesDataUrl, productionReportFileName, productionShareMessage, combineProductionImages } from './production-pdf.js';
+import { createProductionStudio } from './production-studio.js';
+import { createProductionPdf, createProductionImages, pdfBytesDataUrl, productionReportFileName, productionShareMessage } from './production-pdf.js';
 import { recoverPendingReceive } from './cloud-model.js';
 import { seedStarterImages } from './starter-templates.js';
 import {
@@ -4738,18 +4738,23 @@ async function boot() {
     if(!downloadOnly && navigator.canShare?.({files:[file]}) && navigator.share){await navigator.share({files:[file],text:message,title:'Reporte de planta'});return 'Selector cerrado. Comprueba el envío en la aplicación elegida.';}
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=fileName;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return 'PDF preparado para descargar. Puedes adjuntarlo en WhatsApp y confirmar el envío.';
   };
-  const imageShareMode=productionImageShareMode(app.mode,navigator.userAgent);
-  const shareProductionImage=async(image,report,message=productionShareMessage(report),download=false)=>{
+  const reportImageFiles=(images,report)=>images.map(image=>{const raw=atob(image.dataUrl.split(',')[1]),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));return new File([bytes],productionReportFileName(report).replace(/\.pdf$/,'-'+image.index+'.png'),{type:'image/png'});});
+  const shareProductionImages=async(images,report,message)=>{
     if(app.mode==='native'){
-      if(!app.capabilitySet.has(CAPABILITIES.SHARE_PNG))throw Error('Esta versión no permite compartir imágenes desde la app.');
-      const result=await app.bridge.request('SHARE_PNG',{imageDataUrl:image.dataUrl,message},{timeoutMs:MN1_LIMITS.SHARE_PNG_TIMEOUT_MS});if(!result.ok)throw Error(result.message);return result.message;
+      if(!app.capabilitySet.has(CAPABILITIES.SHARE_PNGS))throw Error('Compartir varias imágenes requiere una actualización de la app. Entra a Ajustes → Actualizaciones.');
+      const result=await app.bridge.request('SHARE_PNGS',{images:images.map(image=>image.dataUrl),message},{timeoutMs:MN1_LIMITS.SHARE_PNG_TIMEOUT_MS});if(!result.ok)throw Error(result.message);return result.message;
     }
-    const raw=atob(image.dataUrl.split(',')[1]),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0)),file=new File([bytes],productionReportFileName(report).replace(/\.pdf$/,'-'+image.index+'.png'),{type:'image/png'});
-    if(!download&&navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],text:message,title:image.section});return 'Selector cerrado. Confirma el envío en la aplicación elegida.';}
-    if(!download)throw Error('No hay un selector de archivos disponible. Usa Descargar imagen y adjúntala en WhatsApp.');
-    const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return 'Imagen descargada. Puedes adjuntarla en WhatsApp.';
+    const files=reportImageFiles(images,report);if(!navigator.share||!navigator.canShare?.({files}))throw Error('Este navegador no permite compartir varias imágenes juntas. Descárgalas y adjunta las dos en WhatsApp.');
+    await navigator.share({files,text:message,title:'Reporte de planta'});return 'Selector cerrado. Confirma el envío en WhatsApp.';
   };
-  app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),imageShareMode,messageForReport:productionShareMessage,onShareImage:shareProductionImage,onDownloadImage:app.mode==='native'?null:(image,report,message)=>shareProductionImage(image,report,message,true),onCombineImages:combineProductionImages}));
+  const downloadProductionImages=async(images,report)=>{
+    if(app.mode==='native'){
+      if(!app.capabilitySet.has(CAPABILITIES.SAVE_PNGS))throw Error('Descargar varias imágenes requiere una actualización de la app. Entra a Ajustes → Actualizaciones.');
+      const result=await app.bridge.request('SAVE_PNGS',{images:images.map(image=>image.dataUrl)},{timeoutMs:MN1_LIMITS.SHARE_PNG_TIMEOUT_MS});if(!result.ok)throw Error(result.message);return result.message;
+    }
+    const files=reportImageFiles(images,report);for(const file of files){const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}return 'Descargas solicitadas por separado. Si el navegador lo pide, permite las descargas múltiples.';
+  };
+  app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),messageForReport:productionShareMessage,onShareImages:shareProductionImages,onDownloadImages:downloadProductionImages}));
   document.getElementById('open-production').addEventListener('click',()=>launchTeamTool(dom,app,'production'));
   app.loomsStudio=createLoomStudio(()=>({storage:app.storage,canConfigure:()=>app.cloud?.canManageCatalog()===true,getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
   document.getElementById('open-looms').addEventListener('click',()=>launchTeamTool(dom,app,'looms'));

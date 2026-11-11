@@ -86,3 +86,5 @@
 
 .prod-image-preview-dialog{width:min(1000px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}.prod-image-preview{display:block;width:100%;height:auto;background:#fff}.prod-image-preview-dialog .prod-dialog-head{position:sticky;top:0;z-index:1;background:var(--ui-panel,#121923)}.prod-share-all{margin-top:1rem;min-height:48px}
 .prod-share-all{display:flex;flex-wrap:wrap;gap:12px}.prod-share-all button{flex:1 1 210px}
+
+.prod-preview-navigation{display:flex;align-items:center;justify-content:center;gap:1rem;padding:1rem 0}.prod-images-list>.prod-hint{margin:0}
