@@ -76,7 +76,7 @@ export async function installThemes(storage, root=document, events=window) {
   const winterBackgrounds=root.getElementById('winter-backgrounds');if(winterBackgrounds)winterBackgrounds.hidden=selected!=='winter';
   for(const button of dialog.querySelectorAll('[data-theme-choice]')) button.setAttribute('aria-pressed',String(button.dataset.themeChoice===selected));
  };
- apply(DEFAULT_THEME);
+ try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
  let nightMode=false,nightSaving=false;
  const applyNight=value=>{nightMode=Boolean(value);root.documentElement.dataset.night=nightMode?'on':'off';nightToggle?.setAttribute('aria-checked',String(nightMode));};
  applyNight(false);
@@ -97,7 +97,6 @@ export async function installThemes(storage, root=document, events=window) {
  const seasonClock=events.setInterval?.(updateSeasonMark,60_000);
  seasonClock?.unref?.();
  void seasonClock;
- try {apply(await storage.getText(THEME_KEY));}catch {error.textContent='No se pudo leer tu preferencia. Puedes elegir un tema.';}
  const section=value=>{
   const base=root.getElementById('base-themes'),season=root.getElementById('seasonal-themes');
   if(!base||!season)return;
@@ -127,7 +126,8 @@ export async function installThemes(storage, root=document, events=window) {
   catch {apply(previous);error.textContent='No se pudo guardar el tema. Tus equipos no se modificaron.';}
   finally {saving=false;}
  });
- await installAppearance(storage,root);
+ try { await installAppearance(storage,root); }
+ finally { delete root.documentElement.dataset.themePending; }
 }
 
 export function installSettings(nativeMenu, root=document) {
