@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "applicationId": "com.mn1.avisos",
-  "versionCode": 25,
-  "versionName": "0.6.1-brand",
-  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-25-9280e2422a850e39.apk",
-  "sha256": "9280e2422a850e3988c578c16cc0f6ab92dc85d076a377d43cb639d04b89b9f7",
-  "sizeBytes": 20621635,
-  "notes": "Nueva identidad SuperTools: símbolo ST a color en el icono del teléfono, sin nombre, y marca renovada dentro de la app y en el widget. Conserva equipos, imágenes, ajustes y datos. Actualiza desde Settings > Actualizaciones, sin desinstalar."
+  "versionCode": 26,
+  "versionName": "0.6.2-images",
+  "apkUrl": "https://jatlopz.github.io/mn1-web/downloads/mn1-26-1293d06065722339.apk",
+  "sha256": "1293d0606572233929295d793dc15e855e28c38ec57d5531a44fe39742919c67",
+  "sizeBytes": 25723269,
+  "notes": "Comparte y guarda las imágenes del reporte como archivos separados. Usa Settings → Actualizaciones; conserva los datos y no desinstales la aplicación."
 }

@@ -41,6 +41,8 @@ export const WORKSPACE_ACTIONS = Object.freeze([
   'CAPTURE_PHOTO',
   'GET_LEGACY_IMAGE',
   'SHARE_PNG',
+  'SHARE_PNGS',
+  'SAVE_PNGS',
   'SHARE_PDF',
   'RECOGNIZE_SPEECH',
   'CANCEL_SPEECH',
@@ -53,12 +55,14 @@ export const CAPABILITIES = Object.freeze({
   RAW_IMAGE: 'raw-image-v1',
   CAMERA: 'camera-capture-v1',
   SHARE_PNG: 'share-png-v1',
+  SHARE_PNGS: 'share-pngs-v1',
+  SAVE_PNGS: 'save-pngs-v1',
   SHARE_PDF: 'share-pdf-v1',
   SPEECH: 'speech-input-v1',
 });
 
 /** Acciones que admiten el sobre ampliado de 12 MiB. Las demás siguen en 32 KiB. */
-const LARGE_ENVELOPE_ACTIONS = new Set(['VAULT_PUT', 'SHARE_PNG', 'SHARE_PDF']);
+const LARGE_ENVELOPE_ACTIONS = new Set(['VAULT_PUT', 'SHARE_PNG', 'SHARE_PNGS', 'SAVE_PNGS', 'SHARE_PDF']);
 
 const ALLOWED_ACTIONS = new Set(ACTIONS);
 const HOUR_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -360,6 +364,12 @@ function validateActionPayload(action, payload) {
   if (action === 'VAULT_PUT') return validateVaultPut(payload);
   if (action === 'VAULT_REMOVE') return validateVaultRemove(payload);
   if (action === 'SHARE_PNG') return validateSharePng(payload);
+  if (action === 'SHARE_PNGS' || action === 'SAVE_PNGS') {
+    const keys=action==='SHARE_PNGS'?['images','message']:['images'];
+    if(!hasOnlyKeys(payload,keys)||!Array.isArray(payload.images)||payload.images.length<1||payload.images.length>8||!payload.images.every(image=>isPngDataUrl(image)))return failure('invalid_payload','Selecciona entre una y ocho imágenes PNG válidas.');
+    if(action==='SHARE_PNGS'&&(typeof payload.message!=='string'||textLength(payload.message.trim())<1||textLength(payload.message.trim())>MN1_LIMITS.SHARE_MESSAGE_MAX_LENGTH))return failure('invalid_payload','Mensaje no válido.');
+    return {ok:true};
+  }
   if (action === 'SHARE_PDF') return validatePdfPayload(payload);
   if (action === 'RECOGNIZE_SPEECH') return validateSpeech(payload);
 
