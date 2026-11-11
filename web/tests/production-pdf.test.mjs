@@ -49,7 +49,7 @@ test('PDF y mensaje conservan las fechas separadas y exportan sólo las eficienc
  assert.ok(drawn[0].includes('Extrusión (kg)'));assert.ok(drawn[0].includes('Paro de prueba'));
  assert.ok(!drawn[0].includes('Imprenta (m)'));assert.ok(!drawn[0].includes('Conversión 1 (sacos)'));
  assert.ok(!drawn[0].includes('Totales por unidad'));assert.ok(!drawn[0].includes('Meta total'));assert.ok(!drawn[0].includes('Real total'));assert.ok(drawn[0].some(t=>t.includes('24/10/2026')&&t.includes('25/10/2026')));
- assert.match(productionShareMessage(r),/TC del 24\/10\/2026.*TA del 25\/10\/2026/);
+ assert.match(productionShareMessage(r,new Date(2026,9,25,7)),/turno TC.*turno TA.*25\/10\/2026\.$/);
 });
 
 test('el PDF usa el encabezado solicitado, barras por umbral y resalta activos sin mostrar datos inactivos',async()=>{
@@ -76,11 +76,11 @@ test('PDF dibuja desperdicio secundario con meta, cero válido y sin inventar da
  createProductionPdf(r,c,{createCanvas});const bars=rects.filter(r=>r.h===5&&['#218547','#c92532'].includes(r.color));assert.equal(bars.length,3);assert.deepEqual(bars.map(b=>b.color),['#218547','#c92532','#218547']);assert.equal(bars[2].w,0);assert.ok(bars.every(b=>Number.isFinite(b.w)&&b.w>=0&&b.w<=471));assert.equal(texts.filter(t=>t.startsWith('Desperdicio real:')).length,3);assert.equal(JSON.stringify(r),original);
 });
 
-test('el saludo usa la hora de envío y mantiene las fechas y turnos reales del reporte',async()=>{
+test('el saludo usa la hora de envío y el mensaje sólo incluye la fecha actual',async()=>{
  const {productionShareMessage}=await import('../public/production-pdf.js');
  const report={efficiencyShift:'TA',efficiencyDate:'2026-11-10',statusShift:'TC',date:'2026-11-11',teamName:'Equipo de prueba'};
  assert.match(productionShareMessage(report,new Date(2026,10,11,8)),/^Buenos días/);
  assert.match(productionShareMessage(report,new Date(2026,10,11,15)),/^Buenas tardes/);
  const msg=productionShareMessage(report,new Date(2026,10,11,20));
- assert.match(msg,/^Buenas noches/);assert.match(msg,/TA del 10\/11\/2026/);assert.match(msg,/TC del 11\/11\/2026/);assert.match(msg,/Enviado el 11\/11\/2026/);
+ assert.match(msg,/^Buenas noches/);assert.match(msg,/turno TA.*turno TC/);assert.match(msg,/11\/11\/2026\.$/);assert.equal((msg.match(/\d{2}\/\d{2}\/\d{4}/g)||[]).length,1);
 });
