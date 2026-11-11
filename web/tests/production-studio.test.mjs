@@ -26,6 +26,14 @@ test('al activar Telares se propone 23/23 y se conserva una cantidad ajustada',(
  changed.rows.telares.active=false;assert.equal(productionPreviewRows(changed).find(row=>row.id==='telares').statusDisplay.observations,'');
 });
 
+test('capacidades iniciales de Sacos son editables y no se aplican a otra planta',()=>{
+ const d=normalizeProductionDefaults(null),month='2026-11';
+ for(const [id,total] of Object.entries({extrusion:'1',telares:'23',laminado:'1',imprenta:'1',slitter:'1','conversion-1':'1','conversion-2':'1','conversion-3':'1',valvulado:'1',liner:'3',costura:'7',empaque:'5'}))assert.equal(productionDefaultsFor(d,month,id,'sacos').totalCount,total,id);
+ assert.equal(productionDefaultsFor(d,month,'telares','polietileno').totalCount,'');
+ const edited=normalizeProductionDefaults({version:1,months:{'2026-11':{telares:{wasteTarget:'',totalCount:'24',countKind:'machine'}}}});
+ assert.equal(productionDefaultsFor(edited,month,'telares','sacos').totalCount,'24');
+});
+
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
  const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,context);
  report.rows.extrusion={...report.rows.extrusion,target:'100',actual:'125',unit:'kg',active:true,comment:'Dato de prueba'};

@@ -23,7 +23,9 @@ export function normalizeProductionProducts(raw) {
 }
 
 export const productionDefaultsKey = plant => 'mn1.prod.defaults.'+plant;
-const initialValues=(id)=>({target:'',wasteTarget:'',totalCount:id==='telares'?'23':'',countKind:['liner','empaque'].includes(id)?'station':'machine'});
+// Capacidades iniciales comunicadas para Sacos; Valores fijos las puede modificar por mes.
+const SACOS_CAPACITY=Object.freeze({extrusion:1,telares:23,laminado:1,imprenta:1,slitter:1,'conversion-1':1,'conversion-2':1,'conversion-3':1,valvulado:1,liner:3,costura:7,empaque:5});
+const initialValues=(id,plant='sacos')=>({target:'',wasteTarget:'',totalCount:plant==='sacos'&&Object.hasOwn(SACOS_CAPACITY,id)?String(SACOS_CAPACITY[id]):'',countKind:plant==='sacos'&&['liner','empaque'].includes(id)?'station':'machine'});
 function validDefaultsMonth(month){return typeof month==='string'&&/^[2-9]\d{3}-(0[1-9]|1[0-2])$/.test(month);}
 export function normalizeProductionDefaults(raw){
  if(raw==null)return {version:1,months:{}};
@@ -41,8 +43,8 @@ export function normalizeProductionDefaults(raw){
   }months[month]=values;
  }return {version:1,months};
 }
-export function productionDefaultsFor(defaults,month,id){
- if(!validDefaultsMonth(month))throw Error('Mes no válido.');let value=initialValues(id);
+export function productionDefaultsFor(defaults,month,id,plant='sacos'){
+ if(!validDefaultsMonth(month))throw Error('Mes no válido.');let value=initialValues(id,plant);
  for(const date of Object.keys(defaults.months).filter(date=>date<=month).sort())if(Object.hasOwn(defaults.months[date],id))value={...value,...defaults.months[date][id]};return value;
 }
 export function productionDefaultRunningCount(row){
@@ -52,7 +54,7 @@ export function productionDefaultRunningCount(row){
 }
 export function applyProductionDefaults(report,defaults,{replace=false,month=null}={}){
  const next=clone(report),effMonth=(report.efficiencyDate??report.date).slice(0,7),statusMonth=report.date.slice(0,7);for(const [id,row]of Object.entries(next.rows)){
-  const eff=validDefaultsMonth(effMonth)?productionDefaultsFor(defaults,effMonth,id):null,status=validDefaultsMonth(statusMonth)?productionDefaultsFor(defaults,statusMonth,id):null;
+  const eff=validDefaultsMonth(effMonth)?productionDefaultsFor(defaults,effMonth,id,report.plantId):null,status=validDefaultsMonth(statusMonth)?productionDefaultsFor(defaults,statusMonth,id,report.plantId):null;
   if(eff&&(replace&&(!month||month===effMonth)||row.wasteTarget==null||row.wasteTarget===''))row.wasteTarget=eff.wasteTarget;
   if(status&&(replace&&(!month||month===statusMonth)||row.totalCount==null||row.totalCount===''))row.totalCount=status.totalCount;
   if(status&&(replace&&(!month||month===statusMonth)||!['machine','station'].includes(row.countKind)))row.countKind=status.countKind;
@@ -247,7 +249,7 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
   defaultsMonth.input.addEventListener('change',()=>{if(validDefaultsMonth(defaultsMonth.input.value))renderDefaults();else defaultsError.textContent='Selecciona un mes válido.';});defaultsDialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
   function openDefaults(){if(busy||!report)return;const requested=(report.efficiencyDate??report.date).slice(0,7);defaultsMonth.input.value=validDefaultsMonth(requested)?requested:productionTimingFor().date.slice(0,7);replaceDefaults.checked=false;defaultsError.textContent=defaultsWritable?'':'No se pudo leer la configuración anterior. Reabre la herramienta para reintentar sin sobrescribirla.';renderDefaults();defaultsDialog.showModal();}
   function renderDefaults(){defaultsList.replaceChildren();defaultsDraft={};for(const [id,row]of productionOrderedRows(report,processOrder)){
-    const value=productionDefaultsFor(defaults,defaultsMonth.input.value,id),reportMonth=(report.efficiencyDate??report.date).slice(0,7);if(defaultsMonth.input.value===reportMonth&&!value.wasteTarget&&row.wasteTarget)value.wasteTarget=row.wasteTarget;defaultsDraft[id]={...value};const entry=node('section','prod-defaults-row');entry.append(node('strong','',row.name));
+    const value=productionDefaultsFor(defaults,defaultsMonth.input.value,id,contextValue.plantId),reportMonth=(report.efficiencyDate??report.date).slice(0,7);if(defaultsMonth.input.value===reportMonth&&!value.wasteTarget&&row.wasteTarget)value.wasteTarget=row.wasteTarget;defaultsDraft[id]={...value};const entry=node('section','prod-defaults-row');entry.append(node('strong','',row.name));
     entry.append(inputField('Meta desperdicio %',value.wasteTarget,v=>{defaultsDraft[id].wasteTarget=v;},{numeric:true,max:32}),inputField('Total disponible',value.totalCount,v=>{defaultsDraft[id].totalCount=v;},{numeric:true,max:12}));
     const label=node('label','prod-field'),kind=node('select');label.append(node('span','','Tipo de recurso'),kind);for(const [key,text]of [['machine','Máquinas'],['station','Estaciones']]){const option=node('option','',text);option.value=key;kind.append(option);}kind.value=value.countKind;kind.addEventListener('change',()=>defaultsDraft[id].countKind=kind.value);entry.append(label);defaultsList.append(entry);
   }}
@@ -291,7 +293,7 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
       const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;row.runningCount=productionDefaultRunningCount(row);stamp();renderStatus(id);});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
       const edit=(key,value)=>rowEdit(id,key,value);
       const fields=node('div','prod-row-fields prod-status-inline');fields.append(productPicker(id,row,process),selectInput('Estado / acción',row.action,process.actions,v=>edit('action',v)),inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(fields);
-      const countLabels=productionCountLabels(row),editSummary=button('','prod-status-counts');editSummary.setAttribute('aria-label','Editar cantidades de '+(row.name||process.name));const refreshCounts=()=>{const total=String(row.totalCount??'').trim(),running=String(row.runningCount??'').trim();editSummary.textContent=total?(running||total)+'/'+total:'Cantidades';};refreshCounts();
+      const countLabels=productionCountLabels(row),editSummary=button('','prod-status-counts');editSummary.setAttribute('aria-label','Editar cantidades de '+(row.name||process.name));const refreshCounts=()=>{const total=String(row.totalCount??'').trim(),running=String(row.runningCount??'').trim();editSummary.textContent=total?(running||total)+'/'+total:'—/—';};refreshCounts();
       const editCount=(key,value)=>{edit(key,value);refreshCounts();};const counts=node('div','prod-counts-block');counts.append(node('h3','',countLabels.active));const countFields=node('div','prod-two-fields');countFields.append(inputField(countLabels.active,row.runningCount||row.totalCount,v=>editCount('runningCount',v),{numeric:true,max:12}),inputField(countLabels.total,row.totalCount,v=>editCount('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
       const editor=modalEditor('Cantidades · '+(row.name||process.name),[counts],editSummary,'status');editor.dataset.processId=id;head.insertBefore(editSummary,toggle);card.append(editor);grid.append(card);
     }
