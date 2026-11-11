@@ -92,7 +92,7 @@ import {
 import { createMeetingReport, REPORT_PREFS_KEY, reportLogoKey } from './meeting-report.js';
 import { createCloudWorkspace } from './cloud-workspace.js';
 import { createProductionStudio, productionImageShareMode } from './production-studio.js';
-import { createProductionPdf, createProductionImages, pdfBytesDataUrl, productionReportFileName, productionShareMessage } from './production-pdf.js';
+import { createProductionPdf, createProductionImages, pdfBytesDataUrl, productionReportFileName, productionShareMessage, combineProductionImages } from './production-pdf.js';
 import { recoverPendingReceive } from './cloud-model.js';
 import { seedStarterImages } from './starter-templates.js';
 import {
@@ -4739,17 +4739,18 @@ async function boot() {
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=fileName;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return 'PDF preparado para descargar. Puedes adjuntarlo en WhatsApp y confirmar el envío.';
   };
   const imageShareMode=productionImageShareMode(app.mode,navigator.userAgent);
-  const shareProductionImage=async(image,report)=>{
+  const shareProductionImage=async(image,report,download=false)=>{
     const message=productionShareMessage(report);
     if(app.mode==='native'){
       if(!app.capabilitySet.has(CAPABILITIES.SHARE_PNG))throw Error('Esta versión no permite compartir imágenes desde la app.');
       const result=await app.bridge.request('SHARE_PNG',{imageDataUrl:image.dataUrl,message},{timeoutMs:MN1_LIMITS.SHARE_PNG_TIMEOUT_MS});if(!result.ok)throw Error(result.message);return result.message;
     }
     const raw=atob(image.dataUrl.split(',')[1]),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0)),file=new File([bytes],productionReportFileName(report).replace(/\.pdf$/,'-'+image.index+'.png'),{type:'image/png'});
-    if(imageShareMode==='share'&&navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],text:message,title:image.section});return 'Selector cerrado. Confirma el envío en la aplicación elegida.';}
+    if(!download&&navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],text:message,title:image.section});return 'Selector cerrado. Confirma el envío en la aplicación elegida.';}
+    if(!download)throw Error('No hay un selector de archivos disponible. Usa Descargar imagen y adjúntala en WhatsApp.');
     const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return 'Imagen descargada. Puedes adjuntarla en WhatsApp.';
   };
-  app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),imageShareMode,onShareImage:shareProductionImage}));
+  app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),imageShareMode,messageForReport:productionShareMessage,onShareImage:shareProductionImage,onDownloadImage:app.mode==='native'?null:(image,report)=>shareProductionImage(image,report,true),onCombineImages:combineProductionImages}));
   document.getElementById('open-production').addEventListener('click',()=>launchTeamTool(dom,app,'production'));
   app.loomsStudio=createLoomStudio(()=>({storage:app.storage,canConfigure:()=>app.cloud?.canManageCatalog()===true,getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
   document.getElementById('open-looms').addEventListener('click',()=>launchTeamTool(dom,app,'looms'));
