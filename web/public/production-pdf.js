@@ -6,7 +6,11 @@ const ascii=s=>encoder.encode(s);
 function join(chunks){const out=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let at=0;for(const c of chunks){out.set(c,at);at+=c.length;}return out;}
 export function pdfBytesDataUrl(bytes){let raw='';for(let i=0;i<bytes.length;i+=16384)raw+=String.fromCharCode(...bytes.subarray(i,i+16384));return 'data:application/pdf;base64,'+btoa(raw);}
 export function productionReportFileName(report){return 'reporte-'+String(report.plantId).replace(/[^A-Za-z0-9_-]/g,'').slice(0,20)+'-'+String(report.date).replace(/[^0-9-]/g,'')+'.pdf';}
-export function productionShareMessage(report){return 'Comparto eficiencias del turno '+report.efficiencyShift+' del '+(report.efficiencyDate??report.date).split('-').reverse().join('/')+' y estatus de planta del turno '+report.statusShift+' del '+report.date.split('-').reverse().join('/')+'. Equipo '+report.teamName+'.';}
+export function productionShareMessage(report, now=new Date()){
+ const hour=now.getHours(), greeting=hour<12?'Buenos días':hour<18?'Buenas tardes':'Buenas noches';
+ const sent=[String(now.getDate()).padStart(2,'0'),String(now.getMonth()+1).padStart(2,'0'),now.getFullYear()].join('/');
+ return greeting+', comparto eficiencias del turno '+report.efficiencyShift+' del '+(report.efficiencyDate??report.date).split('-').reverse().join('/')+' y estatus de planta del turno '+report.statusShift+' del '+report.date.split('-').reverse().join('/')+'. Enviado el '+sent+'. Equipo '+report.teamName+'.';
+}
 export function encodeJpegPdf(pages){
  if(!Array.isArray(pages)||!pages.length||pages.length>100)throw Error('Número de páginas no válido.');
  const chunks=[ascii('%PDF-1.4\n%SuperTools\n')],offsets=[0];let length=chunks[0].length;
@@ -67,4 +71,15 @@ export function createProductionImages(report,catalog,{createCanvas=()=>document
   const dataUrl=crop.toDataURL('image/png');if(!dataUrl.startsWith('data:image/png;base64,')||dataUrl.length>8*1024*1024)throw Error('La imagen del reporte supera el tamaño admitido.');
   images.push({section,index:index+1,dataUrl});
  }});return images;
+}
+
+export async function combineProductionImages(images){
+    const loaded=await Promise.all(images.map(image=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('No se pudo abrir una imagen del reporte.'));img.src=image.dataUrl;})));
+    const width=Math.max(...loaded.map(image=>image.naturalWidth)),totalHeight=loaded.reduce((sum,image)=>sum+image.naturalHeight,0);
+    const scale=Math.min(1,Math.sqrt(30000000/(width*totalHeight)),16000/totalHeight);
+    const canvas=document.createElement('canvas');canvas.width=Math.floor(width*scale);canvas.height=Math.floor(totalHeight*scale);
+    const ctx=canvas.getContext('2d');if(!ctx)throw Error('No se pudo preparar la imagen conjunta.');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    let top=0;for(const image of loaded){const w=Math.floor(image.naturalWidth*scale),h=Math.floor(image.naturalHeight*scale);ctx.drawImage(image,0,top,w,h);top+=h;}
+    const dataUrl=canvas.toDataURL('image/png');if(dataUrl.length>8*1024*1024)throw Error('La imagen conjunta es demasiado grande. Comparte cada sección por separado.');
+    return {dataUrl,section:'Reporte completo',index:1};
 }

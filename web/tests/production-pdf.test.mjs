@@ -75,3 +75,12 @@ test('PDF dibuja desperdicio secundario con meta, cero válido y sin inventar da
  const createCanvas=()=>{const ctx={scale(){},fillRect(x,y,w,h){rects.push({x,y,w,h,color:this.fillStyle});},fillText(t){texts.push(String(t));},measureText:t=>({width:String(t).length*4})};return {getContext:()=>ctx,toDataURL:()=> 'data:image/jpeg;base64,'+Buffer.from(jpeg).toString('base64')};};
  createProductionPdf(r,c,{createCanvas});const bars=rects.filter(r=>r.h===5&&['#218547','#c92532'].includes(r.color));assert.equal(bars.length,3);assert.deepEqual(bars.map(b=>b.color),['#218547','#c92532','#218547']);assert.equal(bars[2].w,0);assert.ok(bars.every(b=>Number.isFinite(b.w)&&b.w>=0&&b.w<=471));assert.equal(texts.filter(t=>t.startsWith('Desperdicio real:')).length,3);assert.equal(JSON.stringify(r),original);
 });
+
+test('el saludo usa la hora de envío y mantiene las fechas y turnos reales del reporte',async()=>{
+ const {productionShareMessage}=await import('../public/production-pdf.js');
+ const report={efficiencyShift:'TA',efficiencyDate:'2026-11-10',statusShift:'TC',date:'2026-11-11',teamName:'Equipo de prueba'};
+ assert.match(productionShareMessage(report,new Date(2026,10,11,8)),/^Buenos días/);
+ assert.match(productionShareMessage(report,new Date(2026,10,11,15)),/^Buenas tardes/);
+ const msg=productionShareMessage(report,new Date(2026,10,11,20));
+ assert.match(msg,/^Buenas noches/);assert.match(msg,/TA del 10\/11\/2026/);assert.match(msg,/TC del 11\/11\/2026/);assert.match(msg,/Enviado el 11\/11\/2026/);
+});
