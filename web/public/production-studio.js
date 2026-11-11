@@ -45,12 +45,18 @@ export function productionDefaultsFor(defaults,month,id){
  if(!validDefaultsMonth(month))throw Error('Mes no válido.');let value=initialValues(id);
  for(const date of Object.keys(defaults.months).filter(date=>date<=month).sort())if(Object.hasOwn(defaults.months[date],id))value={...value,...defaults.months[date][id]};return value;
 }
+export function productionDefaultRunningCount(row){
+ if(row.runningCount!=null&&String(row.runningCount).trim()!=='')return row.runningCount;
+ const total=parseProductionNumber(row.totalCount);
+ return row.active===true&&total.kind==='number'&&Number.isSafeInteger(total.value)&&total.value<=100000?String(total.value):'';
+}
 export function applyProductionDefaults(report,defaults,{replace=false,month=null}={}){
  const next=clone(report),effMonth=(report.efficiencyDate??report.date).slice(0,7),statusMonth=report.date.slice(0,7);for(const [id,row]of Object.entries(next.rows)){
   const eff=validDefaultsMonth(effMonth)?productionDefaultsFor(defaults,effMonth,id):null,status=validDefaultsMonth(statusMonth)?productionDefaultsFor(defaults,statusMonth,id):null;
   if(eff&&(replace&&(!month||month===effMonth)||row.wasteTarget==null||row.wasteTarget===''))row.wasteTarget=eff.wasteTarget;
   if(status&&(replace&&(!month||month===statusMonth)||row.totalCount==null||row.totalCount===''))row.totalCount=status.totalCount;
   if(status&&(replace&&(!month||month===statusMonth)||!['machine','station'].includes(row.countKind)))row.countKind=status.countKind;
+  row.runningCount=productionDefaultRunningCount(row);
  }return next;
 }
 
@@ -96,7 +102,7 @@ export function reconcileProductionCatalog(report, catalog) {
   return next;
 }
 export function productionPreviewRows(report,order=null) {
-  return productionOrderedRows(report,order).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':row.active === false?'Inactivo':'Sin confirmar',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:efficiencyCommentDisplay(row),meetsTarget:efficiencyMeetsTarget(row),unit:row.unit,target:row.target,actual:row.actual}));
+  return productionOrderedRows(report,order).map(([id,row]) => ({id,statusDisplay:productionStatusDisplay(row),name:row.name || id,status:row.active === true?'En funcionamiento':'Inactivo',product:row.product || 'Sin indicar',action:row.action || '',comment:row.comment || '',counts:row.runningCount !== '' || row.totalCount !== '' ? `${row.runningCount || '—'}/${row.totalCount || '—'}` : '',...calculateEfficiency(row),includeEfficiency:row.includeEfficiency&&hasEfficiencyInput(row),efficiencyComment:efficiencyCommentDisplay(row),meetsTarget:efficiencyMeetsTarget(row),unit:row.unit,target:row.target,actual:row.actual}));
 }
 export function productionRowSummary(row) {
   const counts = row.runningCount !== '' || row.totalCount !== '' ? (row.runningCount || '—')+'/'+(row.totalCount || '—') : '';
@@ -276,18 +282,17 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
   }
   function renderStatus(focusId=null){
     statusPanel.replaceChildren();const intro=node('div','prod-panel-intro');intro.append(node('div','', 'Procesos y máquinas'));
-    const allOff=button('Marcar todos inactivos','prod-text-button',()=>{if(!confirm('¿Confirmar todos los procesos como inactivos? No se borrará la producción ingresada.'))return;for(const row of Object.values(report.rows))row.active=false;stamp();renderStatus();});intro.append(button('↕ Ordenar','prod-text-button prod-order-open',openOrder),allOff);statusPanel.append(intro,node('p','prod-hint','Cambia cada estado con el interruptor. Los datos de producción se conservan.'));
+    intro.append(button('↕ Ordenar','prod-text-button prod-order-open',openOrder));statusPanel.append(intro,node('p','prod-hint','Cambia cada estado con el interruptor. Los datos de producción se conservan.'));
     if(!Object.keys(report.rows).length){statusPanel.append(node('p','prod-empty','Agrega procesos al catálogo y aplícalos al borrador para comenzar.'));return;}
     const grid=node('div','prod-status-grid');statusPanel.append(grid);
     for(const [id,row] of productionOrderedRows(report,processOrder)){
-      const process=definition(id),card=node('article','prod-process');card.dataset.rowId=id;card.dataset.state=row.active===true?'on':row.active===false?'off':'unknown';
-      const head=node('div','prod-process-head'),copy=node('div');copy.append(node('h2','',row.name||process.name));const status=node('span','prod-machine-status',row.active===true?'En funcionamiento':row.active===false?'Inactivo':'Sin confirmar');copy.append(status);
-      const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;stamp();renderStatus(id);});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
-      if(row.active===null){const inactive=button('Inactivo','prod-text-button',()=>{row.active=false;stamp();renderStatus(id);});inactive.setAttribute('aria-label','Confirmar inactivo '+(row.name||process.name));copy.append(inactive);}
+      const process=definition(id),card=node('article','prod-process');card.dataset.rowId=id;card.dataset.state=row.active===true?'on':'off';
+      const head=node('div','prod-process-head'),copy=node('div');copy.append(node('h2','',row.name||process.name));const status=node('span','prod-machine-status',row.active===true?'En funcionamiento':'Inactivo');copy.append(status);
+      const toggle=button('','prod-switch',()=>{row.active=row.active===true?false:true;row.runningCount=productionDefaultRunningCount(row);stamp();renderStatus(id);});toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(row.active===true));toggle.setAttribute('aria-label',(row.active===true?'Apagar ':'Activar ')+(row.name||process.name));toggle.append(node('span','prod-switch-thumb'));head.append(copy,toggle);card.append(head);
       const edit=(key,value)=>rowEdit(id,key,value);
       const fields=node('div','prod-row-fields prod-status-inline');fields.append(productPicker(id,row,process),selectInput('Estado / acción',row.action,process.actions,v=>edit('action',v)),inputField('Comentario',row.comment,v=>edit('comment',v),{multiline:true,max:2000}));card.append(fields);
-      const countLabels=productionCountLabels(row),editSummary=button('Cantidades','prod-status-counts');editSummary.setAttribute('aria-label',countLabels.total+' de '+(row.name||process.name));
-      const counts=node('div','prod-counts-block');counts.append(node('h3','',countLabels.active));const countFields=node('div','prod-two-fields');countFields.append(inputField(countLabels.active,row.runningCount,v=>edit('runningCount',v),{numeric:true,max:12}),inputField(countLabels.total,row.totalCount,v=>edit('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
+      const countLabels=productionCountLabels(row),editSummary=button('','prod-status-counts');editSummary.setAttribute('aria-label','Editar cantidades de '+(row.name||process.name));const refreshCounts=()=>{const total=String(row.totalCount??'').trim(),running=String(row.runningCount??'').trim();editSummary.textContent=total?(running||total)+'/'+total:'Cantidades';};refreshCounts();
+      const editCount=(key,value)=>{edit(key,value);refreshCounts();};const counts=node('div','prod-counts-block');counts.append(node('h3','',countLabels.active));const countFields=node('div','prod-two-fields');countFields.append(inputField(countLabels.active,row.runningCount||row.totalCount,v=>editCount('runningCount',v),{numeric:true,max:12}),inputField(countLabels.total,row.totalCount,v=>editCount('totalCount',v),{numeric:true,max:12}));counts.append(countFields);
       const editor=modalEditor('Cantidades · '+(row.name||process.name),[counts],editSummary,'status');editor.dataset.processId=id;head.insertBefore(editSummary,toggle);card.append(editor);grid.append(card);
     }
     if(focusId){const activeCard=[...grid.children].find(card=>card.dataset.rowId===focusId);activeCard?.querySelector('[role=switch]')?.focus({preventScroll:true});}

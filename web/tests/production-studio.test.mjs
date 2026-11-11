@@ -16,6 +16,16 @@ test('los valores fijos de desperdicio no sustituyen la meta de producción del 
  assert.equal(productionPreviewRows(next).find(r=>r.id==='extrusion').efficiency,95);
 });
 
+test('al activar Telares se propone 23/23 y se conserva una cantidad ajustada',()=>{
+ const defaults=normalizeProductionDefaults(null),report=createProductionReport(defaultCatalog(),context);
+ report.rows.telares.active=true;const first=applyProductionDefaults(report,defaults);
+ assert.equal(first.rows.telares.totalCount,'23');assert.equal(first.rows.telares.runningCount,'23');
+ assert.equal(report.rows.telares.runningCount,'');
+ first.rows.telares.runningCount='21';const changed=applyProductionDefaults(first,defaults);
+ assert.equal(changed.rows.telares.runningCount,'21');assert.equal(changed.rows.telares.totalCount,'23');
+ changed.rows.telares.active=false;assert.equal(productionPreviewRows(changed).find(row=>row.id==='telares').statusDisplay.observations,'');
+});
+
 test('aplicar un catálogo conserva el borrador original y los valores de procesos existentes',()=>{
  const catalog=defaultCatalog('sacos'),report=createProductionReport(catalog,context);
  report.rows.extrusion={...report.rows.extrusion,target:'100',actual:'125',unit:'kg',active:true,comment:'Dato de prueba'};
@@ -28,7 +38,7 @@ test('aplicar un catálogo conserva el borrador original y los valores de proces
  assert.equal(next.rows.extrusion.name,'Extrusión revisada');
  assert.equal(next.rows.telares,undefined);
  assert.equal(report.rows.telares.name,'Telares');
- assert.equal(next.rows.auxiliar.active,null);
+ assert.equal(next.rows.auxiliar.active,false);
  assert.equal(next.date,report.date);
 });
 
@@ -41,7 +51,7 @@ test('vista previa usa la misma eficiencia, diferencia cero de vacío y muestra 
  assert.equal(row.wasteActual,0);
  assert.equal(row.wasteTarget,null);
  assert.equal(row.counts,'0/2');
- assert.equal(productionPreviewRows(report).find(r=>r.id==='telares').status,'Sin confirmar');
+ assert.equal(productionPreviewRows(report).find(r=>r.id==='telares').status,'Inactivo');
 });
 
 test('guardar borrador persiste sólo el equipo seleccionado y no muta su objeto',async()=>{
@@ -77,7 +87,7 @@ test('iniciar un nuevo turno respalda antes de reemplazar y no arrastra producci
  const next=await beginNextProductionReport({putText:async(k,v)=>{writes.push(k);data.set(k,v);}},old,{...context,teamId:old.teamId,teamName:old.teamName,plantId:'sacos'},new Date('2026-10-25T19:00:00'));
  assert.match(writes[0],/^mn1\.production\.history\./);assert.equal(data.get(writes[0]),before);assert.equal(JSON.stringify(old),before);
  assert.equal(next.timingMode,'automatic');assert.equal(next.efficiencyShift,'TA');assert.equal(next.statusShift,'TC');assert.equal(next.date,'2026-10-25');
- assert.equal(next.rows.extrusion.target,'');assert.equal(next.rows.extrusion.actual,'');assert.equal(next.rows.extrusion.active,null);assert.equal(next.rows.extrusion.efficiencyComment,'');assert.equal(next.rows.extrusion.unit,'lb');
+ assert.equal(next.rows.extrusion.target,'');assert.equal(next.rows.extrusion.actual,'');assert.equal(next.rows.extrusion.active,false);assert.equal(next.rows.extrusion.efficiencyComment,'');assert.equal(next.rows.extrusion.unit,'lb');
  await assert.rejects(beginNextProductionReport({putText:async()=>{throw Error('Sin espacio');}},old,context),/Sin espacio/);assert.equal(JSON.stringify(old),before);
 });
 

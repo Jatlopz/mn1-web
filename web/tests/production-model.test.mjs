@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultCatalog, normalizeCatalog, catalogKey } from '../public/plant-catalog.js';
-import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey } from '../public/production-model.js';
+import { createProductionReport, normalizeProductionReport, calculateEfficiency, validateProductionReport, productionDraftKey, productionStatusDisplay } from '../public/production-model.js';
 
 const catalog = () => normalizeCatalog({processes:[{id:'mixing',name:'Proceso de prueba',unit:'kg',efficiency:true,products:[],actions:[],enabled:true}]}, 'sacos');
 const context = {teamId:'fixture-team',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24',efficiencyShift:'TA',statusShift:'TC'};
@@ -63,9 +63,9 @@ test('los valores inválidos no generan porcentajes válidos ni descartan sus er
  for(const value of ['-1','100.01','abc'])assert.ok(calculateEfficiency({target:'1',actual:'1',wasteActual:value}).errors.length>0);
  assert.equal(calculateEfficiency({target:'1',actual:'1',wasteActual:'0'}).wasteActual,0);
 });
-test('el reporte exige estatus confirmado sin inferir producción cero por estar inactivo',()=>{
+test('un interruptor apagado se reporta como inactivo sin inferir producción cero',()=>{
  const {c,r}=completed();assert.deepEqual(validateProductionReport(r,c),[]);assert.equal(calculateEfficiency(r.rows.mixing).efficiency,125);
- r.rows.mixing.active=null;assert.ok(validateProductionReport(r,c).some(e=>/estado|estatus/i.test(e)));
+ r.rows.mixing.active=null;assert.equal(productionStatusDisplay(r.rows.mixing).status,'Inactivo');assert.deepEqual(validateProductionReport(r,c),[]);
  r.rows.mixing.active=true;r.rows.mixing.target='';assert.ok(validateProductionReport(r,c).some(e=>/meta/i.test(e)));
 });
 test('la exportación valida fecha, unidades y cantidades operativas sin sumar unidades diferentes',()=>{
@@ -77,7 +77,7 @@ test('la exportación valida fecha, unidades y cantidades operativas sin sumar u
 test('normalizar conserva fecha, valores incompletos y contexto de equipo y no mezcla borradores',()=>{
  const c=catalog(),r=createProductionReport(c,context);r.rows.mixing.target='0';r.rows.mixing.actual='';
  const loaded=normalizeProductionReport(JSON.parse(JSON.stringify(r)),c,context);
- assert.equal(loaded.date,context.date);assert.equal(loaded.rows.mixing.target,'0');assert.equal(loaded.rows.mixing.actual,'');assert.equal(loaded.rows.mixing.active,null);
+ assert.equal(loaded.date,context.date);assert.equal(loaded.rows.mixing.target,'0');assert.equal(loaded.rows.mixing.actual,'');assert.equal(loaded.rows.mixing.active,false);
  assert.throws(()=>normalizeProductionReport(r,c,{...context,teamId:'other-team'}),/equipo/i);
  assert.notEqual(productionDraftKey('team-one'),productionDraftKey('team-two'));
  assert.ok(productionDraftKey('custom-12345678-1234-1234-1234-123456789abc').length<=64);
