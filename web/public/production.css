@@ -88,3 +88,6 @@
 .prod-share-all{display:flex;flex-wrap:wrap;gap:12px}.prod-share-all button{flex:1 1 210px}
 
 .prod-preview-navigation{display:flex;align-items:center;justify-content:center;gap:1rem;padding:1rem 0}.prod-images-list>.prod-hint{margin:0}
+
+/* Mantener los controles de páginas visibles al desplazar la imagen. */
+.prod-image-preview-dialog .prod-dialog-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center}.prod-image-preview-dialog .prod-preview-navigation{grid-column:1 / -1;justify-content:space-between;padding:.5rem 0}

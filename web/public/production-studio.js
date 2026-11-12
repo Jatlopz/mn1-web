@@ -193,7 +193,7 @@ export function createProductionStudio(getServices) {
   imagePreviewDialog.setAttribute('aria-label','Vista previa del reporte');previewClose.setAttribute('aria-label','Cerrar vista previa');previewHead.append(previewTitle,previewClose);
   let previewPages=[],previewIndex=0;const previewNavigation=node('div','prod-preview-navigation'),previous=button('Anterior','prod-secondary',()=>{if(previewIndex>0){previewIndex--;showPreview();}}),next=button('Siguiente','prod-secondary',()=>{if(previewIndex<previewPages.length-1){previewIndex++;showPreview();}}),previewCount=node('span');
   function showPreview(){const image=previewPages[previewIndex];previewImage.src=image.dataUrl;previewImage.alt='Vista previa: '+image.section;previewTitle.textContent=image.section;previewCount.textContent=(previewIndex+1)+' / '+previewPages.length;previous.disabled=previewIndex===0;next.disabled=previewIndex===previewPages.length-1;}
-  previewNavigation.append(previous,previewCount,next);imagePreviewDialog.append(previewHead,previewImage,previewNavigation);root.append(imagePreviewDialog);
+  previewNavigation.append(previous,previewCount,next);previewHead.append(previewNavigation);imagePreviewDialog.append(previewHead,previewImage);root.append(imagePreviewDialog);
   function serial(operation){const task=queue.then(operation);queue=task.catch(()=>{});return task;}
   const stamp=()=>{dirty=true;report.updatedAt=new Date().toISOString();};
   function selectTab(id){tab=id;root.dataset.tab=id;for(const [key,panel] of Object.entries(panels)){panel.hidden=key!==id;tabButtons[key].setAttribute('aria-pressed',String(key===id));}if(id==='preview')renderPreview();}
