@@ -634,6 +634,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     }
     if(!access?.admin&&!siteAdminAccess){if(!siteLogin.open)siteLogin.showModal();$('site-admin-email').focus();return;}
     if(dialog.open)dialog.close();if(siteLogin.open)siteLogin.close();if(!adminIsOpen())showAdmin();
+    if(siteAdminAccess){try{await refreshSiteNotice({force:true});}catch(e){siteResult.textContent='No se pudo actualizar el aviso: '+e.message;}}
     if(access?.admin)await loadAdmin();else $('admin-feedback').textContent='Administración del sitio conectada. El buzón y el catálogo compartido siguen en Supabase; sus datos se conservan.';
   }
   $('site-admin-close').addEventListener('click',()=>siteLogin.close());
@@ -645,16 +646,16 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   });
   $('site-admin-code-form').addEventListener('submit',async event=>{
     event.preventDefault();const button=siteLogin.querySelector('button[type="submit"]');button.disabled=true;siteLoginStatus.textContent='Verificando acceso…';
-    try{const identity=await siteAdmin.verifyCode($('site-admin-email').value,$('site-admin-code').value);if(!identity.authorized)throw Error('Esta cuenta no tiene acceso administrativo.');siteAdminAccess=true;siteAdminEmail=identity.email;render();await refreshSiteNotice();await openAdmin();}
+    try{const identity=await siteAdmin.verifyCode($('site-admin-email').value,$('site-admin-code').value);if(!identity.authorized)throw Error('Esta cuenta no tiene acceso administrativo.');siteAdminAccess=true;siteAdminEmail=identity.email;render();await openAdmin();}
     catch(e){siteLoginStatus.textContent=e.message;}finally{button.disabled=false;}
   });
-  async function refreshSiteNotice(){
-    const notice=await siteAdmin.notice();noticeRevision=notice.revision;siteMessage.value=notice.message;
+  async function refreshSiteNotice({force=false}={}){
+    const notice=await siteAdmin.notice({force});noticeRevision=notice.revision;siteMessage.value=notice.message;
     const banner=$('site-notice-public');banner.textContent=notice.message;banner.hidden=!notice.message;
   }
   siteForm.addEventListener('submit',async event=>{
     event.preventDefault();siteSave.disabled=true;siteResult.textContent='Guardando aviso…';
-    try{const identity=await siteAdmin.status();if(!identity.authorized)throw Error('Vuelve a iniciar sesión como administrador.');await siteAdmin.saveNotice(noticeRevision,siteMessage.value.trim());await refreshSiteNotice();siteResult.textContent='Aviso publicado. Aparecerá al abrir la app.';}
+    try{const identity=await siteAdmin.status();if(!identity.authorized)throw Error('Vuelve a iniciar sesión como administrador.');await siteAdmin.saveNotice(noticeRevision,siteMessage.value.trim());await refreshSiteNotice({force:true});siteResult.textContent='Aviso publicado. Aparecerá al abrir la app.';}
     catch(e){siteResult.textContent=e.message;}finally{siteSave.disabled=false;}
   });
   siteSignOut.addEventListener('click',async()=>{try{await siteAdmin.signOut();siteAdminAccess=false;siteAdminEmail=null;siteResult.textContent='Sesión cerrada.';if(!access?.admin)hideAdmin();render();}catch(e){siteResult.textContent=e.message;}});
@@ -693,8 +694,6 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       status(e.message, true);
     }finally{render();}})();
     const siteInit=(async()=>{
-      try{const identity=await siteAdmin.status();siteAdminAccess=identity.authorized;siteAdminEmail=identity.email;}
-      catch(e){siteResult.textContent='La administración del sitio no está disponible: '+e.message;}
       try{await refreshSiteNotice();}
       catch(e){siteResult.textContent='No se pudo leer el aviso del sitio: '+e.message;}
       render();
