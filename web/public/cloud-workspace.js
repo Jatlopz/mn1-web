@@ -5,6 +5,7 @@ import {createRegistryAdmin} from './registry-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
+import { siteAdmin } from './insforge-admin.js';
 import {
   CLOUD_META_KEY,
   localTeamPacket,
@@ -80,6 +81,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     dialog = $("cloud-dialog"),
     client = providedClient || new CloudClient(getServices().storage);
   let registry = null;
+  let siteAdminAccess=false, siteAdminEmail=null, noticeRevision=0;
   let meta = {},
     access = null,
     rows = [],
@@ -106,8 +108,9 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
     $("cloud-password-settings").hidden = !logged;
-    $('open-admin-dashboard').hidden=!access?.admin;
-    if(!access?.admin){registry?.clear();$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminIsOpen())hideAdmin();}
+    $('open-admin-dashboard').hidden=!(access?.admin||siteAdminAccess);
+    $('settings-admin').hidden=false;
+    if(!access?.admin){registry?.clear();$('admin-incoming').hidden=true;$('admin-unread').hidden=true;$('admin-ideas-list').replaceChildren();if(adminIsOpen()&&!siteAdminAccess)hideAdmin();}
     if(access?.admin&&!adminOffered&&!getServices().isEditing?.()){adminOffered=true;queueMicrotask(()=>void openAdmin());}
     $("cloud-admin").hidden = !access?.admin;
     $("cloud-ideas-admin").hidden = !access?.admin || !IDEAS_ENABLED;
@@ -550,20 +553,34 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
 
   const adminDashboard=$('admin-dashboard');
   const adminIsOpen=()=>!adminDashboard.hidden;
-  const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');};
+  const siteLogin=$('site-admin-login');
+  const siteLoginStatus=$('site-admin-login-status');
+  const siteControl=document.createElement('section');
+  siteControl.className='site-admin-control';
+  const siteHeading=document.createElement('h2');siteHeading.textContent='Administración del sitio';
+  const siteInfo=document.createElement('p');siteInfo.className='hint';
+  const siteForm=document.createElement('form');
+  const siteLabel=document.createElement('label');siteLabel.className='field';siteLabel.textContent='Aviso visible en la app';
+  const siteMessage=document.createElement('textarea');siteMessage.className='input';siteMessage.maxLength=240;siteMessage.rows=3;siteLabel.append(siteMessage);
+  const siteSave=document.createElement('button');siteSave.className='button button-primary';siteSave.type='submit';siteSave.textContent='Publicar aviso';
+  const siteSignOut=document.createElement('button');siteSignOut.className='button button-secondary';siteSignOut.type='button';siteSignOut.textContent='Cerrar sesión de administración';
+  const siteResult=document.createElement('p');siteResult.setAttribute('role','status');siteResult.setAttribute('aria-live','polite');
+  siteForm.append(siteLabel,siteSave);siteControl.append(siteHeading,siteInfo,siteForm,siteSignOut,siteResult);
+  adminDashboard.querySelector('[data-admin-panel="overview"]').prepend(siteControl);
+  const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');siteControl.hidden=!siteAdminAccess;siteInfo.textContent=siteAdminAccess?'Conectado como '+siteAdminEmail+'. Los perfiles, imágenes y artes de equipos permanecen fuera de InsForge.':'Los datos de equipos permanecen en su servicio actual.';adminDashboard.querySelector('[data-admin-jump="inbox"]').hidden=!access?.admin;$('admin-to-inbox').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="catalog"]').hidden=!access?.admin;};
   const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
   const screenCloser={close:hideAdmin};
   registry=createRegistryAdmin($('admin-registry'),{client,onAccessLost:()=>{access={...access,admin:false};render();}});
-  function selectAdminView(view){const changed=applyAdminDashboardView(adminDashboard,view);if(changed&&view==='catalog')void registry.open();return changed;}
+  function selectAdminView(view){const changed=applyAdminDashboardView(adminDashboard,view);if(changed&&view==='catalog'&&access?.admin)void registry.open();if(changed&&view==='catalog'&&!access?.admin)$('admin-registry').textContent='El catálogo compartido sigue en Supabase. No se puede editar desde la conexión actual; los datos existentes se conservan.';if(changed&&view==='inbox'&&!access?.admin)$('admin-status').textContent='El buzón sigue en Supabase y no está disponible con la conexión actual. Las solicitudes existentes se conservan.';return changed;}
   function renderAdminTeams(){
     const all=definitions(),plant=$('admin-plant').value;
-    $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=String(rows.filter(row=>row.revision).length);
+    $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=access?.admin?String(rows.filter(row=>row.revision).length):'—';
     const host=$('admin-team-list');host.replaceChildren();
     for(const team of all.filter(t=>!plant||(t.plantId||'sacos')===plant)){
       const card=document.createElement('article');card.className='admin-team-card';const name=document.createElement('h3');name.textContent=team.name;
       const detail=document.createElement('p'),row=rows.find(r=>r.id===team.id);detail.className='hint';detail.textContent=((team.plantId||'sacos')==='polietileno'?'Polietileno':'Sacos')+' · '+(row?.revision?'Publicación '+row.revision:'Copia local');
       const tools=document.createElement('p');tools.textContent=toolsForTeam(team).map(t=>t.name).join(' · ');
-      const button=document.createElement('button');button.className='button button-secondary';button.textContent='Abrir vista del equipo';button.addEventListener('click',async()=>{button.disabled=true;try{if(!(await client.access()).admin)throw Error('Vuelve a iniciar sesión como administrador.');if(await getServices().openTeamSpace(team.id))hideAdmin();else throw Error('Guarda la edición pendiente antes de cambiar de equipo.');}catch(e){$('admin-status').textContent=e.message;selectAdminView('inbox');}finally{button.disabled=false;}});const badge=document.createElement('span');badge.className='admin-team-avatar';badge.textContent=team.name.replace(/^Los /i,'').split(' ').slice(0,2).map(word=>word[0]).join('').toUpperCase();card.append(badge,name,detail,tools,button);host.append(card);
+      const button=document.createElement('button');button.className='button button-secondary';button.textContent='Abrir vista del equipo';button.addEventListener('click',async()=>{button.disabled=true;try{if(!(access?.admin||siteAdminAccess))throw Error('Vuelve a iniciar sesión como administrador.');if(await getServices().openTeamSpace(team.id))hideAdmin();else throw Error('Guarda la edición pendiente antes de cambiar de equipo.');}catch(e){$('admin-feedback').textContent=e.message;}finally{button.disabled=false;}});const badge=document.createElement('span');badge.className='admin-team-avatar';badge.textContent=team.name.replace(/^Los /i,'').split(' ').slice(0,2).map(word=>word[0]).join('').toUpperCase();card.append(badge,name,detail,tools,button);host.append(card);
     }
     $('admin-team-empty').hidden=host.childElementCount>0;
     const toolsHost=$('admin-tool-list');toolsHost.replaceChildren();for(const tool of TEAM_TOOLS){const card=document.createElement('article');card.className='admin-team-card';const title=document.createElement('h3');title.textContent=tool.name;const text=document.createElement('p');text.textContent=tool.description;const note=document.createElement('p');note.className='hint';note.textContent=tool.scope==='general'?'General · Todos los equipos':'Exclusiva · Cuatro equipos originales de Sacos';const button=document.createElement('button');button.className='button button-secondary';button.textContent='Elegir equipo';button.addEventListener('click',()=>selectAdminView('overview'));card.append(title,text,note,button);toolsHost.append(card);}
@@ -598,6 +615,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     host.append(card);
   }
   async function loadAdmin(append=false){
+    if(!access?.admin){$('admin-status').textContent='El buzón sigue en Supabase y no está disponible con la conexión actual. Las solicitudes existentes se conservan.';return;}
     if(adminBusy)return;adminBusy=true;$('admin-refresh').disabled=true;$('admin-filter').disabled=true;$('admin-more').disabled=true;$('admin-status').textContent='Cargando solicitudes…';$('admin-feedback').textContent='';
     try{
       if(!(await client.access()).admin)throw Error('Esta pantalla es exclusiva del administrador general.');
@@ -610,9 +628,36 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     }catch(e){$('admin-status').textContent=e.message;$('admin-feedback').textContent=e.message;}finally{adminBusy=false;$('admin-refresh').disabled=false;$('admin-filter').disabled=false;$('admin-more').disabled=false;}
   }
   async function openAdmin(){
-    try{access=await client.access();if(!access.admin)throw Error('Inicia sesión con tu cuenta principal de administrador.');dialog.close();if(!adminIsOpen())showAdmin();await loadAdmin();}
-    catch(e){status(client.session?e.message:'Inicia sesión con tu cuenta principal para abrir el dashboard del buzón.',true);if(!dialog.open)dialog.showModal();if(!client.session){$('cloud-login').open=true;$('cloud-email').focus();}}
+    if(!access?.admin&&!siteAdminAccess){
+      try{const identity=await siteAdmin.status();siteAdminAccess=identity.authorized;siteAdminEmail=identity.email;}
+      catch(e){siteLoginStatus.textContent=e.message;if(!siteLogin.open)siteLogin.showModal();return;}
+    }
+    if(!access?.admin&&!siteAdminAccess){if(!siteLogin.open)siteLogin.showModal();$('site-admin-email').focus();return;}
+    if(dialog.open)dialog.close();if(siteLogin.open)siteLogin.close();if(!adminIsOpen())showAdmin();
+    if(access?.admin)await loadAdmin();else $('admin-feedback').textContent='Administración del sitio conectada. El buzón y el catálogo compartido siguen en Supabase; sus datos se conservan.';
   }
+  $('site-admin-close').addEventListener('click',()=>siteLogin.close());
+  $('site-admin-send-code').addEventListener('click',async()=>{
+    const email=$('site-admin-email');if(!email.reportValidity())return;
+    const button=$('site-admin-send-code');button.disabled=true;siteLoginStatus.textContent='Enviando código…';
+    try{await siteAdmin.requestCode(email.value);siteLoginStatus.textContent='Código enviado. Revisa tu correo e introdúcelo aquí.';}
+    catch(e){siteLoginStatus.textContent=e.message;}finally{button.disabled=false;}
+  });
+  $('site-admin-code-form').addEventListener('submit',async event=>{
+    event.preventDefault();const button=siteLogin.querySelector('button[type="submit"]');button.disabled=true;siteLoginStatus.textContent='Verificando acceso…';
+    try{const identity=await siteAdmin.verifyCode($('site-admin-email').value,$('site-admin-code').value);if(!identity.authorized)throw Error('Esta cuenta no tiene acceso administrativo.');siteAdminAccess=true;siteAdminEmail=identity.email;render();await refreshSiteNotice();await openAdmin();}
+    catch(e){siteLoginStatus.textContent=e.message;}finally{button.disabled=false;}
+  });
+  async function refreshSiteNotice(){
+    const notice=await siteAdmin.notice();noticeRevision=notice.revision;siteMessage.value=notice.message;
+    const banner=$('site-notice-public');banner.textContent=notice.message;banner.hidden=!notice.message;
+  }
+  siteForm.addEventListener('submit',async event=>{
+    event.preventDefault();siteSave.disabled=true;siteResult.textContent='Guardando aviso…';
+    try{const identity=await siteAdmin.status();if(!identity.authorized)throw Error('Vuelve a iniciar sesión como administrador.');await siteAdmin.saveNotice(noticeRevision,siteMessage.value.trim());await refreshSiteNotice();siteResult.textContent='Aviso publicado. Aparecerá al abrir la app.';}
+    catch(e){siteResult.textContent=e.message;}finally{siteSave.disabled=false;}
+  });
+  siteSignOut.addEventListener('click',async()=>{try{await siteAdmin.signOut();siteAdminAccess=false;siteAdminEmail=null;siteResult.textContent='Sesión cerrada.';if(!access?.admin)hideAdmin();render();}catch(e){siteResult.textContent=e.message;}});
   $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
@@ -633,7 +678,8 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
 
   corporateBoard=installCorporateBoard({client,openAccount:()=>void openCloud()});
   async function start() {
-    try {
+    render();
+    const cloudInit=(async()=>{try {
       const raw = await storage.getText(CLOUD_META_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -645,8 +691,15 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
       await refresh();
     } catch (e) {
       status(e.message, true);
-    }
-    render();
+    }finally{render();}})();
+    const siteInit=(async()=>{
+      try{const identity=await siteAdmin.status();siteAdminAccess=identity.authorized;siteAdminEmail=identity.email;}
+      catch(e){siteResult.textContent='La administración del sitio no está disponible: '+e.message;}
+      try{await refreshSiteNotice();}
+      catch(e){siteResult.textContent='No se pudo leer el aviso del sitio: '+e.message;}
+      render();
+    })();
+    await Promise.allSettled([cloudInit,siteInit]);
     setInterval(() => void tick(), 60000);
     setInterval(()=>void pollAdmin(),30000);
     void pollAdmin();

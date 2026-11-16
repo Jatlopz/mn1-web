@@ -35,7 +35,7 @@ test('index.html carga sólo assets locales versionados y declara CSP', async ()
   assert.match(html, /src="\.\/app\.js\?v=0\.5\.17"/);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i);
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
-  assert.doesNotMatch(html.replaceAll('https://wnfqqqorktjiruxlzvlr.supabase.co','').replaceAll('https://paypal.me/Jatlopz90',''), /https?:\/\//i);
+  assert.doesNotMatch(html.replaceAll('https://wnfqqqorktjiruxlzvlr.supabase.co','').replaceAll('https://8imv8ja5.us-east.insforge.app','').replaceAll('https://paypal.me/Jatlopz90',''), /https?:\/\//i);
 });
 
 test('la interfaz incluye workspace, editor, voz y compatibilidad APK3', async () => {
@@ -135,7 +135,7 @@ test('app no usa innerHTML ni simula éxito en modo preview', async () => {
   assert.match(app, /web-workspace-v1|CAPABILITIES\.WORKSPACE/);
 });
 
-test('no se referencia file:// y package.json no tiene dependencias', async () => {
+test('no se referencia file:// y sólo se empaquetan dependencias justificadas', async () => {
   const [html, app, bridge, storage, pkg] = await Promise.all([
     readPublic('index.html'),
     readPublic('app.js'),
@@ -147,8 +147,8 @@ test('no se referencia file:// y package.json no tiene dependencias', async () =
   const packageJson = JSON.parse(pkg);
   assert.equal(packageJson.version, '0.5.17');
   assert.equal(packageJson.type, 'module');
-  assert.equal(packageJson.dependencies, undefined);
-  assert.equal(packageJson.devDependencies, undefined);
+  assert.deepEqual(packageJson.dependencies, {'@insforge/sdk':'1.5.2'});
+  assert.deepEqual(packageJson.devDependencies, {esbuild:'0.28.2'});
   assert.equal(packageJson.scripts.test, 'node --test tests/*.test.mjs');
 });
 

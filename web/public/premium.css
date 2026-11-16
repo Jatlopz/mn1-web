@@ -2989,3 +2989,11 @@
 :root[data-theme] .prod-status-grid .prod-process[data-state=on]{background-image:radial-gradient(ellipse at 24% 10%,rgba(42,219,128,.31),rgba(18,145,83,.14) 48%,transparent 100%);box-shadow:inset 3px 0 #8ae7b4,inset 0 0 32px rgba(39,211,126,.22)}
 :root[data-theme] .prod-status-grid .prod-status-counts{font-size:.83rem;font-variant-numeric:tabular-nums;min-width:52px}
 @media(forced-colors:active){:root[data-theme] .prod-status-grid .prod-process[data-state=on]{background-image:none;outline:2px solid Highlight}}
+/* Control editorial ligero: los perfiles y las imágenes siguen fuera de InsForge. */
+.site-admin-dialog{width:min(92vw,32rem)}
+.site-admin-dialog form{display:grid;gap:1rem}
+.site-admin-control{display:grid;gap:.75rem;max-width:42rem;margin:0 0 1.5rem;padding:1.2rem;border:1px solid color-mix(in srgb,var(--accent,#9de0ed) 30%,transparent);border-radius:1rem;background:color-mix(in srgb,var(--surface,#101820) 82%,transparent)}
+.site-admin-control h2,.site-admin-control p{margin:0}
+.site-admin-control form{display:grid;gap:.75rem}
+.site-admin-control textarea{width:100%;min-height:5rem;resize:vertical}
+.site-notice-public{max-width:72rem;margin:.5rem auto;padding:.7rem 1rem;border-left:3px solid var(--accent,#9de0ed);background:color-mix(in srgb,var(--surface,#101820) 82%,transparent);color:var(--text,#fff)}

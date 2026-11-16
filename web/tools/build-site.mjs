@@ -2,8 +2,10 @@ import {createHash} from 'node:crypto';
 import {readFile, mkdir, writeFile, lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {build as bundle} from 'esbuild';
+const INSFORGE_SDK_PATH=fileURLToPath(import.meta.resolve('@insforge/sdk'));
 
-const MODULES = ['theme-bootstrap.js','team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js', 'themes.js', 'cloud-client.js', 'cloud-model.js', 'cloud-workspace.js', 'app.js', 'meeting-report.js', 'bridge.js', 'profiles.js', 'renderer.js', 'starter-templates.js', 'storage.js', 'voice.js'];
+const MODULES = ['insforge-admin.js','theme-bootstrap.js','team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js','themes.js','cloud-client.js','cloud-model.js','cloud-workspace.js','app.js','meeting-report.js','bridge.js','profiles.js','renderer.js','starter-templates.js','storage.js','voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
 const THEME_TEXTURES = Object.freeze([
@@ -135,6 +137,10 @@ async function readStarterImage(source, sourceReal, image) {
 export async function buildSite(source, destination) {
   if (path.resolve(source) === path.resolve(destination)) throw new Error('Use a separate output directory');
   const sourceFiles = Object.fromEntries(await Promise.all(MODULES.map(async name => [name, await readFile(path.join(source, name), 'utf8')])));
+  const config = JSON.parse(await readFile(new URL('../admin-config.json', import.meta.url), 'utf8'));
+  if (!/^https:\/\/[a-z0-9-]+\.us-east\.insforge\.app$/.test(config.baseUrl) || typeof config.anonKey !== 'string' || !config.anonKey) throw new Error('Invalid InsForge public configuration');
+  const sdkBundle = await bundle({entryPoints:[path.join(source,'insforge-admin.js')],bundle:true,write:false,format:'esm',platform:'browser',target:'es2020',minify:true,external:['crypto'],alias:{'@insforge/sdk':INSFORGE_SDK_PATH},define:{INSFORGE_BASE_URL:JSON.stringify(config.baseUrl),INSFORGE_ANON_KEY:JSON.stringify(config.anonKey)}});
+  sourceFiles['insforge-admin.js'] = sdkBundle.outputFiles[0].text;
   const htmlSource = await readFile(path.join(source, 'index.html'), 'utf8');
   const css = await readFile(path.join(source, 'styles.css'), 'utf8')+'\n'+await readFile(path.join(source, 'production.css'), 'utf8')+'\n'+await readFile(path.join(source, 'looms.css'), 'utf8')+'\n'+await readFile(path.join(source, 'premium.css'), 'utf8')+'\n'+await readFile(path.join(source, 'corporate-board.css'), 'utf8')+'\n'+await readFile(path.join(source, 'team-carousel.css'), 'utf8');
   const version = JSON.parse(await readFile(path.join(source, 'version.json'), 'utf8'));
