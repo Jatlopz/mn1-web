@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm --prefix web ci
       - run: npm --prefix web test
       - run: npm --prefix web run check
       - run: node web/tools/build-site.mjs
