@@ -183,8 +183,10 @@ test('Settings conserva Administración oculta hasta verificar el rol', async ()
  const html=await readPublic('index.html');
  assert.match(html, /id="settings-admin"[^>]*hidden/);
  assert.match(html, /id="cloud-dashboard-access"/);
+ assert.match(html, /id="cloud-site-admin-access"/);
  const source=await readPublic('cloud-workspace.js');
  assert.match(source, /settings-admin.*addEventListener/);
+ assert.match(source, /cloud-site-admin-access.*addEventListener/);
 });
 
 
