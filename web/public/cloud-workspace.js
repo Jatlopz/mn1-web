@@ -660,6 +660,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   });
   siteSignOut.addEventListener('click',async()=>{try{await siteAdmin.signOut();siteAdminAccess=false;siteAdminEmail=null;siteResult.textContent='Sesión cerrada.';if(!access?.admin)hideAdmin();render();}catch(e){siteResult.textContent=e.message;}});
   $('cloud-dashboard-access').addEventListener('click',()=>void openAdmin());
+  $('cloud-site-admin-access').addEventListener('click',()=>void openAdmin());
   $('settings-admin').addEventListener('click',()=>{ $('web-settings-dialog')?.close();void openAdmin(); });
   $('open-admin-dashboard').addEventListener('click',()=>void openAdmin());$('admin-incoming').addEventListener('click',()=>void openAdmin());
   $('admin-close').addEventListener('click',async()=>{const button=$('admin-close');button.disabled=true;try{if(!(await leaveAdminDashboard(screenCloser,()=>getServices().openPersonalSpace())))$('admin-feedback').textContent='Guarda la edición pendiente antes de abrir la vista de usuario.';}catch{$('admin-status').textContent='No se pudo volver a Mi espacio. Tu trabajo se conserva; inténtalo de nuevo.';}finally{button.disabled=false;}});$('admin-refresh').addEventListener('click',()=>void loadAdmin());$('admin-filter').addEventListener('change',()=>void loadAdmin());$('admin-more').addEventListener('click',()=>void loadAdmin(true));
