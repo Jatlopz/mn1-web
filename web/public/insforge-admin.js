@@ -23,7 +23,7 @@ function unwrap(result) {
   return result.data;
 }
 
-// Esta conexión sólo gestiona el acceso del creador y un aviso de texto.
+// Esta conexión gestiona el acceso del creador, un aviso de texto y el mural.
 // Perfiles, logos, artes y fotos no se envían a InsForge.
 export const siteAdmin = Object.freeze({
   async status() {
@@ -57,4 +57,19 @@ export const siteAdmin = Object.freeze({
   async saveNotice(revision, message) {
     return unwrap(await api().database.rpc('st_site_notice_set', {expected_revision:revision, new_message:message}));
   },
+});
+
+// El mural usa la misma sesión InsForge, pero sus permisos se comprueban en RPC.
+export const assignmentBoard = Object.freeze({
+  async identity() {
+    const result=await api().auth.getCurrentUser();
+    if(result.error && /unauthori[sz]ed|not authenticated|no session|no refresh token|401/i.test(result.error.message||''))return null;
+    return unwrap(result)?.user||null;
+  },
+  async requestCode(email){return siteAdmin.requestCode(email);},
+  async verifyCode(email,otp){unwrap(await api().auth.verifyOtp({email:String(email).trim(),otp:String(otp).trim()}));return this.identity();},
+  async feed(archived=false,offset=0){return unwrap(await api().database.rpc('st_board_feed',{p_archived:archived,p_offset:offset}));},
+  async save(id,revision,draft){return unwrap(await api().database.rpc('st_board_save',{p_id:id,p_expected:revision,p_draft:draft}));},
+  async publishers(){return unwrap(await api().database.rpc('st_board_publishers'));},
+  async grant(email,allowed){return unwrap(await api().database.rpc('st_board_grant',{p_email:email,p_allowed:allowed}));},
 });

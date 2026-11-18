@@ -5,7 +5,7 @@ import {createRegistryAdmin} from './registry-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
-import { siteAdmin } from './insforge-admin.js';
+import { siteAdmin, assignmentBoard } from './insforge-admin.js';
 import {
   CLOUD_META_KEY,
   localTeamPacket,
@@ -103,7 +103,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const definitions = () => getServices().catalog;
   function render() {
     const logged = Boolean(client.session);
-    applyAccountVisibility(access);creatorInfo?.setAdmin(access?.admin===true);corporateBoard?.setIdentity(client.session?.user?.id||null);
+    applyAccountVisibility(access);creatorInfo?.setAdmin(access?.admin===true);
     $("cloud-login").hidden = logged;
     $("cloud-connected").hidden = false;
     $("cloud-logout").hidden = !logged;
@@ -678,7 +678,7 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   });
   $('my-ideas-refresh').addEventListener('click',()=>void loadMine());$('my-ideas-more').addEventListener('click',()=>void loadMine(true));
 
-  corporateBoard=installCorporateBoard({client,openAccount:()=>void openCloud()});
+  corporateBoard=installCorporateBoard({client:assignmentBoard});
   async function start() {
     render();
     const cloudInit=(async()=>{try {
