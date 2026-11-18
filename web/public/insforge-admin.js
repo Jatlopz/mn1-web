@@ -73,3 +73,8 @@ export const assignmentBoard = Object.freeze({
   async publishers(){return unwrap(await api().database.rpc('st_board_publishers'));},
   async grant(email,allowed){return unwrap(await api().database.rpc('st_board_grant',{p_email:email,p_allowed:allowed}));},
 });
+
+export const personnelCatalog = Object.freeze({
+  async read(plantId) { return unwrap(await api().database.rpc('st_staff_read', {p_plant:plantId})); },
+  async save(draft) { return unwrap(await api().database.rpc('st_staff_save', {p_id:draft.id,p_expected:draft.revision,p_plant:draft.plantId,p_name:draft.name,p_code:draft.code,p_active:draft.active,p_process_codes:draft.processes})); },
+});
