@@ -2,10 +2,11 @@ import {installCorporateBoard} from './corporate-board.js';
 import {installCreatorInfo} from './creator-info.js';
 import {isIdeaImage,prepareIdeaImage,prepareNativeIdeaImage,appendIdeaAttachment} from './idea-attachment.js';
 import {createRegistryAdmin} from './registry-admin.js';
+import {createStaffAdmin} from './staff-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
-import { siteAdmin, assignmentBoard } from './insforge-admin.js';
+import { siteAdmin, assignmentBoard, personnelCatalog } from './insforge-admin.js';
 import {
   CLOUD_META_KEY,
   localTeamPacket,
@@ -56,7 +57,7 @@ export function setAdminScreenVisible(screen,visible,root=document) {
  if(visible)screen.focus();
 }
 export function applyAdminDashboardView(dashboard, view) {
-  if (!['overview', 'tools', 'inbox', 'catalog'].includes(view)) return false;
+  if (!['overview', 'tools', 'inbox', 'catalog', 'staff'].includes(view)) return false;
   dashboard.dataset.view = view;
   for (const panel of dashboard.querySelectorAll('[data-admin-panel]')) panel.hidden = panel.dataset.adminPanel !== view;
   for (const button of dashboard.querySelectorAll('[data-admin-view]')) button.setAttribute('aria-pressed', String(button.dataset.adminView === view));
@@ -567,11 +568,12 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const siteResult=document.createElement('p');siteResult.setAttribute('role','status');siteResult.setAttribute('aria-live','polite');
   siteForm.append(siteLabel,siteSave);siteControl.append(siteHeading,siteInfo,siteForm,siteSignOut,siteResult);
   adminDashboard.querySelector('[data-admin-panel="overview"]').prepend(siteControl);
-  const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');siteControl.hidden=!siteAdminAccess;siteInfo.textContent=siteAdminAccess?'Conectado como '+siteAdminEmail+'. Los perfiles, imágenes y artes de equipos permanecen fuera de InsForge.':'Los datos de equipos permanecen en su servicio actual.';adminDashboard.querySelector('[data-admin-jump="inbox"]').hidden=!access?.admin;$('admin-to-inbox').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="catalog"]').hidden=!access?.admin;};
+  const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');siteControl.hidden=!siteAdminAccess;siteInfo.textContent=siteAdminAccess?'Conectado como '+siteAdminEmail+'. Los perfiles, imágenes y artes de equipos permanecen fuera de InsForge.':'Los datos de equipos permanecen en su servicio actual.';adminDashboard.querySelector('[data-admin-jump="inbox"]').hidden=!access?.admin;$('admin-to-inbox').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="catalog"]').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="staff"]').hidden=!siteAdminAccess;};
   const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
   const screenCloser={close:hideAdmin};
   registry=createRegistryAdmin($('admin-registry'),{client,onAccessLost:()=>{access={...access,admin:false};render();}});
-  function selectAdminView(view){const changed=applyAdminDashboardView(adminDashboard,view);if(changed&&view==='catalog'&&access?.admin)void registry.open();if(changed&&view==='catalog'&&!access?.admin)$('admin-registry').textContent='El catálogo compartido sigue en Supabase. No se puede editar desde la conexión actual; los datos existentes se conservan.';if(changed&&view==='inbox'&&!access?.admin)$('admin-status').textContent='El buzón sigue en Supabase y no está disponible con la conexión actual. Las solicitudes existentes se conservan.';return changed;}
+  const staff=createStaffAdmin($('admin-staff'),personnelCatalog);
+  function selectAdminView(view){const changed=applyAdminDashboardView(adminDashboard,view);if(changed&&view==='staff'&&siteAdminAccess)void staff.open();if(changed&&view==='catalog'&&access?.admin)void registry.open();if(changed&&view==='catalog'&&!access?.admin)$('admin-registry').textContent='El catálogo compartido sigue en Supabase. No se puede editar desde la conexión actual; los datos existentes se conservan.';if(changed&&view==='inbox'&&!access?.admin)$('admin-status').textContent='El buzón sigue en Supabase y no está disponible con la conexión actual. Las solicitudes existentes se conservan.';return changed;}
   function renderAdminTeams(){
     const all=definitions(),plant=$('admin-plant').value;
     $('admin-team-count').textContent=String(all.length);$('admin-tool-count').textContent=String(TEAM_TOOLS.length);$('admin-published-count').textContent=access?.admin?String(rows.filter(row=>row.revision).length):'—';
