@@ -6,3 +6,33 @@
 @media(min-width:1100px){.looms-kpis{grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.looms-kpi{padding:14px}.looms-kpi strong{font-size:25px}.looms-content:has(>.looms-kpis){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}.looms-content:has(>.looms-kpis)>:not(.looms-chart){grid-column:1/-1}.looms-chart{margin:8px 0}.looms-toolbar{margin-top:12px}}
 
 .looms-avatar{display:block;flex:0 0 48px;width:48px;height:48px;object-fit:cover;border-radius:50%;background:#263b50}.looms-avatar-initials{display:grid;place-items:center;color:#d8eaff;font-size:15px;font-weight:750;letter-spacing:.04em}.looms-chart-person{display:flex;align-items:center;gap:12px;min-width:0}.looms-chart-person strong{min-width:0}.looms-chart-label{align-items:center}.looms-avatar-button{display:block;padding:0;border:0;border-radius:50%;background:transparent;cursor:pointer;flex-shrink:0;min-width:48px;min-height:48px}.looms-avatar-button:hover{outline:2px solid #9ddcff88;outline-offset:3px}.looms-photo-editor{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.looms-photo-editor button{font-size:12px;padding:8px 12px;min-height:44px}.looms-photo-editor .looms-avatar{width:56px;height:56px;flex-basis:56px}@media(max-width:650px){.looms-photo-editor{flex-basis:100%}.looms-chart-person{gap:9px}}
+
+.loom-bench-heading {display:flex;align-items:center;gap:.6rem 1.25rem;flex-wrap:wrap;background:var(--surface-high,#1c2938);padding:.7rem 1rem;border-radius:12px;color:var(--text,#edf4fc)}
+.loom-bench-heading h4,.loom-operators h4,.looms-week-goals h4 {margin:0}
+.loom-bench-heading span {font-size:.82rem;color:var(--text-muted,#beccd8)}
+.loom-bench-heading + .looms-table-scroll {margin:4px 0 20px}
+.looms-sheet {min-width:0;table-layout:fixed}
+.looms-sheet td {min-width:0;vertical-align:top}
+.looms-sheet td:nth-child(-n+2),.looms-sheet td:has(output) {padding-top:14px}
+.loom-shift-options summary {cursor:pointer;color:var(--text-muted);font-size:.72rem;padding:.35rem 0}
+.loom-shift-options[open] .looms-field {font-size:.74rem;margin:.35rem 0}
+.looms-week-goals,.loom-person-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px}
+.looms-week-goals section,.loom-person-card {background:var(--surface-high,#1b2938);border-radius:16px;padding:16px}
+.looms-week-goals section label {display:grid;grid-template-columns:1fr 1fr;align-items:center;margin-top:7px}
+.looms-content:has(>.looms-kpis)>.loom-operators {grid-column:1/-1}
+.loom-operators h4 {margin:18px 0 12px}.loom-person-card {background:linear-gradient(140deg,var(--surface-high,#263546),var(--surface,#121a27));min-width:0}
+.loom-person-card strong,.loom-person-card small {display:block;overflow-wrap:anywhere}
+.loom-person-card small {font-size:.76rem;color:var(--text-muted,#bbcad5)}
+.loom-person-score {font-size:clamp(1.65rem,3vw,2.3rem);margin:.8rem 0 .1rem;line-height:1.15;font-variant-numeric:tabular-nums}
+.loom-week-trend {display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;text-align:center}
+.loom-day-track {height:46px;display:flex;align-items:flex-end;background:#8096ad15;border-radius:4px;overflow:hidden}
+.loom-day-track span {width:100%;border-radius:4px;background:#73ebbd}
+.loom-day-track span[data-level=warning]{background:#ffc26b}.loom-day-track span[data-level=low]{background:#ff778c}
+@media(max-width:650px){
+ .looms-sheet tbody tr:not(.looms-note-row){grid-template-columns:minmax(55px,.72fr) repeat(2,minmax(0,1fr));gap:3px 8px}
+ .looms-sheet tbody tr>td:first-child{grid-area:1/1!important}.looms-sheet tbody tr>td:nth-child(2){grid-area:2/1;font-size:11px;color:var(--text-muted)}
+ .looms-sheet tbody tr>td:nth-child(3){grid-area:1/2}.looms-sheet tbody tr>td:nth-child(4){grid-area:2/2}.looms-sheet tbody tr>td:nth-child(5){grid-area:1/3}.looms-sheet tbody tr>td:nth-child(6){grid-area:2/3}
+ .looms-sheet td:nth-child(-n+2),.looms-sheet td:has(output){padding:0}
+ .looms-sheet td>label.looms-field{font-size:0}.looms-sheet td:nth-child(3)>label:before,.looms-sheet td:nth-child(5)>label:before {font-size:11px}.looms-sheet td:nth-child(3)>label:before{content:"TA · metros"}.looms-sheet td:nth-child(5)>label:before{content:"TC · metros"}
+ .looms-sheet .looms-eff{font-size:.85rem}
+}

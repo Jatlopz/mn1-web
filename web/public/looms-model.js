@@ -10,6 +10,33 @@ const ratio=(a,b)=>b===0n?null:Number(a*100000000n/b)/1000000;
 export function loomConfigKey(team){if(!safeId(team))fail();return 'mn1.loom.cfg.'+team;}
 export function loomWeekKey(team,date){if(!safeId(team))fail();return 'mn1.l.'+team+'.'+isoWeekInfo(date).weekKey;}
 export function createLoomConfig(){return {version:1,people:[],benches:[],machines:[]};}
+const sacosBenches = [[1,2,3,4,5], [7,8,9,10,11,12], [13,14,15,16,17,18], [6,19,20,21,22,23]];
+export function loomNumberFromName(name) {
+ const match = /^(?:telar|telares|máquina)\s*[#-]?\s*0*(\d+)$/iu.exec(name.trim());
+ return match ? Number(match[1]) : null;
+}
+export function provisionSacosLooms(config) {
+ const next = structuredClone(config);
+ for (const [index, numbers] of sacosBenches.entries()) {
+  const name = 'Bancada '+(index+1);
+  let bench = next.benches.find(b=>b.name.toLowerCase()===name.toLowerCase() || b.id==='sacos-b'+(index+1));
+  for (const number of numbers) {
+   const id='sacos-t'+number;
+   const machine = next.machines.find(m=>m.id===id || loomNumberFromName(m.name)===number);
+   if(machine?.benchId) continue;
+   if(!bench) {
+    bench={id:'sacos-b'+(index+1),name,enabled:true};
+    next.benches.push(bench);
+   }
+   if(machine) machine.benchId=bench.id;
+   else next.machines.push({id,name:'Telar '+number,enabled:true,benchId:bench.id,baseTarget:''});
+  }
+ }
+ return normalizeLoomConfig(next);
+}
+export function weeklyTarget(week,machine) {
+ return week.targets?.[machine.id] ?? week.captures.find(r=>r.machineId===machine.id && r.state==='recorded')?.baseTarget ?? machine.baseTarget;
+}
 export function applyLoomRoster(config,workers){
  if(!Array.isArray(workers))throw Error('No se pudo leer el personal asignado.');
  const people=new Map(config.people.map(person=>[person.id,{...person}]));
@@ -30,7 +57,7 @@ export function normalizeLoomConfig(raw){
  const machines=raw.machines.map(v=>{const m=named(v);if(v.benchId!==''&&!benchIds.has(v.benchId))fail();if(v.baseTarget!==''&&(loomNumber(v.baseTarget)===null||loomNumber(v.baseTarget)===0))fail('La meta debe ser mayor que cero, en metros para 12 horas.');return {...m,benchId:v.benchId,baseTarget:v.baseTarget};});
  return {version:1,people,benches,machines};
 }
-export function createLoomWeek(date){const info=isoWeekInfo(date);return {version:1,week:info.weekKey,startDate:info.startDate,schedule:[],captures:[]};}
+export function createLoomWeek(date){const info=isoWeekInfo(date);return {version:1,week:info.weekKey,startDate:info.startDate,schedule:[],captures:[],targets:{}};}
 export function loomDays(date){const info=isoWeekInfo(date),start=new Date(info.startDate+'T00:00:00Z');return Array.from({length:7},(_,i)=>{const d=new Date(start);d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10);});}
 export function captureIdentity(row){return row.date+'|'+row.shift+'|'+row.machineId;}
 export function loomMetric(row){
@@ -45,7 +72,12 @@ export function normalizeLoomWeek(raw,date){
  const rows=raw.captures.map(v=>{if(!v||isoWeekInfo(v.date).weekKey!==expected.week||!['TA','TC'].includes(v.shift)||!safeId(v.machineId)||!['recorded','inactive','pending'].includes(v.state))fail();const key=captureIdentity(v);if(captures.has(key))fail('Hay capturas duplicadas para la misma máquina y turno.');captures.add(key);
  const row={date:v.date,shift:v.shift,machineId:v.machineId,machineName:loomText(v.machineName),benchId:v.benchId,benchName:v.state==='pending'&&v.benchId===''?'':loomText(v.benchName),personId:v.personId,personName:v.personName,state:v.state,actual:v.actual,baseTarget:v.baseTarget,hours:v.hours,note:typeof v.note==='string'?v.note:''};
  if((row.benchId!==''&&!safeId(row.benchId))||(row.state!=='pending'&&!safeId(row.benchId))||row.note.length>500)fail();if(v.state==='recorded'){if(!safeId(row.personId))fail('Selecciona la persona responsable.');row.personName=loomText(row.personName);loomMetric(row);}else if(row.state==='inactive'){if(row.actual!==''||row.personId!==''||row.personName!=='')fail();}else{if(row.actual!==''||(row.baseTarget!==''&&loomNumber(row.baseTarget)===null)||(row.hours!==''&&loomNumber(row.hours,{hours:true})===null))fail();if(row.personId!==''){if(!safeId(row.personId))fail();row.personName=loomText(row.personName);}else if(row.personName!=='')fail();}return row;});
- return {...expected,schedule,captures:rows};
+ const targets = raw.targets ?? {};
+ if(typeof targets!=='object'||Array.isArray(targets)||Object.keys(targets).length>100)fail();
+ for(const [id,value] of Object.entries(targets)){
+  if(!safeId(id)||(value!=='' && !(loomNumber(value)>0)))fail('La meta semanal debe ser positiva y estar en metros.');
+ }
+ return {...expected,schedule,captures:rows,targets:{...targets}};
 }
 export function saveLoomShift(week,config,date,shift,entries){
  normalizeLoomConfig(config);const current=normalizeLoomWeek(week,date);if(!['TA','TC'].includes(shift)||!Array.isArray(entries))fail();

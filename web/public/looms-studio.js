@@ -1,6 +1,6 @@
 import {isoWeekInfo} from './iso-calendar.js';
 import {normalizeRegistry} from './registry-model.js';
-import {applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
+import {provisionSacosLooms,loomNumberFromName,weeklyTarget,applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
 
 /** Decode only user-selected raster files; save a small, metadata-free JPEG thumbnail. */
 export async function prepareLoomPhoto(file,{root=document}={}){
@@ -28,7 +28,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  const discardButton=btn('Cerrar sin guardar',()=>discardDialog.showModal());discardButton.hidden=true;
  const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Datos locales de este equipo'),discardButton,saveButton);
  dialog.append(header,toolbar,tabs,status,content,footer);root.body.append(dialog);
- let team=null,config=null,week=null,date='',shift='TA',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
+ let team=null,config=null,week=null,date='',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
  const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
  const photoCache=new Map(),photoInputs=new Map();
@@ -95,35 +95,106 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   });
  }
  function renderCapture(){
-  titleFor('Producción diaria por telar');const selectors=el('div','looms-filters');content.append(selectors);
-  select(selectors,'Día',date,loomDays(week.startDate).map(d=>[d,d.split('-').reverse().join('/')]),async v=>{const old=date;date=old;if(await save()){date=v;dirty=false;render();}else render();},{tracked:false});
-  select(selectors,'Turno',shift,[['TA','TA'],['TC','TC']],async v=>{const old=shift;shift=old;if(await save()){shift=v;dirty=false;render();}else render();});
-  content.append(el('p','hint','Captura en metros. Pendiente no equivale a cero. Las horas empiezan en 12 y se pueden ajustar; una captura guardada conserva sus datos y su responsable.'));
-  captureSetup();
-  if(!config.machines.some(m=>m.enabled))return;
-  const body=rowsTable(['Telar / bancada','Responsable','Estado','Meta 12 h (m)','Horas','Real (m)','Eficiencia']);formRows=[];
-  for(const machine of config.machines.filter(m=>m.enabled)){
-   const previous=week.captures.find(r=>r.machineId===machine.id&&r.date===date&&r.shift===shift),assignment=week.schedule.find(a=>a.benchId===machine.benchId&&a.shift===shift);
-   const data=previous?{...previous}:{machineId:machine.id,benchId:machine.benchId,personId:assignment?.personId||'',state:'pending',baseTarget:machine.baseTarget,hours:'12',actual:'',note:''};if(data.state==='pending'){if(!data.benchId)data.benchId=machine.benchId;if(!data.baseTarget)data.baseTarget=machine.baseTarget;if(!data.personId)data.personId=week.schedule.find(a=>a.benchId===data.benchId&&a.shift===shift)?.personId||'';}formRows.push(data);
-   const row=el('tr');body.append(row);const name=cell(row);name.append(el('strong','',previous?.machineName||machine.name),el('small','',previous?.benchName||config.benches.find(b=>b.id===data.benchId)?.name||'Sin bancada'));
-   select(cell(row),'Responsable de '+machine.name,data.personId,availablePeople(data.personId),v=>data.personId=v);
-   const state=select(cell(row),'Estado de '+machine.name,data.state,[['pending','Pendiente'],['recorded','Capturado'],['inactive','Inactivo']],v=>{data.state=v;if(v==='inactive'){data.actual='';actual.value='';}update();});
-   numericCell(row,'Meta de '+machine.name,data.baseTarget,v=>{data.baseTarget=v;update();});numericCell(row,'Horas de '+machine.name,data.hours,v=>{data.hours=v;update();});
-   const actual=numericCell(row,'Real de '+machine.name,data.actual,v=>{data.actual=v;if(v.trim()!==''&&data.state==='pending'){data.state='recorded';state.value='recorded';}update();});const out=el('output','looms-eff');cell(row).append(out);
-   function update(){try{const m=loomMetric(data);out.textContent=m?fmt(m.efficiency)+' %':data.state==='inactive'?'Inactivo':'—';out.dataset.level=m?(m.efficiency>=90?'good':m.efficiency>=80?'warning':'low'):'';}catch{out.textContent='Completar';}actual.disabled=data.state==='inactive';}update();
-   const noteRow=el('tr','looms-note-row'),noteCell=el('td');noteCell.colSpan=7;const details=el('details');details.append(el('summary','','Comentario de '+machine.name));field(details,'Comentario',data.note,v=>data.note=v,{type:'textarea'});noteCell.append(details);noteRow.append(noteCell);body.append(noteRow);
+  titleFor('Producción diaria por bancada');
+  const selectors=el('div','looms-filters');
+  content.append(selectors);
+  select(selectors,'Día',date,loomDays(week.startDate).map(d=>[d,d.split('-').reverse().join('/')]),async value=>{
+   if(await save()){date=value;render();}
+   else selectors.querySelector('select').value=date;
+  },{tracked:false});
+  selectors.append(btn('Editar metas y operadores',()=>tabButtons.get('assign').click()));
+  if(!config.machines.some(m=>m.enabled)){captureSetup();return;}
+  content.append(el('p','hint','Ingresa los metros producidos en TA y TC. Cada meta corresponde a 12 horas y se establece en Asignaciones para la semana seleccionada.'));
+  for(const bench of benchGroups()){
+   const heading=el('div','loom-bench-heading');
+   heading.append(el('h4','',bench.name));
+   for(const turn of ['TA','TC']){
+    const assigned=week.schedule.find(a=>a.benchId===bench.id&&a.shift===turn);
+    const person=config.people.find(p=>p.id===assigned?.personId);
+    heading.append(el('span','',turn+' · '+(person?.name||'Sin asignar')));
+   }
+   content.append(heading);
+   const body=rowsTable(['Telar','Meta 12 h','Producción TA','Eficiencia TA','Producción TC','Eficiencia TC']);
+   body.closest('table').classList.add('looms-sheet');
+   for(const machine of bench.members){
+    const row=el('tr');body.append(row);
+    cell(row).textContent=machine.name;
+    const goal=weeklyTarget(week,machine);
+    cell(row).textContent=goal ? fmt(loomNumber(goal))+' m' : 'Por definir';
+    for(const turn of ['TA','TC']){
+     const previous=week.captures.find(r=>r.machineId===machine.id && r.date===date && r.shift===turn);
+     const assigned=week.schedule.find(a=>a.benchId===machine.benchId && a.shift===turn);
+     const data=previous?{...previous}:{machineId:machine.id,benchId:machine.benchId,state:'pending',hours:'12',note:'',actual:'',personId:''};
+     if(data.state!=='recorded'){
+      data.benchId=machine.benchId;
+      data.baseTarget=goal;
+      if(!previous?.personId) data.personId=assigned?.personId||'';
+     }
+     data.shift=turn;
+     formRows.push(data);
+     const inputCell=cell(row),result=cell(row);
+     const actual=field(inputCell,'Metros '+turn+' · '+machine.name,data.actual,value=>{
+      data.actual=value;
+      data.state=value.trim()?'recorded':'pending';
+      state.value=data.state;
+      update();
+     },{numeric:true});
+     actual.placeholder='Metros';
+     const out=el('output','looms-eff');
+     result.append(out);
+     const details=el('details','loom-shift-options');
+     const summary=el('summary','','Ajustes');
+     summary.setAttribute('aria-label','Ajustes '+turn+' · '+machine.name);
+     details.append(summary);
+     const person=select(details,'Responsable '+turn+' · '+machine.name,data.personId,availablePeople(data.personId),value=>{data.personId=value;update();});
+     const state=select(details,'Estado '+turn+' · '+machine.name,data.state,[['pending','Pendiente'],['recorded','Capturado'],['inactive','Inactivo']],value=>{
+      data.state=value;
+      if(value!=='recorded'){data.actual='';actual.value='';}
+      update();
+     });
+     field(details,'Horas '+turn+' · '+machine.name,data.hours,value=>{data.hours=value;update();},{numeric:true});
+     field(details,'Comentario '+turn+' · '+machine.name,data.note,value=>{data.note=value;data.touched=true;},{type:'textarea'});
+     inputCell.append(details);
+     function refresh(){
+      actual.disabled=data.state==='inactive'||!(loomNumber(data.baseTarget)>0)||!data.personId;
+      actual.title=!(loomNumber(data.baseTarget)>0)?'Define la meta en Asignaciones':!data.personId?'Selecciona al operador en Asignaciones o en Ajustes':'';
+      person.disabled=data.state==='inactive';
+      try{
+       const metric=loomMetric(data);
+       out.textContent=metric?fmt(metric.efficiency)+' %':data.state==='inactive'?'Inactivo':'—';
+       out.dataset.level=metric?(metric.efficiency>=90?'good':metric.efficiency>=80?'warning':'low'):'';
+      }catch{out.textContent=!(loomNumber(data.baseTarget)>0)?'Falta meta':'Revisa datos';}
+     }
+     function update(){data.touched=true;refresh();}
+     refresh();
+    }
+   }
   }
+ }
+ function benchGroups(){
+  const groups=[...config.benches,{id:'',name:'Sin bancada'}];
+  return groups.map(b=>({...b,members:config.machines.filter(m=>m.enabled&&m.benchId===b.id)
+   .sort((a,b)=>(loomNumberFromName(a.name)??Infinity)-(loomNumberFromName(b.name)??Infinity))})).filter(b=>b.members.length);
  }
  function renderAssignments(){titleFor('Responsables de las bancadas');content.append(el('p','hint','Programa semanal por turno. Puedes cambiar el responsable en una captura diaria para registrar un relevo. Los cambios no reescriben capturas anteriores.'));
   const body=rowsTable(['Bancada','Telares','Turno TA','Turno TC']);for(const bench of config.benches.filter(b=>b.enabled)){
    const row=el('tr');body.append(row);cell(row).textContent=bench.name;cell(row).textContent=config.machines.filter(m=>m.enabled&&m.benchId===bench.id).map(m=>m.name).join(', ')||'Sin máquinas';
    for(const turn of ['TA','TC']){const current=week.schedule.find(a=>a.benchId===bench.id&&a.shift===turn)?.personId||'';select(cell(row),turn+' · '+bench.name,current,availablePeople(current),v=>{week.schedule=week.schedule.filter(a=>!(a.benchId===bench.id&&a.shift===turn));if(v)week.schedule.push({benchId:bench.id,shift:turn,personId:v});});}
   }
+  titleFor('Metas de la semana');
+  content.append(el('p','hint','Define los metros por telar para 12 horas. La meta se usa en ambos turnos durante esta semana. Las capturas ya guardadas conservan la meta con la que se calcularon.'));
+  const list=el('div','looms-week-goals');content.append(list);
+  for(const bench of benchGroups()){
+   const group=el('section');group.append(el('h4','',bench.name));list.append(group);
+   for(const machine of bench.members){
+    field(group,machine.name,weeklyTarget(week,machine),value=>week.targets[machine.id]=value.trim(),{numeric:true});
+   }
+  }
   if(!config.benches.length)content.append(el('p','looms-empty','Primero crea las bancadas en Configuración.'));
  }
  function renderConfig(){titleFor('Catálogo local de Telares');if(!canConfigure()){content.append(el('p','hint','La configuración del catálogo corresponde al administrador.'));return;}
   content.append(el('p','hint','Las máquinas se importan del catálogo central de planta. Personas, bancadas y metas se guardan sólo en este equipo y dispositivo. Archivar conserva los registros anteriores.'));
-  content.append(btn('Importar máquinas de Telares',async()=>{if(!await save())return;lock(true);try{const raw=await getServices().getRegistry(team.plantId),registry=normalizeRegistry(raw,team.plantId);const process=registry.processes.find(p=>p.enabled&&p.flow==='entry'&&(p.code==='telares'||p.name.toLocaleLowerCase('es')==='telares'));if(!process)throw Error('No hay un proceso Telares de entrada habilitado en el catálogo.');const candidate=JSON.parse(JSON.stringify(config));let added=0;for(const m of process.resources.filter(m=>m.enabled&&m.kind==='machine'))if(!candidate.machines.some(v=>v.id===m.id)){candidate.machines.push({id:m.id,name:m.name,enabled:true,benchId:'',baseTarget:''});added++;}const next=normalizeLoomConfig(candidate);if(!canConfigure())throw Error('La sesión de administrador ya no está disponible.');loadedConfigRaw=await persist(loomConfigKey(team.id),JSON.stringify(next),loadedConfigRaw);config=next;dirty=false;render();message(added+' máquinas incorporadas sin reemplazar metas existentes.');}catch(e){message(e.message,true);}finally{lock(false);}}));
+  content.append(btn('Importar máquinas de Telares',async()=>{if(!await save())return;lock(true);try{const raw=await getServices().getRegistry(team.plantId),registry=normalizeRegistry(raw,team.plantId);const process=registry.processes.find(p=>p.enabled&&p.flow==='entry'&&(p.code==='telares'||p.name.toLocaleLowerCase('es')==='telares'));if(!process)throw Error('No hay un proceso Telares de entrada habilitado en el catálogo.');const candidate=JSON.parse(JSON.stringify(config));let added=0;for(const m of process.resources.filter(m=>m.enabled&&m.kind==='machine'))if(!candidate.machines.some(v=>v.id===m.id||(loomNumberFromName(m.name)!==null&&loomNumberFromName(m.name)===loomNumberFromName(v.name)))){candidate.machines.push({id:m.id,name:m.name,enabled:true,benchId:'',baseTarget:''});added++;}const next=normalizeLoomConfig(candidate);if(!canConfigure())throw Error('La sesión de administrador ya no está disponible.');loadedConfigRaw=await persist(loomConfigKey(team.id),JSON.stringify(next),loadedConfigRaw);config=next;dirty=false;render();message(added+' máquinas incorporadas sin reemplazar metas existentes.');}catch(e){message(e.message,true);}finally{lock(false);}}));
   content.append(btn('Agregar telar local',()=>{
    if(config.machines.length>=100){message('Se alcanzó el límite de telares.',true);return;}
    let number=1;
@@ -135,23 +206,69 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   namedEditor('people','Personas');namedEditor('benches','Bancadas');
   const body=rowsTable(['Máquina del catálogo','Bancada','Meta base (m / 12 h)','Habilitada']);for(const m of config.machines){const row=el('tr');body.append(row);field(cell(row),'Nombre del telar',m.name,v=>m.name=v);select(cell(row),'Bancada de '+m.name,m.benchId,options(config.benches),v=>m.benchId=v);numericCell(row,'Meta base de '+m.name,m.baseTarget,v=>m.baseTarget=v);const check=el('input');check.type='checkbox';check.checked=m.enabled;check.setAttribute('aria-label','Habilitar '+m.name);check.addEventListener('change',()=>{m.enabled=check.checked;changed();});cell(row).append(check);}
  }
+ function operatorBoard(data){
+  const section=el('section','loom-operators');
+  section.append(el('h4','','Rendimiento por operador'));
+  const cards=el('div','loom-person-grid');section.append(cards);
+  const ids=new Set([...data.people.map(p=>p.id),...week.schedule.filter(a=>(!dashboardShift||a.shift===dashboardShift)&&(!personFilter||a.personId===personFilter)).map(a=>a.personId)]);
+  for(const id of ids){
+   const person=config.people.find(p=>p.id===id),summary=data.people.find(p=>p.id===id);
+   const name=person?.name||summary?.name||'Operador asignado';
+   const card=el('article','loom-person-card'),top=el('div','looms-chart-person');
+   const picture=avatar(person,name);
+   if(canConfigure()&&person){
+    const edit=btn('',()=>{active='config';render();photoInputs.get(id)?.click();},'looms-avatar-button');
+    edit.setAttribute('aria-label',(person.photoKey?'Cambiar':'Agregar')+' foto de '+name);edit.append(picture);top.append(edit);
+   }else top.append(picture);
+   const caption=el('div');caption.append(el('strong','',name));
+   const assigned=week.schedule.filter(a=>a.personId===id&&(!dashboardShift||a.shift===dashboardShift));
+   caption.append(el('small','',assigned.map(a=>(config.benches.find(b=>b.id===a.benchId)?.name||'Bancada')+' · '+a.shift).join(' / ')));
+   top.append(caption);card.append(top);cards.append(card);
+   if(!summary){card.append(el('p','hint','Pendiente de captura'));continue;}
+   const score=el('strong','looms-eff loom-person-score',fmt(summary.efficiency)+' %');
+   score.dataset.level=summary.efficiency>=90?'good':summary.efficiency>=80?'warning':'low';
+   card.append(score,el('small','',fmt(summary.actual)+' m de '+fmt(summary.target)+' m'));
+   const trend=el('div','loom-week-trend');
+   const days=loomDays(week.startDate).map(day=>loomDashboard(week,{shift:dashboardShift,personId:id,date:day}));
+   const max=Math.max(100,...days.map(d=>d.efficiency||0));
+   days.forEach((day,i)=>{
+    const col=el('div'),track=el('div','loom-day-track'),bar=el('span');
+    if(day.efficiency!==null){bar.style.height=Math.max(2,day.efficiency/max*100)+'%';bar.dataset.level=day.efficiency>=90?'good':day.efficiency>=80?'warning':'low';}
+    const title=loomDays(week.startDate)[i]+' · '+(day.recorded?fmt(day.efficiency)+' %':'Sin captura');
+    col.title=title;col.setAttribute('aria-label',title);
+    track.append(bar);col.append(track,el('small','',['L','M','X','J','V','S','D'][i]));trend.append(col);
+   });
+   card.append(trend);
+  }
+  if(ids.size)content.append(section);
+ }
  function renderDashboard(){titleFor('Rendimiento semanal');const filters=el('div','looms-filters');content.append(filters);select(filters,'Turno del dashboard',dashboardShift,[['','Todos'],['TA','TA'],['TC','TC']],v=>{dashboardShift=v;render();},{tracked:false});select(filters,'Persona del dashboard',personFilter,options(config.people).map(([id,name])=>[id,id?name:'Todas']),v=>{personFilter=v;render();},{tracked:false});
   const data=loomDashboard(week,{shift:dashboardShift,personId:personFilter});const tiles=el('div','looms-kpis');for(const [label,value] of [['Eficiencia ponderada',data.efficiency===null?'—':fmt(data.efficiency)+' %'],['Producción',fmt(data.actual)+' m'],['Meta ajustada',fmt(data.target)+' m'],['Brecha',fmt(data.gap)+' m'],['Capturas',String(data.recorded)],['Pendientes guardados',String(data.pending)],['Inactivos',String(data.inactive)]]){const card=el('article','looms-kpi');card.append(el('span','',label),el('strong','',value));tiles.append(card);}content.append(tiles,el('p','hint','Resultados de las capturas guardadas. Pendientes e inactivos no se suman como producción cero. La eficiencia total divide producción acumulada entre metas ajustadas acumuladas.'));
-  if(!data.recorded){content.append(el('p','looms-empty','Aún no hay producción capturada en esta semana. Selecciona la bancada y el turno en Asignaciones y registra los metros en Captura.'));content.append(btn('Abrir asignaciones',()=>tabButtons.get('assign').click()));return;}
-  for(const [heading,items] of [['Eficiencia por persona',data.people],['Evolución diaria por turno',data.daily]]){const chart=el('section','looms-chart');chart.append(el('h4','',heading));const maximum=Math.max(100,...items.map(i=>i.efficiency));for(const r of items){const line=el('div','looms-chart-row'),top=el('div','looms-chart-label');const identity=el('div','looms-chart-person');if(heading==='Eficiencia por persona'){const person=config.people.find(p=>p.id===r.id),picture=avatar(person,r.name);if(canConfigure()&&person){const edit=btn('',()=>{active='config';render();photoInputs.get(r.id)?.click();},'looms-avatar-button');edit.setAttribute('aria-label',(person?.photoKey?'Cambiar':'Agregar')+' foto de '+r.name);edit.append(picture);identity.append(edit);}else identity.append(picture);}identity.append(el('strong','',r.name));top.append(identity,el('span','',fmt(r.efficiency)+' %'));const track=el('div','looms-track'),fill=el('span');fill.style.width=(r.efficiency/maximum*100)+'%';fill.dataset.level=r.efficiency>=90?'good':r.efficiency>=80?'warning':'low';track.setAttribute('role','meter');track.setAttribute('aria-label',r.name);track.setAttribute('aria-valuenow',String(r.efficiency));track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.append(fill);line.append(top,track,el('small','',fmt(r.actual)+' m / '+fmt(r.target)+' m de meta ajustada'));chart.append(line);}content.append(chart);}
+  operatorBoard(data);
+  if(!data.recorded){content.append(el('p','looms-empty','Aún no hay producción capturada en esta semana. Selecciona la bancada y el turno en Asignaciones y registra los metros en Captura.'));content.append(btn('Abrir captura',()=>tabButtons.get('capture').click()));return;}
+  for(const [heading,items] of [['Evolución diaria por turno',data.daily]]){const chart=el('section','looms-chart');chart.append(el('h4','',heading));const maximum=Math.max(100,...items.map(i=>i.efficiency));for(const r of items){const line=el('div','looms-chart-row'),top=el('div','looms-chart-label');const identity=el('div','looms-chart-person');identity.append(el('strong','',r.name));top.append(identity,el('span','',fmt(r.efficiency)+' %'));const track=el('div','looms-track'),fill=el('span');fill.style.width=(r.efficiency/maximum*100)+'%';fill.dataset.level=r.efficiency>=90?'good':r.efficiency>=80?'warning':'low';track.setAttribute('role','meter');track.setAttribute('aria-label',r.name);track.setAttribute('aria-valuenow',String(r.efficiency));track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.append(fill);line.append(top,track,el('small','',fmt(r.actual)+' m / '+fmt(r.target)+' m de meta ajustada'));chart.append(line);}content.append(chart);}
  }
  function render(){if(!config||!week)return;formRows=[];photoInputs.clear();content.replaceChildren();weekDate.value=week.startDate;weekLabel.textContent=week.week+' · '+week.startDate.split('-').reverse().join('/');for(const [id,b] of tabButtons){b.setAttribute('aria-pressed',String(id===active));b.hidden=id==='config'&&!canConfigure();}saveButton.hidden=active==='dashboard';if(active==='capture')renderCapture();else if(active==='assign')renderAssignments();else if(active==='config')renderConfig();else renderDashboard();}
  async function persist(key,value,expected){const storage=getServices().storage,current=await storage.getText(key);if(current!==expected)throw Error('Los datos cambiaron en otra ventana. Cierra y vuelve a abrir antes de guardar; tu edición sigue en pantalla.');if(current!==null)await storage.putText('mn1.loom.history.'+crypto.randomUUID().replaceAll('-',''),current);await storage.putText(key,value);return value;}
  async function save(){if(busy||loadError)return false;if(!dirty)return true;lock(true);try{
   if(active==='config'){if(!canConfigure())throw Error('La sesión de administrador ya no está disponible.');const next=normalizeLoomConfig(config);loadedConfigRaw=await persist(loomConfigKey(team.id),JSON.stringify(next),loadedConfigRaw);config=next;}
-  else{const next=active==='capture'?saveLoomShift(week,config,date,shift,formRows):normalizeLoomWeek(week,week.startDate);loadedWeekRaw=await persist(loomWeekKey(team.id,week.startDate),JSON.stringify(next),loadedWeekRaw);week=next;}
+  else{let next=normalizeLoomWeek(week,week.startDate);
+   if(active==='capture'){
+    for(const turn of ['TA','TC']){
+     const entries=formRows.filter(r=>r.shift===turn&&r.touched);
+     for(const r of entries){
+      if(r.state==='recorded' && (!r.personId||!(loomNumber(r.baseTarget)>0)))throw Error(config.machines.find(m=>m.id===r.machineId).name+' · '+turn+': indica el responsable y la meta semanal en Asignaciones antes de capturar.');
+     }
+     if(entries.length)next=saveLoomShift(next,config,date,turn,entries);
+    }
+   }loadedWeekRaw=await persist(loomWeekKey(team.id,week.startDate),JSON.stringify(next),loadedWeekRaw);week=next;}
   dirty=false;discardButton.hidden=true;if(active==='config')render();message('Guardado en este dispositivo.');return true;
  }catch(e){discardButton.hidden=false;message(e.message||'No se pudo guardar. Tu captura se conserva en pantalla.',true);return false;}finally{lock(false);}}
  async function close(){if(busy)return false;if(!loadError&&!await save())return false;dialog.close();return true;}
  dialog.addEventListener('cancel',e=>{e.preventDefault();void close();});
  weekDate.addEventListener('change',async()=>{const selected=weekDate.value;if(!selected){weekDate.value=week.startDate;return;}if(!await save()){weekDate.value=week.startDate;return;}await loadWeek(selected);});
- async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);week=next;loadedWeekRaw=raw;date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week+' · datos locales del equipo.');}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
- async function open(value){if(dialog.open||busy)return false;team={...value};config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
+ async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week+' · datos locales del equipo.');}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
+ async function open(value){if(dialog.open||busy)return false;team={...value};config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
   try{
    const workers=await getServices().getRoster?.(team.plantId);
    if(workers)config=applyLoomRoster(config,workers);
