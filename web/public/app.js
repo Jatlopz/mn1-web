@@ -4756,7 +4756,7 @@ async function boot() {
   };
   app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),messageForReport:productionShareMessage,onShareImages:shareProductionImages,onDownloadImages:downloadProductionImages}));
   document.getElementById('open-production').addEventListener('click',()=>launchTeamTool(dom,app,'production'));
-  app.loomsStudio=createLoomStudio(()=>({storage:app.storage,canConfigure:()=>app.cloud?.canManageCatalog()===true,getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
+  app.loomsStudio=createLoomStudio(()=>({storage:app.storage,canConfigure:()=>app.cloud?.canConfigureLooms()===true,getRoster:plantId=>app.cloud.readLoomRoster(plantId),getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
   document.getElementById('open-looms').addEventListener('click',()=>launchTeamTool(dom,app,'looms'));
   app.laminationStudio=createLaminationStudio(()=>({storage:app.storage}));
   document.getElementById('open-lamination').addEventListener('click',()=>launchTeamTool(dom,app,'lamination'));

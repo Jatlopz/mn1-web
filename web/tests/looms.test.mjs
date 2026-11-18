@@ -28,3 +28,17 @@ test('fotos de operador conservan referencias locales y rechazan URL externas',(
  for(const value of ['https://example.com/photo.jpg','javascript:alert(1)','mn1.loom.pic.../file',123]){c.people[0].photoKey=value;assert.throws(()=>normalizeLoomConfig(c));}
  assert.equal(isLoomPhoto('data:image/jpeg;base64,/9j/2Q=='),true);assert.equal(isLoomPhoto('https://example.com/photo.jpg'),false);assert.equal(isLoomPhoto('data:image/svg+xml;base64,AAAA'),false);assert.equal(isLoomPhoto('data:image/jpeg;base64,/9j/'+'a'.repeat(150000)),false);
 });
+
+test('usa personal activo de Telares y conserva los registros locales',async()=>{
+ const {applyLoomRoster}=await import('../public/looms-model.js');
+ const workers=[
+  {id:'operator-1',name:'Operador de prueba',active:true,processes:['telares']},
+  {id:'other',name:'Otro',active:true,processes:['laminado']}
+ ];
+ const next=applyLoomRoster(config(),workers);
+ assert.deepEqual(next.people.map(p=>p.id),['person-a','operator-1']);
+ assert.deepEqual(applyLoomRoster(next,workers),next);
+ workers[0].active=false;
+ assert.equal(applyLoomRoster(next,workers).people[1].enabled,false);
+ assert.deepEqual(next.machines,config().machines);
+});
