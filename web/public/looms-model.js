@@ -10,6 +10,17 @@ const ratio=(a,b)=>b===0n?null:Number(a*100000000n/b)/1000000;
 export function loomConfigKey(team){if(!safeId(team))fail();return 'mn1.loom.cfg.'+team;}
 export function loomWeekKey(team,date){if(!safeId(team))fail();return 'mn1.l.'+team+'.'+isoWeekInfo(date).weekKey;}
 export function createLoomConfig(){return {version:1,people:[],benches:[],machines:[]};}
+export function applyLoomRoster(config,workers){
+ if(!Array.isArray(workers))throw Error('No se pudo leer el personal asignado.');
+ const people=new Map(config.people.map(person=>[person.id,{...person}]));
+ for(const worker of workers){
+  const assigned=worker.active===true&&worker.processes.includes('telares');
+  if(assigned||people.has(worker.id)){
+   people.set(worker.id,{...people.get(worker.id),id:worker.id,name:worker.name,enabled:assigned});
+  }
+ }
+ return normalizeLoomConfig({...config,people:[...people.values()]});
+}
 export const isLoomPhotoKey=value=>typeof value==='string'&&/^mn1\.loom\.pic\.[a-f0-9]{32}$/.test(value);
 export const isLoomPhoto=value=>typeof value==='string'&&value.length<=150000&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value);
 export function normalizeLoomConfig(raw){
