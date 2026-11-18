@@ -52,11 +52,55 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  function rowsTable(headers){const scroll=el('div','looms-table-scroll'),table=el('table','looms-table'),head=el('tr'),body=el('tbody');for(const label of headers){const th=el('th','',label);th.scope='col';head.append(th);}const thead=el('thead');thead.append(head);table.append(thead,body);scroll.append(table);content.append(scroll);return body;}
  function cell(row){const c=el('td');row.append(c);return c;}
  function numericCell(row,label,value,set){return field(cell(row),label,value,set,{numeric:true});}
+ function captureSetup(){
+  const enabled=config.machines.some(m=>m.enabled);
+  if(!canConfigure()){
+   if(!enabled)content.append(el('p','looms-empty','El administrador debe habilitar un telar y asignarle una bancada en este dispositivo.'));
+   return;
+  }
+  const panel=el('details','looms-config-group');
+  panel.open=!enabled;
+  panel.append(el('summary','',enabled?'Agregar otro telar':'Preparar el primer telar'));
+  const form=el('form','looms-filters');
+  function textInput(label,value){
+   const wrapper=el('label','looms-field',label),input=el('input');
+   input.required=true;input.maxLength=100;input.value=value;wrapper.append(input);form.append(wrapper);return input;
+  }
+  let number=1;
+  while(config.machines.some(m=>m.name==='Telar '+number))number++;
+  const machine=textInput('Nombre del telar','Telar '+number);
+  const bench=textInput('Bancada',config.benches.find(b=>b.enabled)?.name||'');
+  const choices=el('datalist');choices.id='looms-bench-choices';
+  for(const b of config.benches.filter(b=>b.enabled)){const o=el('option');o.value=b.name;choices.append(o);}
+  bench.setAttribute('list',choices.id);
+  const target=textInput('Meta en metros para 12 horas','');target.inputMode='decimal';
+  const submit=el('button','button button-primary','Habilitar captura');submit.type='submit';
+  form.append(choices,submit);panel.append(form);content.append(panel);
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();if(!canConfigure()||busy||!await save())return;
+   lock(true);
+   try{
+    const name=loomText(machine.value),benchName=loomText(bench.value);
+    if(config.machines.some(m=>m.name.toLocaleLowerCase('es')===name.toLocaleLowerCase('es')))throw Error('Ese telar ya existe. Revisa su configuración.');
+    const next=structuredClone(config);
+    let group=next.benches.find(b=>b.name.toLocaleLowerCase('es')===benchName.toLocaleLowerCase('es'));
+    if(group&&!group.enabled)throw Error('Esa bancada está archivada. Habilítala en Configuración.');
+    if(!group){group={id:crypto.randomUUID(),name:benchName,enabled:true};next.benches.push(group);}
+    next.machines.push({id:crypto.randomUUID(),name,enabled:true,benchId:group.id,baseTarget:target.value.trim()});
+    const valid=normalizeLoomConfig(next);
+    if(!canConfigure())throw Error('Vuelve a iniciar sesión como administrador.');
+    loadedConfigRaw=await persist(loomConfigKey(team.id),JSON.stringify(valid),loadedConfigRaw);
+    config=valid;render();message('Telar listo. Selecciona al responsable y escribe los metros en Real (m).');
+   }catch(e){message(e.message,true);}finally{lock(false);}
+  });
+ }
  function renderCapture(){
   titleFor('Producción diaria por telar');const selectors=el('div','looms-filters');content.append(selectors);
   select(selectors,'Día',date,loomDays(week.startDate).map(d=>[d,d.split('-').reverse().join('/')]),async v=>{const old=date;date=old;if(await save()){date=v;dirty=false;render();}else render();},{tracked:false});
   select(selectors,'Turno',shift,[['TA','TA'],['TC','TC']],async v=>{const old=shift;shift=old;if(await save()){shift=v;dirty=false;render();}else render();});
   content.append(el('p','hint','Captura en metros. Pendiente no equivale a cero. Las horas empiezan en 12 y se pueden ajustar; una captura guardada conserva sus datos y su responsable.'));
+  captureSetup();
+  if(!config.machines.some(m=>m.enabled))return;
   const body=rowsTable(['Telar / bancada','Responsable','Estado','Meta 12 h (m)','Horas','Real (m)','Eficiencia']);formRows=[];
   for(const machine of config.machines.filter(m=>m.enabled)){
    const previous=week.captures.find(r=>r.machineId===machine.id&&r.date===date&&r.shift===shift),assignment=week.schedule.find(a=>a.benchId===machine.benchId&&a.shift===shift);
@@ -69,7 +113,6 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
    function update(){try{const m=loomMetric(data);out.textContent=m?fmt(m.efficiency)+' %':data.state==='inactive'?'Inactivo':'—';out.dataset.level=m?(m.efficiency>=90?'good':m.efficiency>=80?'warning':'low'):'';}catch{out.textContent='Completar';}actual.disabled=data.state==='inactive';}update();
    const noteRow=el('tr','looms-note-row'),noteCell=el('td');noteCell.colSpan=7;const details=el('details');details.append(el('summary','','Comentario de '+machine.name));field(details,'Comentario',data.note,v=>data.note=v,{type:'textarea'});noteCell.append(details);noteRow.append(noteCell);body.append(noteRow);
   }
-  if(!formRows.length)content.append(el('p','looms-empty','Configura las máquinas y sus bancadas antes de capturar. El administrador puede importarlas desde el catálogo de planta.'));
  }
  function renderAssignments(){titleFor('Responsables de las bancadas');content.append(el('p','hint','Programa semanal por turno. Puedes cambiar el responsable en una captura diaria para registrar un relevo. Los cambios no reescriben capturas anteriores.'));
   const body=rowsTable(['Bancada','Telares','Turno TA','Turno TC']);for(const bench of config.benches.filter(b=>b.enabled)){
