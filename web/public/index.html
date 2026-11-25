@@ -408,6 +408,7 @@
   <dialog class="dialog cloud-dialog" id="cloud-dialog" aria-labelledby="cloud-title">
     <div class="dialog-head"><h2 id="cloud-title">Mi cuenta</h2><button class="dialog-close" id="close-cloud" type="button" aria-label="Cerrar Mi cuenta">×</button></div>
     <p class="hint">Gestiona tu cuenta y tu acceso al equipo.</p>
+    <div class="cloud-site-admin-entry"><strong>Acceso de supervisor</strong><p class="hint">Mural, bitácora y dashboards compartidos.</p><button class="button button-secondary" id="account-board" type="button">Entrar como supervisor</button></div>
     <div class="cloud-site-admin-entry"><strong>Acceso de administrador</strong><p class="hint">Entra con un código enviado a tu correo. La sincronización de equipos de abajo usa el servicio anterior.</p><button class="button button-secondary" id="cloud-site-admin-access" type="button">Abrir Administración</button></div>
     <p id="cloud-status" role="status" aria-live="polite"></p>
     <details id="cloud-login"><summary>Cuenta de equipos</summary><form id="cloud-login-form"><label class="field">Correo<input class="input" id="cloud-email" type="email" autocomplete="username" maxlength="254" required></label><label class="field">Contraseña<input class="input" id="cloud-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="button button-primary" type="submit">Entrar</button></form></details>
@@ -573,7 +574,25 @@
     <header class="board-head"><div><p class="board-eyebrow">SUPERTOOLS · SUPERVISORES</p><h2 id="board-heading">Mural de asignaciones</h2></div><button id="board-close" type="button" aria-label="Cerrar mural">×</button></header>
     <div class="board-content">
       <div class="board-controls" id="board-controls" hidden><label class="sr-only" for="board-filter">Mostrar asignaciones</label><select id="board-filter"><option value="active">Vigentes</option><option value="archived">Archivadas</option></select><span id="board-count" class="board-count"></span><button id="board-refresh" class="button button-secondary" type="button">Actualizar</button><button id="board-new" class="button button-primary" type="button" hidden>+ Asignación</button></div>
-      <p id="board-status" role="status" aria-live="polite"></p><div id="board-auth" class="board-auth"><p>Accede con tu cuenta de supervisor para ver las asignaciones.</p><label>Correo<input id="board-email" type="email" autocomplete="email" maxlength="254"></label><button id="board-request-code" class="button button-secondary" type="button">Solicitar código</button><label>Código recibido<input id="board-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12"></label><button id="board-sign-in" class="button button-primary" type="button">Entrar</button></div>
+      <button id="board-sign-out" class="button button-secondary" type="button" hidden>Cerrar sesión del mural</button>
+      <p id="board-status" role="status" aria-live="polite"></p><div id="board-auth" class="board-auth">
+        <label>Correo del supervisor<input id="board-email" type="email" autocomplete="username" maxlength="254" required form="board-password-login"></label>
+        <form id="board-password-login">
+          <label>Contraseña<input id="board-password" type="password" autocomplete="current-password" required></label>
+          <button class="button button-primary" type="submit">Entrar como supervisor</button>
+        </form>
+        <details id="board-setup"><summary>Crear o recuperar mi contraseña</summary>
+          <p>Escribe arriba tu correo autorizado y solicita un código.</p>
+          <button id="board-reset-send" class="button button-secondary" type="button">Enviar código a mi correo</button>
+          <form id="board-reset-form" hidden>
+            <label>Código del correo<input id="board-reset-code" type="text" inputmode="numeric" autocomplete="one-time-code" required maxlength="12"></label>
+            <label>Mi nueva contraseña<input id="board-new-password" type="password" autocomplete="new-password" minlength="6" required></label>
+            <label>Confirmar contraseña<input id="board-confirm-password" type="password" autocomplete="new-password" required></label>
+            <button class="button button-primary" type="submit">Guardar mi contraseña</button>
+          </form>
+        </details>
+        <details><summary>Entrar con un código</summary><button id="board-request-code" class="button button-secondary" type="button">Solicitar código de ingreso</button><label>Código de ingreso<input id="board-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12"></label><button id="board-sign-in" class="button button-secondary" type="button">Entrar con código</button></details>
+      </div>
       <form id="board-editor" hidden><h3 id="board-editor-title">Nueva asignación</h3><div class="board-fields"><label class="board-wide">Título<input id="board-title" maxlength="120" required></label><label class="board-wide">Descripción<textarea id="board-body" maxlength="4000" rows="5" required></textarea></label><label>Prioridad<select id="board-priority"><option value="normal">Normal</option><option value="important">Importante</option><option value="urgent">Urgente</option></select></label><label>Estado<select id="board-state"><option value="pending">Pendiente</option><option value="in_progress">En proceso</option><option value="done">Completada</option></select></label><label>Responsable<select id="board-assignee"><option value="">Sin asignar</option></select></label><label>Fecha límite<input id="board-due" type="datetime-local"></label><label>Recordarme el<input id="board-remind" type="datetime-local"></label><label class="board-check"><input id="board-pinned" type="checkbox">Fijar en la parte superior</label></div><div class="board-editor-actions"><button id="board-cancel" class="button button-secondary" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar asignación</button></div></form>
       <div id="board-notes"></div><button id="board-more" class="button button-secondary" type="button" hidden>Ver más</button>
       <details id="board-publishers" hidden><summary>Administrar supervisores</summary><p class="hint">Autoriza cuentas existentes para publicar, asignar y completar tareas. Sólo el creador puede administrar esta lista.</p><ul id="board-publisher-list"></ul><form id="board-grant-form"><label>Correo del supervisor<input id="board-publisher-email" type="email" maxlength="254" required autocomplete="off"></label><button id="board-grant-submit" class="button button-secondary" type="submit">Autorizar</button></form></details>

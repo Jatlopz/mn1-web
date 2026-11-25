@@ -68,6 +68,14 @@ export const assignmentBoard = Object.freeze({
   },
   async requestCode(email){return siteAdmin.requestCode(email);},
   async verifyCode(email,otp){unwrap(await api().auth.verifyOtp({email:String(email).trim(),otp:String(otp).trim()}));return this.identity();},
+  async signIn(email,password){
+    const result=unwrap(await api().auth.signInWithPassword({email,password}));
+    return result.user;
+  },
+  async signOut(){await siteAdmin.signOut();},
+  async sendPasswordCode(email){unwrap(await api().auth.sendResetPasswordEmail({email}));},
+  async passwordToken(email,code){return unwrap(await api().auth.exchangeResetPasswordToken({email,code})).token;},
+  async setPassword(token,password){unwrap(await api().auth.resetPassword({otp:token,newPassword:password}));},
   async feed(archived=false,offset=0){return unwrap(await api().database.rpc('st_board_feed',{p_archived:archived,p_offset:offset}));},
   async save(id,revision,draft){return unwrap(await api().database.rpc('st_board_save',{p_id:id,p_expected:revision,p_draft:draft}));},
   async publishers(){return unwrap(await api().database.rpc('st_board_publishers'));},

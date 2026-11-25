@@ -14,5 +14,5 @@ test('indicadores cuentan sólo asignaciones vigentes',()=>{
 });
 test('mural está conectado a InsForge sin lectura periódica ni HTML interpretado',async()=>{
  const workspace=await readFile(new URL('../public/cloud-workspace.js',import.meta.url),'utf8'),ui=await readFile(new URL('../public/corporate-board.js',import.meta.url),'utf8'),html=await readFile(new URL('../public/index.html',import.meta.url),'utf8'),adapter=await readFile(new URL('../public/insforge-admin.js',import.meta.url),'utf8');
- assert.match(workspace,/installCorporateBoard\(\{client:assignmentBoard\}\)/);assert.match(adapter,/st_board_feed/);assert.match(adapter,/st_board_save/);assert.match(ui,/ticket!==epoch/);assert.match(ui,/e\.textContent=value/);assert.doesNotMatch(ui,/innerHTML|setInterval|localStorage|putText/);assert.match(html,/id="board-remind"/);assert.match(html,/id="board-assignee"/);
+ assert.match(workspace,/installCorporateBoard\(\{client:assignmentBoard,onSessionChange:/);assert.match(adapter,/st_board_feed/);assert.match(adapter,/st_board_save/);assert.match(ui,/ticket!==epoch/);assert.match(ui,/e\.textContent=value/);assert.doesNotMatch(ui,/innerHTML|setInterval|localStorage|putText/);assert.match(html,/id="board-remind"/);assert.match(html,/id="board-assignee"/);
 });
