@@ -27,3 +27,5 @@
 #open-board[data-reminders]:not([data-reminders=""])::after,#settings-board[data-reminders]:not([data-reminders=""])::after{content:attr(data-reminders);position:absolute;right:-5px;top:-5px;min-width:17px;height:17px;padding:0 3px;border-radius:10px;background:#ff9c72;color:#11151d;font:700 11px/17px system-ui;text-align:center}
 @media(max-width:780px){#board-notes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){#board-dialog{width:calc(100% - 16px);border-radius:22px;max-height:94dvh}.board-head{padding:18px 18px 12px}.board-content{max-height:calc(94dvh - 100px);padding:18px}.board-controls{gap:8px}#board-notes{grid-template-columns:1fr}.board-note{padding:18px}.board-fields{grid-template-columns:1fr}#board-editor{padding:16px}.board-controls button{padding:10px}.board-editor-actions{flex-wrap:wrap}#board-grant-form{align-items:stretch;flex-direction:column}#board-dialog input:not([type=checkbox]),#board-dialog select,#board-dialog textarea{font-size:16px}}
+
+.board-auth form,.board-auth details[open]{display:grid;gap:12px}.board-auth [hidden]{display:none}.board-auth summary{cursor:pointer;color:var(--accent);font-weight:700}

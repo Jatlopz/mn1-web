@@ -680,9 +680,16 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   });
   $('my-ideas-refresh').addEventListener('click',()=>void loadMine());$('my-ideas-more').addEventListener('click',()=>void loadMine(true));
 
-  corporateBoard=installCorporateBoard({client:assignmentBoard});
+  corporateBoard=installCorporateBoard({client:assignmentBoard,onSessionChange:async user=>{
+    siteAdminAccess=false;siteAdminEmail=null;hideAdmin();
+    if(user&&client.session&&client.session.user?.email?.toLowerCase()!==user.email?.toLowerCase()){
+      await client.logout();access=null;rows=[];adminOffered=false;
+    }
+    render();
+  }});
   async function start() {
     render();
+    if(new URLSearchParams(window.location.search).get('acceso')==='supervisor')void corporateBoard.open();
     const cloudInit=(async()=>{try {
       const raw = await storage.getText(CLOUD_META_KEY);
       if (raw) {
