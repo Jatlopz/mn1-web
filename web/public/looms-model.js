@@ -109,3 +109,24 @@ export function loomDashboard(week,{shift='',personId='',date=''}={}){
  const result=(a,t)=>({actual:Number(a)/12e12,target:Number(t)/12e12,efficiency:ratio(a,t),gap:Number(a-t)/12e12});const unpack=map=>[...map.values()].map(r=>({...result(r.actual,r.target),id:r.id,name:r.name,count:r.count}));
  return {...result(actual,target),recorded:selected.filter(r=>r.state==='recorded').length,inactive:selected.filter(r=>r.state==='inactive').length,pending:selected.filter(r=>r.state==='pending').length,people:unpack(people),daily:unpack(daily).sort((a,b)=>a.id.localeCompare(b.id))};
 }
+
+/** A supervisor dashboard contains numeric captures and assignments. Photos and comments stay on the device. */
+export function loomDashboardPayload(config,week){
+ const ids=new Set([...week.schedule,...week.captures].map(row=>row.personId).filter(Boolean));
+ const names=new Map(week.captures.filter(row=>row.personId).map(row=>[row.personId,row.personName]));
+ for(const person of config.people)if(ids.has(person.id))names.set(person.id,person.name);
+ return {
+  people:[...names],
+  benches:config.benches.map(b=>[b.id,b.name]),
+  schedule:week.schedule.map(a=>[a.benchId,a.shift,a.personId,a.date||'']),
+  targets:config.machines.filter(m=>m.enabled).map(m=>[m.id,m.name,m.benchId,weeklyTarget(week,m)]),
+  captures:week.captures.map(r=>[r.machineId,r.date,r.shift,r.personId,r.personName,r.state,r.actual,r.baseTarget,r.hours])
+ };
+}
+export function sharedLoomView(payload,startDate){
+ const week=createLoomWeek(startDate);
+ week.captures=payload.captures.map(([machineId,date,shift,personId,personName,state,actual,baseTarget,hours])=>({machineId,date,shift,personId,personName,state,actual,baseTarget,hours}));
+ week.schedule=payload.schedule.map(([benchId,shift,personId,date])=>({benchId,shift,personId,...(date?{date}:{})}));
+ const named=([id,name])=>({id,name,enabled:true});
+ return {week,config:{benches:payload.benches.map(named),people:payload.people.map(named)}};
+}

@@ -78,3 +78,14 @@ export const personnelCatalog = Object.freeze({
   async read(plantId) { return unwrap(await api().database.rpc('st_staff_read', {p_plant:plantId})); },
   async save(draft) { return unwrap(await api().database.rpc('st_staff_save', {p_id:draft.id,p_expected:draft.revision,p_plant:draft.plantId,p_name:draft.name,p_code:draft.code,p_active:draft.active,p_process_codes:draft.processes})); },
 });
+
+export const loomSharing = Object.freeze({
+ async read(plant,monday){
+  return unwrap(await api().database.rpc('st_loom_read',{p_plant:plant,p_monday:monday}));
+ },
+ async publish(team,monday,revision,payload){
+  return unwrap(await api().database.rpc('st_loom_publish',{
+   p_plant:team.plantId,p_monday:monday,p_team:team.id,p_name:team.name,p_expected:revision,p_payload:payload
+  }));
+ }
+});

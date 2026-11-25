@@ -39,6 +39,36 @@ await studio.close();await studio.open(team);button('Captura').click();await pau
 const portrait=document.createElement('canvas');portrait.width=256;portrait.height=256;const ctx=portrait.getContext('2d');ctx.fillStyle='#1e5078';ctx.fillRect(0,0,256,256);ctx.fillStyle='#b4d5ef';ctx.beginPath();ctx.arc(128,98,48,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(128,244,91,80,0,0,Math.PI*2);ctx.fill();const sample=portrait.toDataURL('image/jpeg',.85);const photoFile=new File([Uint8Array.from(atob(sample.split(',')[1]),c=>c.charCodeAt(0))],'operador-ficticio.jpg',{type:'image/jpeg'});
 async function choosePhoto(){const picker=root.querySelector('input[type=file]'),transfer=new DataTransfer();transfer.items.add(photoFile);picker.files=transfer.files;picker.dispatchEvent(new Event('change',{bubbles:true}));for(let i=0;i<100&&root.getAttribute('aria-busy')==='true';i++)await pause();check(root.getAttribute('aria-busy')==='false','Termina foto');}
 button('Configuración').click();await pause();fail=true;await choosePhoto();check(!JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey,'Fallo de imagen conserva foto anterior');fail=false;await choosePhoto();check(!JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey,'Foto espera guardar configuración');button('Guardar cambios').click();await pause();const savedPhotoKey=JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey;check(savedPhotoKey?.startsWith('mn1.loom.pic.'),'Referencia local de foto guardada');check(data.get(savedPhotoKey)?.startsWith('data:image/jpeg;base64,'),'Foto JPEG local');button('Dashboard').click();await pause();check(root.querySelector('.looms-chart-person img')?.getAttribute('src').startsWith('data:image/jpeg;base64,'),'Foto junto a gráfica de persona');await studio.close();admin=false;await studio.open(team);check(Boolean(root.querySelector('.looms-chart-person img')),'Foto persiste al reabrir');check(!root.querySelector('.looms-avatar-button'),'Usuario sin edición de foto');await studio.close();admin=true;await studio.open(team);button('Configuración').click();await pause();button('Quitar foto').click();button('Guardar cambios').click();await pause();check(JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey==='','Quita referencia');check(data.has(savedPhotoKey),'Conserva imagen anterior para respaldo');await choosePhoto();button('Guardar cambios').click();await pause();check(Boolean(JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey),'Reemplazo tras guardar usa catálogo vigente');button('Dashboard').click();await pause();check(Boolean(root.querySelector('.looms-chart-person img')),'Foto vuelve a la gráfica después de quitar y agregar');
+// Two independent vaults and one shared dashboard, as on two supervisors' devices.
+let published=null,writes=0,online=true;
+async function client(isOwner,teamId){
+ const frame=document.createElement('iframe');document.body.append(frame);const doc=frame.contentDocument;
+ const local=new Map(isOwner?[[loomConfigKey(teamId),data.get(loomConfigKey(team.id))],[loomWeekKey(teamId,'2026-11-04'),data.get(loomWeekKey(team.id,'2026-11-04'))]]:[]);
+ const sharing={read:async()=>({canPublish:isOwner,item:structuredClone(published)}),publish:async(t,day,rev,payload)=>{
+  if(!online)throw Error('Sin conexión');if(!isOwner||rev!==(published?.revision||0))throw Error('Conflicto');
+  writes++;published={team:t.id,name:t.name,revision:rev+1,payload:structuredClone(payload)};return rev+1;
+ }};
+ const tool=createLoomStudio(()=>({sharing,storage:{getText:async k=>local.get(k)??null,putText:async(k,v)=>local.set(k,v)}}),{root:doc,now:()=>new Date(2026,10,4)});
+ await tool.open({...team,id:teamId});await pause();
+ const click=name=>[...doc.querySelectorAll('button')].find(b=>b.textContent===name).click();
+ return {tool,doc,local,click};
+}
+const author=await client(true,'qa-writer');author.click('Compartir mis datos de Telares');await pause();
+check(writes===1&&published.payload.captures.length>0,'Publica la semana ya capturada');
+check(!JSON.stringify(published.payload).includes('data:image'),'La proyección excluye fotos');
+const viewer=await client(false,'qa-reader');
+check(viewer.doc.querySelector('.looms-kpi strong').textContent==='100 %','Otro equipo ve la misma eficiencia al entrar');
+check(!viewer.local.has(loomWeekKey('qa-reader','2026-11-04')),'Leer no reemplaza capturas del otro equipo');
+author.click('Captura');await pause();const amount=[...author.doc.querySelectorAll('label')].find(l=>l.firstChild.textContent==='Metros TA · Telar de ejemplo 1').querySelector('input');
+amount.value='300';amount.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,2100));
+check(writes===2,'Guarda y publica una modificación automáticamente');
+viewer.click('Actualizar dashboard');await pause();
+check(viewer.doc.querySelector('.looms-kpi strong').textContent==='80 %','El supervisor recibe el cambio posterior');
+online=false;amount.value='150';amount.dispatchEvent(new Event('input'));author.click('Guardar cambios');await pause();
+check(author.doc.body.textContent.includes('Publicación pendiente'),'Sin red el cambio queda pendiente');
+online=true;author.click('Dashboard');await pause();check(writes===3,'Reintenta al regresar al dashboard');
+viewer.click('Actualizar dashboard');await pause();check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','El lector ve la recuperación');
+await author.tool.close();await viewer.tool.close();
 document.getElementById('qa').textContent='PASS · '+count+' pruebas de captura, dashboard, guardado y conservación';document.documentElement.dataset.qa='pass';
 }catch(e){document.getElementById('qa').textContent='FAIL · '+e.message;document.documentElement.dataset.qa='fail';}
 </script></html>
