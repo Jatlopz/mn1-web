@@ -44,7 +44,7 @@ let published=null,writes=0,online=true;
 async function client(isOwner,teamId){
  const frame=document.createElement('iframe');document.body.append(frame);const doc=frame.contentDocument;
  const local=new Map(isOwner?[[loomConfigKey(teamId),data.get(loomConfigKey(team.id))],[loomWeekKey(teamId,'2026-11-04'),data.get(loomWeekKey(team.id,'2026-11-04'))]]:[]);
- const sharing={read:async()=>({canPublish:isOwner,item:structuredClone(published)}),publish:async(t,day,rev,payload)=>{
+ const sharing={read:async(plant,monday)=>({canPublish:isOwner,item:monday==='2026-11-02'?structuredClone(published):null}),publish:async(t,day,rev,payload)=>{
   if(!online)throw Error('Sin conexión');if(!isOwner||rev!==(published?.revision||0))throw Error('Conflicto');
   writes++;published={team:t.id,name:t.name,revision:rev+1,payload:structuredClone(payload)};return rev+1;
  }};
@@ -68,6 +68,12 @@ online=false;amount.value='150';amount.dispatchEvent(new Event('input'));author.
 check(author.doc.body.textContent.includes('Publicación pendiente'),'Sin red el cambio queda pendiente');
 online=true;author.click('Dashboard');await pause();check(writes===3,'Reintenta al regresar al dashboard');
 viewer.click('Actualizar dashboard');await pause();check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','El lector ve la recuperación');
+viewer.click('Semana siguiente →');await pause();
+check(viewer.doc.querySelector('.looms-kpi strong').textContent==='—','Una semana vacía no reutiliza datos de otra');
+viewer.click('← Semana anterior');await pause();
+check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','La semana anterior recupera el dashboard publicado');
+viewer.click('← Semana anterior');await pause();viewer.click('Semana actual');await pause();
+check(viewer.doc.querySelector('input[type=date]').value==='2026-11-02','Vuelve a la semana vigente');
 await author.tool.close();await viewer.tool.close();
 document.getElementById('qa').textContent='PASS · '+count+' pruebas de captura, dashboard, guardado y conservación';document.documentElement.dataset.qa='pass';
 }catch(e){document.getElementById('qa').textContent='FAIL · '+e.message;document.documentElement.dataset.qa='fail';}

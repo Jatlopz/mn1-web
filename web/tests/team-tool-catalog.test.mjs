@@ -45,7 +45,7 @@ test('reporte de ejemplo usa datos ficticios válidos e independientes de los eq
  const first=createProductionExample(),second=createProductionExample();
  assert.deepEqual(validateProductionReport(first.report,first.catalog),[]);
  assert.equal(first.report.teamId,'example-only');assert.match(first.report.teamName,/ejemplo/);
- assert.equal(Object.values(first.report.rows).filter(row=>row.includeEfficiency&&row.target).length,5);
+ assert.equal(Object.values(first.report.rows).filter(row=>row.includeEfficiency&&row.target).length,6);
  first.report.rows.extrusion.actual='1';assert.equal(second.report.rows.extrusion.actual,'79');
 });
 

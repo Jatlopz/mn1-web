@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultCatalog,normalizeCatalog} from '../public/plant-catalog.js';
 import {createProductionReport,productionDraftKey} from '../public/production-model.js';
-import {reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey,productionWasteBar} from '../public/production-studio.js';
+import {openProductionData,reconcileProductionCatalog,productionPreviewRows,saveProductionDraft,productionOrderedRows,normalizeProductionOrder,productionChartRows,productionOrderKey,productionChartGroups,normalizeProductionDefaults,productionDefaultsFor,applyProductionDefaults,productionDefaultsKey,productionWasteBar} from '../public/production-studio.js';
 const context={teamId:'champions',teamName:'Equipo de prueba',plantId:'sacos',date:'2026-10-24'};
 
 test('los valores fijos de desperdicio no sustituyen la meta de producción del turno',()=>{
@@ -144,4 +144,30 @@ test('barra secundaria compara desperdicio sin dividir entre una meta cero',()=>
  for(const [actual,target,level] of [[.2,.25,'good'],[.25,.25,'good'],[.3,.25,'low'],[0,0,'good'],[1,0,'low']]){
  const bar=productionWasteBar({wasteActual:actual,wasteTarget:target});assert.equal(bar.level,level);assert.ok(Number.isFinite(bar.fill));assert.ok(bar.fill>=0&&bar.fill<=100);assert.ok(bar.marker>=0&&bar.marker<=100);assert.equal(bar.actual,actual);assert.equal(bar.target,target);
  }
+});
+
+test('Conversión 2 llega a Sacos en instalaciones nuevas y en borradores anteriores',()=>{
+ const old=defaultCatalog();old.processes=old.processes.filter(p=>p.id!=='conversion-2');
+ const draft=createProductionReport(old,context);
+ draft.rows['conversion-1'].actual='19,500';
+ const before=structuredClone(draft);
+ const fresh=openProductionData(null,null,context);
+ const upgraded=openProductionData(old,draft,context);
+ for(const opened of [fresh,upgraded]){
+  assert.equal(opened.report.rows['conversion-2'].unit,'sacos');
+  assert.equal(opened.report.rows['conversion-2'].actual,'');
+  assert.equal(opened.report.rows['conversion-2'].includeEfficiency,true);
+  assert.deepEqual(productionOrderedRows(opened.report,Object.keys(draft.rows)).map(([id])=>id).filter(id=>id.startsWith('conversion-')),['conversion-1','conversion-2','conversion-3']);
+ }
+ assert.deepEqual(upgraded.report.rows['conversion-1'],before.rows['conversion-1']);
+ assert.deepEqual(before,draft);
+ const again=openProductionData(upgraded.catalog,upgraded.report,context);
+ assert.deepEqual(again.report.rows,upgraded.report.rows);
+ const manual={...defaultCatalog().processes.find(p=>p.id==='conversion-2'),id:'p-custom',name:'Convertidora 2'};
+ old.processes.push(manual);
+ const custom=createProductionReport(old,context);custom.rows['p-custom'].actual='240';
+ assert.equal(openProductionData(old,custom,context).report.rows['p-custom'].actual,'240');
+ assert.equal(openProductionData(old,custom,context).report.rows['conversion-2'],undefined);
+ manual.enabled=false;assert.equal(openProductionData(old,null,context).report.rows['p-custom'],undefined);
+ assert.equal(openProductionData(null,null,{...context,plantId:'polietileno'}).report.rows['conversion-2'],undefined);
 });
