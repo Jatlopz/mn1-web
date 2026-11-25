@@ -36,3 +36,5 @@
  .looms-sheet td>label.looms-field{font-size:0}.looms-sheet td:nth-child(3)>label:before,.looms-sheet td:nth-child(5)>label:before {font-size:11px}.looms-sheet td:nth-child(3)>label:before{content:"TA · metros"}.looms-sheet td:nth-child(5)>label:before{content:"TC · metros"}
  .looms-sheet .looms-eff{font-size:.85rem}
 }
+
+.loom-week-nav{display:flex;gap:6px;flex-wrap:wrap}.loom-week-nav button{padding:.5rem .75rem}

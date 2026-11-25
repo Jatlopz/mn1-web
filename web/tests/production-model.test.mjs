@@ -12,9 +12,9 @@ function completed() {
 }
 test('el catálogo inicial confirma unidades y no inventa procesos de otra planta',()=>{
  const c=defaultCatalog('sacos');
- assert.equal(c.processes.length,11);assert.equal(c.processes.filter(p=>p.efficiency).length,5);
+ assert.equal(c.processes.length,12);assert.equal(c.processes.filter(p=>p.efficiency).length,6);
  const units=Object.fromEntries(c.processes.map(p=>[p.id,p.unit]));
- assert.equal(units.extrusion,'kg');assert.equal(units.imprenta,'m');assert.equal(units.laminado,'m');assert.equal(units['conversion-1'],'sacos');assert.equal(units['conversion-3'],'sacos');
+ assert.equal(units.extrusion,'kg');assert.equal(units.imprenta,'m');assert.equal(units.laminado,'m');assert.equal(units['conversion-1'],'sacos');assert.equal(units['conversion-2'],'sacos');assert.equal(units['conversion-3'],'sacos');
  assert.deepEqual(defaultCatalog('polietileno').processes,[]);
  assert.notEqual(catalogKey('sacos'),catalogKey('polietileno'));
  c.processes[0].actions.push('Prueba');assert.ok(!defaultCatalog('sacos').processes[0].actions.includes('Prueba'));

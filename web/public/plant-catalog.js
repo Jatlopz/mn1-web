@@ -19,7 +19,7 @@ export function defaultCatalog(plant='sacos') {
   ['extrusion','Extrusión','kg',true],['telares','Telares','unidades',false],
   ['laminado','Laminado','m',true],['imprenta','Imprenta','m',true],
   ['slitter','Slitter','unidades',false],['conversion-1','Conversión 1','sacos',true],
-  ['conversion-3','Conversión 3','sacos',true],['valvulado','Valvulado','unidades',false],
+  ['conversion-2','Conversión 2','sacos',true],['conversion-3','Conversión 3','sacos',true],['valvulado','Valvulado','unidades',false],
   ['liner','Liner','unidades',false],['costura','Costura','unidades',false],['empaque','Empaque','unidades',false],
  ] : [];
  return {version:1,plantId:id,processes:definitions.map(([id,name,unit,efficiency])=>({id,name,unit,efficiency,products:[],actions:[...ACTIONS],enabled:true}))};

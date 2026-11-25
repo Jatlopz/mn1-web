@@ -11,7 +11,7 @@ export function createProductionExample() {
   for(const [id,row] of Object.entries(report.rows)) {
     row.active=['extrusion','telares','conversion-3'].includes(id);
     if(row.active){row.product='Producto de ejemplo';row.action='Producción';row.comment='En operación (ejemplo)';}
-    if(row.includeEfficiency){row.target='100';row.actual=String([79,80,89,90,100][index++]);row.efficiencyComment=Number(row.actual)<=90?'Ajuste de proceso (ejemplo)':'Meta alcanzada (ejemplo)';row.wasteTarget='0.25';row.wasteActual='0.20';}
+    if(row.includeEfficiency){row.target='100';row.actual=String([79,80,89,90,95,100][index++]);row.efficiencyComment=Number(row.actual)<=90?'Ajuste de proceso (ejemplo)':'Meta alcanzada (ejemplo)';row.wasteTarget='0.25';row.wasteActual='0.20';}
   }
   report.rows.telares.runningCount='2';report.rows.telares.totalCount='3';
   return {report,catalog};

@@ -1,5 +1,5 @@
 export function productionImageShareMode(mode, userAgent='') { return mode !== 'native' && /Windows/i.test(userAgent) ? 'download' : 'share'; }
-import { defaultCatalog, normalizeCatalog, catalogKey } from './plant-catalog.js';
+import { defaultCatalog, normalizeCatalog, catalogKey, PROCESS_LIMITS } from './plant-catalog.js';
 import { createProductionReport, normalizeProductionReport, parseProductionNumber, calculateEfficiency, validateProductionReport, productionDraftKey, hasEfficiencyInput, efficiencyRows, productionTimingFor, requiresEfficiencyReason, productionStatusDisplay, efficiencyMeetsTarget, efficiencyCommentDisplay, productionCountLabels, PRODUCTION_REPORT_TITLE } from './production-model.js';
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -76,6 +76,10 @@ export function productionOrderedRows(report, order=null) {
   if(conversions.length)defaults.splice(first,0,...conversions);
   if(order===null)return defaults;
   const ids=normalizeProductionOrder(order),map=new Map(rows);
+  if(map.has('conversion-2')&&!ids.includes('conversion-2')){
+    const after=ids.indexOf('conversion-1'),before=ids.indexOf('conversion-3');
+    if(after>=0||before>=0)ids.splice(after>=0?after+1:before,0,'conversion-2');
+  }
   return [...ids.filter(id=>map.has(id)).map(id=>[id,map.get(id)]),...defaults.filter(([id])=>!ids.includes(id))];
 }
 export function productionChartRows(report,order=null){
@@ -94,6 +98,35 @@ export function productionChartGroups(report,order=null){
  for(const row of rows){const key=family(row)?.toLocaleLowerCase('es');if(key)counts.set(key,(counts.get(key)||0)+1);}
  const groups=new Map();for(const row of rows){const label=family(row),key=label&&counts.get(label.toLocaleLowerCase('es'))>1?label.toLocaleLowerCase('es'):'other';if(!groups.has(key))groups.set(key,{name:key==='other'?'Procesos':label,rows:[]});groups.get(key).rows.push(row);}
  for(const [key,group]of groups)if(key!=='other')group.rows.sort((a,b)=>a.name.localeCompare(b.name,'es',{numeric:true}));return [...groups.values()];
+}
+
+// Repair the missing Sacos seed only in the working catalogue and editable draft.
+export function openProductionData(rawCatalog,rawDraft,context){
+  const plant=context.plantId;
+  const catalog=normalizeCatalog(rawCatalog,plant);
+  const report=normalizeProductionReport(rawDraft,catalog,context);
+  if(plant!=='sacos')return {catalog,report};
+  const isSecond=p=>p.id==='conversion-2'||/^(?:conversi[oó]n|convertidora)\s*[-#]?\s*0?2$/i.test(p.name.trim());
+  const anchor=list=>list.findIndex(p=>p.id==='conversion-3');
+  const insert=(list,p)=>{const i=anchor(list);list.splice(i<0?list.length:i,0,p);};
+  const definitions=report.catalogSnapshot.processes;
+  let second=catalog.processes.find(isSecond);
+  const previous=definitions.find(isSecond);
+  if(!rawCatalog&&previous&&second&&previous.id!==second.id){
+    catalog.processes[catalog.processes.indexOf(second)]=previous;second=previous;
+  }
+  if(!second&&catalog.processes.some(p=>['conversion-1','conversion-3'].includes(p.id))){
+    if(catalog.processes.length===PROCESS_LIMITS.processes)return {catalog,report,warning:'El catálogo llegó a 40 procesos. Revisa el catálogo para incorporar Conversión 2.'};
+    second=previous??defaultCatalog(plant).processes.find(isSecond);
+    insert(catalog.processes,second);
+  }
+  if(second?.enabled&&!previous){
+    if(definitions.length===PROCESS_LIMITS.processes)return {catalog,report,warning:'El borrador llegó a 40 procesos. Conversión 2 está disponible en el catálogo para el próximo reporte.'};
+    const row=createProductionReport({...catalog,processes:[second]},context).rows[second.id];
+    insert(definitions,second);
+    report.rows=Object.fromEntries(definitions.map(p=>[p.id,p.id===second.id?row:report.rows[p.id]]));
+  }
+  return {catalog,report};
 }
 
 /** Applying a catalogue is explicit. Existing values retain their original measurement unit. */
@@ -387,7 +420,7 @@ const waste=node('div','prod-chart-waste'),wasteHead=node('div','prod-chart-wast
   async function open(options={}){
     if(busy)return false;if(!root.hidden)return true;const services=getServices();contextValue={teamId:options.teamId||services.teamId,teamName:options.teamName||services.teamName,plantId:options.plantId||services.plantId||'sacos'};
     download.hidden=typeof services.onDownload!=='function';imagesButton.hidden=typeof services.onPrepareImages!=='function';priorAppHidden=app?.hidden??false;if(app)app.hidden=true;root.hidden=false;root.focus();lock(true);report=null;catalog=null;catalogChanged=false;errors.hidden=true;for(const panel of Object.values(panels))panel.replaceChildren();context.textContent=contextValue.teamName+' · Planta '+plantName(contextValue.plantId);message('Abriendo reporte…');
-    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));catalog=normalizeCatalog(catRaw?JSON.parse(catRaw):defaultCatalog(contextValue.plantId),contextValue.plantId);const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));report=normalizeProductionReport(raw?JSON.parse(raw):null,catalog,contextValue);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}processOrder=null;orderWritable=true;try{const savedOrder=await services.storage.getText(productionOrderKey(contextValue.teamId));processOrder=normalizeProductionOrder(savedOrder?JSON.parse(savedOrder):null);}catch{orderWritable=false;productHistoryWarning+=' No se pudo leer el orden anterior; se conserva sin sobrescribir.';}defaults={version:1,months:{}};defaultsWritable=true;try{const rawDefaults=await services.storage.getText(productionDefaultsKey(contextValue.plantId));defaults=normalizeProductionDefaults(rawDefaults?JSON.parse(rawDefaults):null);report=applyProductionDefaults(report,defaults);}catch{defaultsWritable=false;productHistoryWarning+=' No se pudieron leer los valores fijos; se conserva el original sin sobrescribir.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message(productHistoryWarning,!!productHistoryWarning);return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
+    try{if(!services.storage)throw Error('No hay almacenamiento disponible.');const catRaw=await services.storage.getText(catalogKey(contextValue.plantId));const raw=await services.storage.getText(productionDraftKey(contextValue.teamId));const opened=openProductionData(catRaw?JSON.parse(catRaw):null,raw?JSON.parse(raw):null,contextValue);({catalog,report}=opened);productHistory=Object.create(null);productHistoryWritable=true;productHistoryWarning='';try{const productsRaw=await services.storage.getText(productionProductsKey(contextValue.plantId));productHistory=normalizeProductionProducts(productsRaw?JSON.parse(productsRaw):null);}catch{productHistoryWritable=false;productHistoryWarning='No se pudo leer la lista de productos. Tu borrador está disponible y la lista original se conserva sin sobrescribirla.';}processOrder=null;orderWritable=true;try{const savedOrder=await services.storage.getText(productionOrderKey(contextValue.teamId));processOrder=normalizeProductionOrder(savedOrder?JSON.parse(savedOrder):null);}catch{orderWritable=false;productHistoryWarning+=' No se pudo leer el orden anterior; se conserva sin sobrescribir.';}defaults={version:1,months:{}};defaultsWritable=true;try{const rawDefaults=await services.storage.getText(productionDefaultsKey(contextValue.plantId));defaults=normalizeProductionDefaults(rawDefaults?JSON.parse(rawDefaults):null);report=applyProductionDefaults(report,defaults);}catch{defaultsWritable=false;productHistoryWarning+=' No se pudieron leer los valores fijos; se conserva el original sin sobrescribir.';}dirty=false;catalogChanged=JSON.stringify(catalog.processes.filter(p=>p.enabled))!==JSON.stringify(report.catalogSnapshot.processes);tab='status';render();message([opened.warning,productHistoryWarning].filter(Boolean).join(' '),!!(opened.warning||productHistoryWarning));return true;}catch(error){message(error.message||'No se pudo abrir el borrador. No se sobrescribió ningún dato.',true);return false;}finally{lock(false);}
   }
   async function close(){if(busy)return false;if(root.hidden)return true;if(report&&dirty&&!(await guardedSave()))return false;for(const dialog of root.querySelectorAll('dialog[open]'))dialog.close();newReportDialog.close();root.hidden=true;if(app)app.hidden=priorAppHidden;getServices().onClose?.();return true;}
   function openCatalog(){if(busy||!catalog)return;catalogError.textContent='';processSelect.replaceChildren();for(const p of catalog.processes){const option=node('option','',p.name+(p.enabled?'':' (archivado)'));option.value=p.id;processSelect.append(option);}loadProcess(catalog.processes[0]?.id||null);catalogDialog.showModal();}
