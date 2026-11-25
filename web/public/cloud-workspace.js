@@ -6,7 +6,7 @@ import {createStaffAdmin} from './staff-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
-import { siteAdmin, assignmentBoard, personnelCatalog } from './insforge-admin.js';
+import { siteAdmin, assignmentBoard, personnelCatalog, loomSharing } from './insforge-admin.js';
 import {
   CLOUD_META_KEY,
   localTeamPacket,
@@ -721,5 +721,5 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     }
     return (await personnelCatalog.read(plantId)).workers;
   }
-  return { start, tick, readLoomRoster, canConfigureLooms:()=>siteAdminAccess||access?.admin===true, canManageCatalog:()=>access?.admin===true,readRegistry:async plantId=>{if(!access?.admin)throw Error('Inicia sesión como administrador para consultar el catálogo.');return client.registry(plantId);}, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
+  return { start, tick, loomSharing, openSupervisorLogin:()=>corporateBoard.open(), readLoomRoster, canConfigureLooms:()=>siteAdminAccess||access?.admin===true, canManageCatalog:()=>access?.admin===true,readRegistry:async plantId=>{if(!access?.admin)throw Error('Inicia sesión como administrador para consultar el catálogo.');return client.registry(plantId);}, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
 }

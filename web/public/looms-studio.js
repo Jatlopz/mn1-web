@@ -1,6 +1,6 @@
 import {isoWeekInfo} from './iso-calendar.js';
 import {normalizeRegistry} from './registry-model.js';
-import {loomAssignment,provisionSacosLooms,loomNumberFromName,weeklyTarget,applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
+import {loomDashboardPayload,sharedLoomView,loomAssignment,provisionSacosLooms,loomNumberFromName,weeklyTarget,applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
 
 /** Decode only user-selected raster files; save a small, metadata-free JPEG thumbnail. */
 export async function prepareLoomPhoto(file,{root=document}={}){
@@ -26,16 +26,94 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  const tabs=el('nav','looms-tabs');tabs.setAttribute('aria-label','Secciones de Telares');const content=el('section','looms-content');
  const discardDialog=el('dialog','dialog looms-discard');discardDialog.setAttribute('aria-label','Descartar edición de Telares');discardDialog.append(el('h3','','¿Cerrar sin guardar esta edición?'),el('p','hint','La última versión guardada se conservará. Los cambios pendientes de esta pantalla se descartarán.'),btn('Seguir editando',()=>discardDialog.close()),btn('Descartar edición y cerrar',()=>{discardDialog.close();dirty=false;dialog.close();}));root.body.append(discardDialog);
  const discardButton=btn('Cerrar sin guardar',()=>discardDialog.showModal());discardButton.hidden=true;
- const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Datos locales de este equipo'),discardButton,saveButton);
+ const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Captura por equipo'),discardButton,saveButton);
  dialog.append(header,toolbar,tabs,status,content,footer);root.body.append(dialog);
  let team=null,config=null,week=null,date='',assignmentDate='',dashboardDate='',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
- const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
+ let shared=null,network=Promise.resolve(),autoTimer;
+ const shareStatus=el('p','hint');
+ shareStatus.setAttribute('role','status');status.after(shareStatus);
+ function enqueue(fn){const task=network.then(fn);network=task.catch(()=>{});return task;}
+ function sharingState(){
+  return {team:{...team},monday:week.startDate,enabledKey:'mn1.loom.share.'+team.id,
+   revisionKey:loomWeekKey(team.id,week.startDate).replace('mn1.l.','mn1.s.'),revision:0,
+   enabled:false,canPublish:false,item:null,connected:false,notice:''};
+ }
+ function showShare(s){
+  if(s!==shared||!dialog.open)return;
+  shareStatus.textContent=s.notice;
+  if(active==='dashboard')render();
+ }
+ function samePayload(a,b){return Object.keys(a).every(k=>JSON.stringify(a[k])===JSON.stringify(b[k]));}
+ async function publish(s,payload){
+  if(!s.enabled)return;
+  try{
+   if(s.item?.team===s.team.id&&s.item.name===s.team.name&&samePayload(payload,s.item.payload)){
+    await getServices().storage.putText(s.revisionKey,String(s.item.revision));s.revision=s.item.revision;
+   }else{
+    const rev=await getServices().sharing.publish(s.team,s.monday,s.revision,payload);
+    s.revision=Number(rev);
+    s.item={team:s.team.id,name:s.team.name,revision:s.revision,payload};
+    await getServices().storage.putText(s.revisionKey,String(s.revision));
+   }
+   s.connected=true;s.notice='Guardado y compartido con los supervisores.';
+  }catch(e){
+   s.notice='Guardado en este dispositivo. Publicación pendiente. '+e.message;
+  }
+  showShare(s);
+ }
+ function queuePublication(){
+  const s=shared;
+  if(!s?.enabled)return;
+  const payload=loomDashboardPayload(config,week);
+  return enqueue(()=>publish(s,payload));
+ }
+ function refreshShared(s=shared){
+  if(!s||!getServices().sharing)return;
+  return enqueue(async()=>{
+   if(s!==shared||!dialog.open)return;
+   try{
+    const storage=getServices().storage;
+    s.enabled=(await storage.getText(s.enabledKey))==='1';
+    s.revision=Number(await storage.getText(s.revisionKey))||0;
+    const remote=await getServices().sharing.read(s.team.plantId,s.monday);
+    if(s!==shared||!dialog.open)return;
+    s.connected=true;s.canPublish=remote.canPublish===true;s.item=remote.item;
+    s.notice=s.item?'Dashboard compartido · '+s.item.name:'Todavía no hay un dashboard compartido para esta semana.';
+    if(s.enabled&&s.canPublish&&!dirty&&loadedWeekRaw!==null){
+     await publish(s,loomDashboardPayload(config,week));return;
+    }
+   }catch(e){s.connected=false;s.canPublish=false;s.item=null;s.notice='Vista local. Para consultar el dashboard compartido, conecta tu cuenta de supervisor y actualiza. '+e.message;}
+   showShare(s);
+  });
+ }
+ root.defaultView?.addEventListener('online',()=>{if(dialog.open&&shared)void refreshShared();});
+ function shareControls(){
+  const s=shared;if(!s)return;
+  const controls=el('div','looms-filters');content.append(controls);
+  controls.append(btn('Actualizar dashboard',()=>refreshShared()));
+  if(!s.connected)controls.append(btn('Acceder como supervisor',async()=>{if(await close())await getServices().openSupervisorLogin?.();}));
+  if(s.connected&&s.canPublish&&!s.enabled&&!s.item){
+   controls.append(btn('Compartir mis datos de Telares',async()=>{
+    if(s!==shared||s.enabled)return;
+    const payload=loomDashboardPayload(config,week);
+    if(!payload.captures.length&&!payload.schedule.length&&!payload.targets.some(t=>t[3])){
+     s.notice='Registra una captura, meta o asignación antes de compartir esta semana.';showShare(s);return;
+    }
+    try{await getServices().storage.putText(s.enabledKey,'1');s.enabled=true;await enqueue(()=>publish(s,payload));}
+    catch(e){s.notice='No se pudo activar el guardado compartido. '+e.message;showShare(s);}
+   }));
+  }
+ }
+ const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();if(id==='dashboard')void refreshShared();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
  const photoCache=new Map(),photoInputs=new Map();
  const canConfigure=()=>getServices().canConfigure?.()===true;
  const message=(text,error=false)=>{status.textContent=text;status.dataset.error=String(error);};
  function lock(value){busy=value;dialog.setAttribute('aria-busy',String(value));for(const c of dialog.querySelectorAll('button,input,select,textarea')){if(value)controlLocks.set(c,c.disabled);c.disabled=value||(loadError&&c!==closeButton)||(controlLocks.get(c)===true);if(!value)controlLocks.delete(c);}}
- function changed(){dirty=true;message('Cambios sin guardar');}
+ function changed(){
+  dirty=true;message('Cambios sin guardar');clearTimeout(autoTimer);
+  if(getServices().sharing&&active!=='config')autoTimer=setTimeout(()=>{if(dialog.open&&!busy&&dirty)void save(true);},1800);
+ }
  function avatar(person,name){const fallback=()=>{const n=el('span','looms-avatar looms-avatar-initials',name.trim().split(/\s+/).slice(0,2).map(w=>[...w][0]).join('').toLocaleUpperCase('es'));n.setAttribute('aria-hidden','true');return n;};const src=person?.photoKey&&photoCache.get(person.photoKey);if(!src)return fallback();const image=el('img','looms-avatar');image.src=src;image.alt='Foto de '+name;image.width=48;image.height=48;image.addEventListener('error',()=>image.replaceWith(fallback()),{once:true});return image;}
  async function readPhotos(){photoCache.clear();let missing=0;for(const person of config.people.filter(p=>p.photoKey)){try{const value=await getServices().storage.getText(person.photoKey);if(isLoomPhoto(value))photoCache.set(person.photoKey,value);else missing++;}catch{missing++;}}return missing;}
  function personPhotoEditor(person,line){
@@ -227,7 +305,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   namedEditor('people','Personas');namedEditor('benches','Bancadas');
   const body=rowsTable(['Máquina del catálogo','Bancada','Meta base (m / 12 h)','Habilitada']);for(const m of config.machines){const row=el('tr');body.append(row);field(cell(row),'Nombre del telar',m.name,v=>m.name=v);select(cell(row),'Bancada de '+m.name,m.benchId,options(config.benches),v=>m.benchId=v);numericCell(row,'Meta base de '+m.name,m.baseTarget,v=>m.baseTarget=v);const check=el('input');check.type='checkbox';check.checked=m.enabled;check.setAttribute('aria-label','Habilitar '+m.name);check.addEventListener('change',()=>{m.enabled=check.checked;changed();});cell(row).append(check);}
  }
- function operatorBoard(data){
+ function operatorBoard(data,week,config,remote){
   const section=el('section','loom-operators');
   section.append(el('h4','','Rendimiento por operador'));
   const cards=el('div','loom-person-grid');section.append(cards);
@@ -246,8 +324,9 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
    const person=config.people.find(p=>p.id===id),summary=data.people.find(p=>p.id===id);
    const name=person?.name||summary?.name||'Operador asignado';
    const card=el('article','loom-person-card'),top=el('div','looms-chart-person');
-   const picture=avatar(person,name);
-   if(canConfigure()&&person){
+   const localPerson=remote?localConfigPerson(id):person;
+   const picture=avatar(localPerson,name);
+   if(!remote&&canConfigure()&&person){
     const edit=btn('',()=>{active='config';render();photoInputs.get(id)?.click();},'looms-avatar-button');
     edit.setAttribute('aria-label',(person.photoKey?'Cambiar':'Agregar')+' foto de '+name);edit.append(picture);top.append(edit);
    }else top.append(picture);
@@ -274,17 +353,29 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   }
   if(ids.size)content.append(section);
  }
- function renderDashboard(){titleFor(dashboardDate?'Rendimiento del día':'Rendimiento semanal');const filters=el('div','looms-filters');content.append(filters);
+ function localConfigPerson(id){return config.people.find(p=>p.id===id);}
+ function renderDashboard(){
+  shareControls();
+  const item=shared?.item;
+  const remote=item?sharedLoomView(item.payload,week.startDate):null;
+  drawDashboard(remote?.week||week,remote?.config||config,Boolean(remote));
+  if(item?.payload.targets.length){
+   const details=el('details','looms-config-group');details.append(el('summary','','Metas semanales por telar'));
+   for(const [,name,,goal] of item.payload.targets)details.append(el('p','hint',name+' · '+(goal?fmt(loomNumber(goal))+' m':'Por definir')));
+   content.append(details);
+  }
+ }
+ function drawDashboard(week,config,remote){titleFor(dashboardDate?'Rendimiento del día':'Rendimiento semanal');const filters=el('div','looms-filters');content.append(filters);
   select(filters,'Fecha del dashboard',dashboardDate,dateOptions('Semana completa'),value=>{dashboardDate=value;render();},{tracked:false});
   select(filters,'Turno del dashboard',dashboardShift,[['','Todos'],['TA','TA'],['TC','TC']],v=>{dashboardShift=v;render();},{tracked:false});select(filters,'Persona del dashboard',personFilter,options(config.people).map(([id,name])=>[id,id?name:'Todas']),v=>{personFilter=v;render();},{tracked:false});
   const data=loomDashboard(week,{shift:dashboardShift,personId:personFilter,date:dashboardDate});const tiles=el('div','looms-kpis');for(const [label,value] of [['Eficiencia ponderada',data.efficiency===null?'—':fmt(data.efficiency)+' %'],['Producción',fmt(data.actual)+' m'],['Meta ajustada',fmt(data.target)+' m'],['Brecha',fmt(data.gap)+' m'],['Capturas',String(data.recorded)],['Pendientes guardados',String(data.pending)],['Inactivos',String(data.inactive)]]){const card=el('article','looms-kpi');card.append(el('span','',label),el('strong','',value));tiles.append(card);}content.append(tiles,el('p','hint','Resultados de las capturas guardadas. Pendientes e inactivos no se suman como producción cero. La eficiencia total divide producción acumulada entre metas ajustadas acumuladas.'));
-  operatorBoard(data);
+  operatorBoard(data,week,config,remote);
   if(!data.recorded){content.append(el('p','looms-empty','Aún no hay producción capturada para esta selección. Selecciona la bancada y el turno en Asignaciones y registra los metros en Captura.'));content.append(btn('Abrir captura',()=>{if(dashboardDate)date=dashboardDate;tabButtons.get('capture').click();}));return;}
   for(const [heading,items] of [['Evolución diaria por turno',data.daily]]){const chart=el('section','looms-chart');chart.append(el('h4','',heading));const maximum=Math.max(100,...items.map(i=>i.efficiency));for(const r of items){const line=el('div','looms-chart-row'),top=el('div','looms-chart-label');const identity=el('div','looms-chart-person');identity.append(el('strong','',r.name));top.append(identity,el('span','',fmt(r.efficiency)+' %'));const track=el('div','looms-track'),fill=el('span');fill.style.width=(r.efficiency/maximum*100)+'%';fill.dataset.level=r.efficiency>=90?'good':r.efficiency>=80?'warning':'low';track.setAttribute('role','meter');track.setAttribute('aria-label',r.name);track.setAttribute('aria-valuenow',String(r.efficiency));track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.append(fill);line.append(top,track,el('small','',fmt(r.actual)+' m / '+fmt(r.target)+' m de meta ajustada'));chart.append(line);}content.append(chart);}
  }
  function render(){if(!config||!week)return;formRows=[];photoInputs.clear();content.replaceChildren();weekDate.value=week.startDate;weekLabel.textContent=week.week+' · '+week.startDate.split('-').reverse().join('/');for(const [id,b] of tabButtons){b.setAttribute('aria-pressed',String(id===active));b.hidden=id==='config'&&!canConfigure();}saveButton.hidden=active==='dashboard';if(active==='capture')renderCapture();else if(active==='assign')renderAssignments();else if(active==='config')renderConfig();else renderDashboard();}
  async function persist(key,value,expected){const storage=getServices().storage,current=await storage.getText(key);if(current!==expected)throw Error('Los datos cambiaron en otra ventana. Cierra y vuelve a abrir antes de guardar; tu edición sigue en pantalla.');if(current!==null)await storage.putText('mn1.loom.history.'+crypto.randomUUID().replaceAll('-',''),current);await storage.putText(key,value);return value;}
- async function save(){if(busy||loadError)return false;if(!dirty)return true;lock(true);try{
+ async function save(auto=false){clearTimeout(autoTimer);if(busy||loadError)return false;if(!dirty)return true;const focus=auto?root.activeElement:null;lock(true);try{
   if(active==='config'){if(!canConfigure())throw Error('La sesión de administrador ya no está disponible.');const next=normalizeLoomConfig(config);loadedConfigRaw=await persist(loomConfigKey(team.id),JSON.stringify(next),loadedConfigRaw);config=next;}
   else{let next=normalizeLoomWeek(week,week.startDate);
    if(active==='capture'){
@@ -296,18 +387,19 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
      if(entries.length)next=saveLoomShift(next,config,date,turn,entries);
     }
    }loadedWeekRaw=await persist(loomWeekKey(team.id,week.startDate),JSON.stringify(next),loadedWeekRaw);week=next;}
-  dirty=false;discardButton.hidden=true;if(active==='config')render();message('Guardado en este dispositivo.');return true;
- }catch(e){discardButton.hidden=false;message(e.message||'No se pudo guardar. Tu captura se conserva en pantalla.',true);return false;}finally{lock(false);}}
+  dirty=false;discardButton.hidden=true;if(active==='config')render();message('Guardado en este dispositivo.');void queuePublication();return true;
+ }catch(e){discardButton.hidden=false;message(e.message||'No se pudo guardar. Tu captura se conserva en pantalla.',true);return false;}finally{lock(false);if(focus?.isConnected&&dialog.open)focus.focus({preventScroll:true});}}
  async function close(){if(busy)return false;if(!loadError&&!await save())return false;dialog.close();return true;}
  dialog.addEventListener('cancel',e=>{e.preventDefault();void close();});
  weekDate.addEventListener('change',async()=>{const selected=weekDate.value;if(!selected){weekDate.value=week.startDate;return;}if(!await save()){weekDate.value=week.startDate;return;}await loadWeek(selected);});
- async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week+' · datos locales del equipo.');}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
- async function open(value){if(dialog.open||busy)return false;team={...value};config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
+ async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;shared=getServices().sharing?sharingState():null;shareStatus.textContent='';assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week);void refreshShared();}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
+ async function open(value){if(dialog.open||busy)return false;team={...value};shared=null;shareStatus.textContent='';config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
   try{
    const workers=await getServices().getRoster?.(team.plantId);
    if(workers)config=applyLoomRoster(config,workers);
    else if(!config.people.length)rosterMessage='Abre Administración con tu cuenta para consultar el personal asignado a Telares.';
   }catch{rosterMessage='No se pudo consultar el personal de Telares. Puedes continuar con la configuración local.';}
-  const missingPhotos=await readPhotos();lock(false);await loadWeek(isoWeekInfo(now()).date);if(missingPhotos&&!loadError)message('No se pudieron cargar '+missingPhotos+' fotos; los datos del equipo se conservan.');if(rosterMessage&&!loadError)message(rosterMessage);return !loadError;}
+  const missingPhotos=await readPhotos();lock(false);await loadWeek(isoWeekInfo(now()).date);if(missingPhotos&&!loadError)message('No se pudieron cargar '+missingPhotos+' fotos; los datos del equipo se conservan.');if(rosterMessage&&!loadError&&!getServices().sharing)message(rosterMessage);return !loadError;}
+ dialog.addEventListener('close',()=>{if(dialog.open)return;clearTimeout(autoTimer);shared=null;shareStatus.textContent='';content.replaceChildren();});
  return {open,close,isOpen:()=>dialog.open};
 }
