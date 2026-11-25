@@ -2,7 +2,7 @@ import { createClient } from '@insforge/sdk';
 
 let client;
 const api = () => client ||= createClient({baseUrl: INSFORGE_BASE_URL, anonKey: INSFORGE_ANON_KEY});
-const NOTICE_CACHE_KEY = 'supertools.site-notice.v1';
+const NOTICE_CACHE_KEY = 'supertools.site-notice.v2';
 const NOTICE_CACHE_TTL_MS = 60 * 60 * 1000;
 
 export function readSiteNoticeCache(storage, now = Date.now()) {
