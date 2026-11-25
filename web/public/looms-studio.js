@@ -1,6 +1,6 @@
 import {isoWeekInfo} from './iso-calendar.js';
 import {normalizeRegistry} from './registry-model.js';
-import {provisionSacosLooms,loomNumberFromName,weeklyTarget,applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
+import {loomAssignment,provisionSacosLooms,loomNumberFromName,weeklyTarget,applyLoomRoster,createLoomConfig,normalizeLoomConfig,loomConfigKey,loomWeekKey,createLoomWeek,normalizeLoomWeek,loomDays,loomText,loomNumber,loomMetric,loomDashboard,saveLoomShift,isLoomPhoto} from './looms-model.js';
 
 /** Decode only user-selected raster files; save a small, metadata-free JPEG thumbnail. */
 export async function prepareLoomPhoto(file,{root=document}={}){
@@ -28,7 +28,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  const discardButton=btn('Cerrar sin guardar',()=>discardDialog.showModal());discardButton.hidden=true;
  const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Datos locales de este equipo'),discardButton,saveButton);
  dialog.append(header,toolbar,tabs,status,content,footer);root.body.append(dialog);
- let team=null,config=null,week=null,date='',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
+ let team=null,config=null,week=null,date='',assignmentDate='',dashboardDate='',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
  const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
  const photoCache=new Map(),photoInputs=new Map();
@@ -94,6 +94,9 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
    }catch(e){message(e.message,true);}finally{lock(false);}
   });
  }
+ function dateOptions(weeklyLabel){
+  return [['',weeklyLabel],...loomDays(week.startDate).map(day=>[day,day.split('-').reverse().join('/')])];
+ }
  function renderCapture(){
   titleFor('Producción diaria por bancada');
   const selectors=el('div','looms-filters');
@@ -102,14 +105,14 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
    if(await save()){date=value;render();}
    else selectors.querySelector('select').value=date;
   },{tracked:false});
-  selectors.append(btn('Editar metas y operadores',()=>tabButtons.get('assign').click()));
+  selectors.append(btn('Editar metas y operadores',()=>{assignmentDate=date;tabButtons.get('assign').click();}));
   if(!config.machines.some(m=>m.enabled)){captureSetup();return;}
   content.append(el('p','hint','Ingresa los metros producidos en TA y TC. Cada meta corresponde a 12 horas y se establece en Asignaciones para la semana seleccionada.'));
   for(const bench of benchGroups()){
    const heading=el('div','loom-bench-heading');
    heading.append(el('h4','',bench.name));
    for(const turn of ['TA','TC']){
-    const assigned=week.schedule.find(a=>a.benchId===bench.id&&a.shift===turn);
+    const assigned=loomAssignment(week,bench.id,turn,date);
     const person=config.people.find(p=>p.id===assigned?.personId);
     heading.append(el('span','',turn+' · '+(person?.name||'Sin asignar')));
    }
@@ -123,7 +126,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     cell(row).textContent=goal ? fmt(loomNumber(goal))+' m' : 'Por definir';
     for(const turn of ['TA','TC']){
      const previous=week.captures.find(r=>r.machineId===machine.id && r.date===date && r.shift===turn);
-     const assigned=week.schedule.find(a=>a.benchId===machine.benchId && a.shift===turn);
+     const assigned=loomAssignment(week,machine.benchId,turn,date);
      const data=previous?{...previous}:{machineId:machine.id,benchId:machine.benchId,state:'pending',hours:'12',note:'',actual:'',personId:''};
      if(data.state!=='recorded'){
       data.benchId=machine.benchId;
@@ -176,10 +179,28 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   return groups.map(b=>({...b,members:config.machines.filter(m=>m.enabled&&m.benchId===b.id)
    .sort((a,b)=>(loomNumberFromName(a.name)??Infinity)-(loomNumberFromName(b.name)??Infinity))})).filter(b=>b.members.length);
  }
- function renderAssignments(){titleFor('Responsables de las bancadas');content.append(el('p','hint','Programa semanal por turno. Puedes cambiar el responsable en una captura diaria para registrar un relevo. Los cambios no reescriben capturas anteriores.'));
+ function renderAssignments(){titleFor('Responsables de las bancadas');
+  const filters=el('div','looms-filters');content.append(filters);
+  select(filters,'Fecha de asignación',assignmentDate,dateOptions('Asignación semanal'),value=>{assignmentDate=value;render();},{tracked:false});
+  content.append(el('p','hint',assignmentDate?'El relevo se aplica solo a esta fecha y turno. Las capturas guardadas conservan su operador.':'Elige el operador habitual de cada turno. Para registrar un relevo, selecciona el día correspondiente.'));
   const body=rowsTable(['Bancada','Telares','Turno TA','Turno TC']);for(const bench of config.benches.filter(b=>b.enabled)){
    const row=el('tr');body.append(row);cell(row).textContent=bench.name;cell(row).textContent=config.machines.filter(m=>m.enabled&&m.benchId===bench.id).map(m=>m.name).join(', ')||'Sin máquinas';
-   for(const turn of ['TA','TC']){const current=week.schedule.find(a=>a.benchId===bench.id&&a.shift===turn)?.personId||'';select(cell(row),turn+' · '+bench.name,current,availablePeople(current),v=>{week.schedule=week.schedule.filter(a=>!(a.benchId===bench.id&&a.shift===turn));if(v)week.schedule.push({benchId:bench.id,shift:turn,personId:v});});}
+   for(const turn of ['TA','TC']){
+    const matches=a=>a.benchId===bench.id&&a.shift===turn&&(a.date||'')===assignmentDate;
+    const weekly=loomAssignment(week,bench.id,turn);
+    const current=week.schedule.find(matches)?.personId??(assignmentDate?'@weekly':'');
+    const people=availablePeople(current);
+    if(assignmentDate){
+     const name=config.people.find(p=>p.id===weekly?.personId)?.name||'Sin asignar';
+     people.unshift(['@weekly','Usar asignación semanal · '+name]);
+    }
+    select(cell(row),turn+' · '+bench.name,current,people,personId=>{
+     week.schedule=week.schedule.filter(a=>!matches(a));
+     if(personId!=='@weekly'&&(assignmentDate||personId)){
+      week.schedule.push({benchId:bench.id,shift:turn,personId,...(assignmentDate?{date:assignmentDate}:{})});
+     }
+    });
+   }
   }
   titleFor('Metas de la semana');
   content.append(el('p','hint','Define los metros por telar para 12 horas. La meta se usa en ambos turnos durante esta semana. Las capturas ya guardadas conservan la meta con la que se calcularon.'));
@@ -210,7 +231,17 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   const section=el('section','loom-operators');
   section.append(el('h4','','Rendimiento por operador'));
   const cards=el('div','loom-person-grid');section.append(cards);
-  const ids=new Set([...data.people.map(p=>p.id),...week.schedule.filter(a=>(!dashboardShift||a.shift===dashboardShift)&&(!personFilter||a.personId===personFilter)).map(a=>a.personId)]);
+  const effective=new Set();
+  for(const day of dashboardDate?[dashboardDate]:loomDays(week.startDate)){
+   for(const bench of config.benches){
+    for(const turn of ['TA','TC']){
+     const entry=loomAssignment(week,bench.id,turn,day);
+     if(entry?.personId)effective.add(entry);
+    }
+   }
+  }
+  const assignments=[...effective].filter((entry,i,all)=>all.findIndex(a=>a.personId===entry.personId&&a.shift===entry.shift&&a.benchId===entry.benchId)===i);
+  const ids=new Set([...data.people.map(p=>p.id),...assignments.filter(a=>(!dashboardShift||a.shift===dashboardShift)&&(!personFilter||a.personId===personFilter)).map(a=>a.personId)]);
   for(const id of ids){
    const person=config.people.find(p=>p.id===id),summary=data.people.find(p=>p.id===id);
    const name=person?.name||summary?.name||'Operador asignado';
@@ -221,13 +252,14 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     edit.setAttribute('aria-label',(person.photoKey?'Cambiar':'Agregar')+' foto de '+name);edit.append(picture);top.append(edit);
    }else top.append(picture);
    const caption=el('div');caption.append(el('strong','',name));
-   const assigned=week.schedule.filter(a=>a.personId===id&&(!dashboardShift||a.shift===dashboardShift));
+   const assigned=assignments.filter(a=>a.personId===id&&(!dashboardShift||a.shift===dashboardShift));
    caption.append(el('small','',assigned.map(a=>(config.benches.find(b=>b.id===a.benchId)?.name||'Bancada')+' · '+a.shift).join(' / ')));
    top.append(caption);card.append(top);cards.append(card);
    if(!summary){card.append(el('p','hint','Pendiente de captura'));continue;}
    const score=el('strong','looms-eff loom-person-score',fmt(summary.efficiency)+' %');
    score.dataset.level=summary.efficiency>=90?'good':summary.efficiency>=80?'warning':'low';
    card.append(score,el('small','',fmt(summary.actual)+' m de '+fmt(summary.target)+' m'));
+   if(dashboardDate)continue;
    const trend=el('div','loom-week-trend');
    const days=loomDays(week.startDate).map(day=>loomDashboard(week,{shift:dashboardShift,personId:id,date:day}));
    const max=Math.max(100,...days.map(d=>d.efficiency||0));
@@ -242,10 +274,12 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   }
   if(ids.size)content.append(section);
  }
- function renderDashboard(){titleFor('Rendimiento semanal');const filters=el('div','looms-filters');content.append(filters);select(filters,'Turno del dashboard',dashboardShift,[['','Todos'],['TA','TA'],['TC','TC']],v=>{dashboardShift=v;render();},{tracked:false});select(filters,'Persona del dashboard',personFilter,options(config.people).map(([id,name])=>[id,id?name:'Todas']),v=>{personFilter=v;render();},{tracked:false});
-  const data=loomDashboard(week,{shift:dashboardShift,personId:personFilter});const tiles=el('div','looms-kpis');for(const [label,value] of [['Eficiencia ponderada',data.efficiency===null?'—':fmt(data.efficiency)+' %'],['Producción',fmt(data.actual)+' m'],['Meta ajustada',fmt(data.target)+' m'],['Brecha',fmt(data.gap)+' m'],['Capturas',String(data.recorded)],['Pendientes guardados',String(data.pending)],['Inactivos',String(data.inactive)]]){const card=el('article','looms-kpi');card.append(el('span','',label),el('strong','',value));tiles.append(card);}content.append(tiles,el('p','hint','Resultados de las capturas guardadas. Pendientes e inactivos no se suman como producción cero. La eficiencia total divide producción acumulada entre metas ajustadas acumuladas.'));
+ function renderDashboard(){titleFor(dashboardDate?'Rendimiento del día':'Rendimiento semanal');const filters=el('div','looms-filters');content.append(filters);
+  select(filters,'Fecha del dashboard',dashboardDate,dateOptions('Semana completa'),value=>{dashboardDate=value;render();},{tracked:false});
+  select(filters,'Turno del dashboard',dashboardShift,[['','Todos'],['TA','TA'],['TC','TC']],v=>{dashboardShift=v;render();},{tracked:false});select(filters,'Persona del dashboard',personFilter,options(config.people).map(([id,name])=>[id,id?name:'Todas']),v=>{personFilter=v;render();},{tracked:false});
+  const data=loomDashboard(week,{shift:dashboardShift,personId:personFilter,date:dashboardDate});const tiles=el('div','looms-kpis');for(const [label,value] of [['Eficiencia ponderada',data.efficiency===null?'—':fmt(data.efficiency)+' %'],['Producción',fmt(data.actual)+' m'],['Meta ajustada',fmt(data.target)+' m'],['Brecha',fmt(data.gap)+' m'],['Capturas',String(data.recorded)],['Pendientes guardados',String(data.pending)],['Inactivos',String(data.inactive)]]){const card=el('article','looms-kpi');card.append(el('span','',label),el('strong','',value));tiles.append(card);}content.append(tiles,el('p','hint','Resultados de las capturas guardadas. Pendientes e inactivos no se suman como producción cero. La eficiencia total divide producción acumulada entre metas ajustadas acumuladas.'));
   operatorBoard(data);
-  if(!data.recorded){content.append(el('p','looms-empty','Aún no hay producción capturada en esta semana. Selecciona la bancada y el turno en Asignaciones y registra los metros en Captura.'));content.append(btn('Abrir captura',()=>tabButtons.get('capture').click()));return;}
+  if(!data.recorded){content.append(el('p','looms-empty','Aún no hay producción capturada para esta selección. Selecciona la bancada y el turno en Asignaciones y registra los metros en Captura.'));content.append(btn('Abrir captura',()=>{if(dashboardDate)date=dashboardDate;tabButtons.get('capture').click();}));return;}
   for(const [heading,items] of [['Evolución diaria por turno',data.daily]]){const chart=el('section','looms-chart');chart.append(el('h4','',heading));const maximum=Math.max(100,...items.map(i=>i.efficiency));for(const r of items){const line=el('div','looms-chart-row'),top=el('div','looms-chart-label');const identity=el('div','looms-chart-person');identity.append(el('strong','',r.name));top.append(identity,el('span','',fmt(r.efficiency)+' %'));const track=el('div','looms-track'),fill=el('span');fill.style.width=(r.efficiency/maximum*100)+'%';fill.dataset.level=r.efficiency>=90?'good':r.efficiency>=80?'warning':'low';track.setAttribute('role','meter');track.setAttribute('aria-label',r.name);track.setAttribute('aria-valuenow',String(r.efficiency));track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(maximum));track.append(fill);line.append(top,track,el('small','',fmt(r.actual)+' m / '+fmt(r.target)+' m de meta ajustada'));chart.append(line);}content.append(chart);}
  }
  function render(){if(!config||!week)return;formRows=[];photoInputs.clear();content.replaceChildren();weekDate.value=week.startDate;weekLabel.textContent=week.week+' · '+week.startDate.split('-').reverse().join('/');for(const [id,b] of tabButtons){b.setAttribute('aria-pressed',String(id===active));b.hidden=id==='config'&&!canConfigure();}saveButton.hidden=active==='dashboard';if(active==='capture')renderCapture();else if(active==='assign')renderAssignments();else if(active==='config')renderConfig();else renderDashboard();}
@@ -267,7 +301,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  async function close(){if(busy)return false;if(!loadError&&!await save())return false;dialog.close();return true;}
  dialog.addEventListener('cancel',e=>{e.preventDefault();void close();});
  weekDate.addEventListener('change',async()=>{const selected=weekDate.value;if(!selected){weekDate.value=week.startDate;return;}if(!await save()){weekDate.value=week.startDate;return;}await loadWeek(selected);});
- async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week+' · datos locales del equipo.');}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
+ async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week+' · datos locales del equipo.');}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
  async function open(value){if(dialog.open||busy)return false;team={...value};config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
   try{
    const workers=await getServices().getRoster?.(team.plantId);

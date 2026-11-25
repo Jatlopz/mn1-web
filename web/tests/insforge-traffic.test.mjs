@@ -23,7 +23,7 @@ test('notice cache expires after one hour and rejects corrupt data', () => {
   assert.deepEqual(readSiteNoticeCache(local, 1_000 + 3_599_999),
     {message:'Aviso', revision:2});
   assert.equal(readSiteNoticeCache(local, 1_000 + 3_600_000), null);
-  local.setItem('supertools.site-notice.v1', JSON.stringify({
+  local.setItem('supertools.site-notice.v2', JSON.stringify({
     message:'x'.repeat(241), revision:2, at:1_000,
   }));
   assert.equal(readSiteNoticeCache(local, 2_000), null);

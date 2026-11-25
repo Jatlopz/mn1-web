@@ -58,6 +58,11 @@ export function normalizeLoomConfig(raw){
  return {version:1,people,benches,machines};
 }
 export function createLoomWeek(date){const info=isoWeekInfo(date);return {version:1,week:info.weekKey,startDate:info.startDate,schedule:[],captures:[],targets:{}};}
+export function loomAssignment(week,benchId,shift,date){
+ const matches=row=>row.benchId===benchId&&row.shift===shift;
+ return week.schedule.find(row=>matches(row)&&row.date===date) ??
+  week.schedule.find(row=>matches(row)&&!row.date);
+}
 export function loomDays(date){const info=isoWeekInfo(date),start=new Date(info.startDate+'T00:00:00Z');return Array.from({length:7},(_,i)=>{const d=new Date(start);d.setUTCDate(d.getUTCDate()+i);return d.toISOString().slice(0,10);});}
 export function captureIdentity(row){return row.date+'|'+row.shift+'|'+row.machineId;}
 export function loomMetric(row){
@@ -67,8 +72,15 @@ export function loomMetric(row){
  return {actual:Number(fixed(row.actual))/1e6,target:Number(target)/12e12,efficiency:ratio(actual,target),actualExact:actual,targetExact:target};
 }
 export function normalizeLoomWeek(raw,date){
- const expected=createLoomWeek(date);if(!raw||raw.version!==1||raw.week!==expected.week||raw.startDate!==expected.startDate||!Array.isArray(raw.schedule)||!Array.isArray(raw.captures)||raw.schedule.length>100||raw.captures.length>1400)fail();
- const schedules=new Set(),captures=new Set();const schedule=raw.schedule.map(v=>{const key=v.benchId+'|'+v.shift;if(!safeId(v.benchId)||!['TA','TC'].includes(v.shift)||!safeId(v.personId)||schedules.has(key))fail();schedules.add(key);return {benchId:v.benchId,shift:v.shift,personId:v.personId};});
+ const expected=createLoomWeek(date);if(!raw||raw.version!==1||raw.week!==expected.week||raw.startDate!==expected.startDate||!Array.isArray(raw.schedule)||!Array.isArray(raw.captures)||raw.schedule.length>800||raw.captures.length>1400)fail();
+ const schedules=new Set(),captures=new Set(),days=loomDays(date);
+ const schedule=raw.schedule.map(v=>{
+  const daily=v.date!==undefined,key=[v.benchId,v.shift,v.date].join('|');
+  if(!safeId(v.benchId)||!['TA','TC'].includes(v.shift)||(daily&&!days.includes(v.date))||
+     !(safeId(v.personId)||(daily&&v.personId===''))||schedules.has(key))fail();
+  schedules.add(key);
+  return {benchId:v.benchId,shift:v.shift,personId:v.personId,...(daily?{date:v.date}:{})};
+ });
  const rows=raw.captures.map(v=>{if(!v||isoWeekInfo(v.date).weekKey!==expected.week||!['TA','TC'].includes(v.shift)||!safeId(v.machineId)||!['recorded','inactive','pending'].includes(v.state))fail();const key=captureIdentity(v);if(captures.has(key))fail('Hay capturas duplicadas para la misma máquina y turno.');captures.add(key);
  const row={date:v.date,shift:v.shift,machineId:v.machineId,machineName:loomText(v.machineName),benchId:v.benchId,benchName:v.state==='pending'&&v.benchId===''?'':loomText(v.benchName),personId:v.personId,personName:v.personName,state:v.state,actual:v.actual,baseTarget:v.baseTarget,hours:v.hours,note:typeof v.note==='string'?v.note:''};
  if((row.benchId!==''&&!safeId(row.benchId))||(row.state!=='pending'&&!safeId(row.benchId))||row.note.length>500)fail();if(v.state==='recorded'){if(!safeId(row.personId))fail('Selecciona la persona responsable.');row.personName=loomText(row.personName);loomMetric(row);}else if(row.state==='inactive'){if(row.actual!==''||row.personId!==''||row.personName!=='')fail();}else{if(row.actual!==''||(row.baseTarget!==''&&loomNumber(row.baseTarget)===null)||(row.hours!==''&&loomNumber(row.hours,{hours:true})===null))fail();if(row.personId!==''){if(!safeId(row.personId))fail();row.personName=loomText(row.personName);}else if(row.personName!=='')fail();}return row;});
