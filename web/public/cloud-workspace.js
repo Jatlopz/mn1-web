@@ -1,4 +1,6 @@
 import {installCorporateBoard} from './corporate-board.js';
+import {publishProductionSettings,collectProductionSettings} from './production-settings.js';
+import {plantForTeam} from './profiles.js';
 import {installCreatorInfo} from './creator-info.js';
 import {isIdeaImage,prepareIdeaImage,prepareNativeIdeaImage,appendIdeaAttachment} from './idea-attachment.js';
 import {createRegistryAdmin} from './registry-admin.js';
@@ -6,7 +8,7 @@ import {createStaffAdmin} from './staff-admin.js';
 import {loadImageElement,prepareImageFile} from './renderer.js';
 import { TEAM_TOOLS,toolsForTeam,toolRequestNote,mergeToolRequestDraft,isToolEnabledForTeam } from './profiles.js';
 import { CloudClient } from "./cloud-client.js";
-import { siteAdmin, assignmentBoard, personnelCatalog, loomSharing } from './insforge-admin.js';
+import { siteAdmin, assignmentBoard, personnelCatalog, loomSharing, productionSettingsApi } from './insforge-admin.js';
 import {
   CLOUD_META_KEY,
   localTeamPacket,
@@ -568,6 +570,45 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
   const siteResult=document.createElement('p');siteResult.setAttribute('role','status');siteResult.setAttribute('aria-live','polite');
   siteForm.append(siteLabel,siteSave);siteControl.append(siteHeading,siteInfo,siteForm,siteSignOut,siteResult);
   adminDashboard.querySelector('[data-admin-panel="overview"]').prepend(siteControl);
+  const settingsPanel=document.createElement('details'),settingsTitle=document.createElement('summary');
+  settingsTitle.textContent='Configuración compartida de producción';
+  const sourceLabel=document.createElement('label');sourceLabel.textContent='Equipo de origen';
+  const sourceSelect=document.createElement('select');sourceLabel.append(sourceSelect);
+  const reviewSettings=document.createElement('button'),publishSettings=document.createElement('button'),settingsResult=document.createElement('p');
+  for(const button of [reviewSettings,publishSettings]){button.type='button';button.className='button button-secondary';}
+  reviewSettings.textContent='Revisar configuración';publishSettings.textContent='Publicar para supervisores';
+  settingsResult.setAttribute('role','status');publishSettings.hidden=true;
+  settingsPanel.append(settingsTitle,sourceLabel,reviewSettings,settingsResult,publishSettings);siteControl.append(settingsPanel);
+  let reviewed=null;
+  function resetSettingsReview(){reviewed=null;publishSettings.hidden=true;settingsResult.textContent='';}
+  sourceSelect.addEventListener('change',resetSettingsReview);
+  settingsPanel.addEventListener('toggle',()=>{
+    resetSettingsReview();if(!settingsPanel.open)return;
+    const svc=getServices();sourceSelect.replaceChildren();
+    for(const team of svc.catalog.filter(t=>isToolEnabledForTeam('production',t)||isToolEnabledForTeam('looms',t)||isToolEnabledForTeam('lamination',t))){
+      const option=document.createElement('option');option.value=team.id;option.textContent=team.name;sourceSelect.append(option);
+    }
+    if([...sourceSelect.options].some(option=>option.value===svc.activeProfileId))sourceSelect.value=svc.activeProfileId;
+  });
+  reviewSettings.addEventListener('click',async()=>{
+    resetSettingsReview();reviewSettings.disabled=true;sourceSelect.disabled=true;
+    try{
+      const svc=getServices(),team=svc.catalog.find(t=>t.id===sourceSelect.value);if(!team)throw Error('Selecciona el equipo de origen.');
+      const plant=plantForTeam(team);
+      const [remote,data]=await Promise.all([productionSettingsApi.read(plant),collectProductionSettings(svc.storage,plant,team.id)]);
+      if(!remote.canPublish)throw Error('Inicia sesión como administrador.');
+      reviewed={plant,id:team.id,revision:remote.item?.revision||0,data};
+      settingsResult.textContent=team.name+' · '+data.catalog.processes.length+' procesos, '+data.looms.machines.length+' telares. Se compartirán el catálogo, el orden, los valores fijos y los factores de laminado de este dispositivo.'+(remote.item?' Sustituirá la configuración publicada de esta planta.':'');
+      publishSettings.hidden=false;
+    }catch(error){settingsResult.textContent=error.message;}finally{reviewSettings.disabled=false;sourceSelect.disabled=false;}
+  });
+  publishSettings.addEventListener('click',async()=>{
+    const selected=reviewed;if(!selected)return;sourceSelect.disabled=true;publishSettings.disabled=true;reviewSettings.disabled=true;
+    try{
+      const rev=await publishProductionSettings(getServices().storage,productionSettingsApi,selected.plant,selected.id,selected.revision,selected.data);
+      resetSettingsReview();settingsResult.textContent='Configuración publicada · revisión '+rev+'. Los cambios guardados desde este equipo se compartirán al abrir las herramientas.';
+    }catch(error){resetSettingsReview();settingsResult.textContent=error.message;}finally{sourceSelect.disabled=false;publishSettings.disabled=false;reviewSettings.disabled=false;}
+  });
   const showAdmin=()=>{setAdminScreenVisible(adminDashboard,true);adminDashboard.scrollTop=0;renderAdminTeams();selectAdminView('overview');siteControl.hidden=!siteAdminAccess;siteInfo.textContent=siteAdminAccess?'Conectado como '+siteAdminEmail+'. Los perfiles, imágenes y artes de equipos permanecen fuera de InsForge.':'Los datos de equipos permanecen en su servicio actual.';adminDashboard.querySelector('[data-admin-jump="inbox"]').hidden=!access?.admin;$('admin-to-inbox').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="catalog"]').hidden=!access?.admin;adminDashboard.querySelector('[data-admin-view="staff"]').hidden=!siteAdminAccess;};
   const hideAdmin=()=>setAdminScreenVisible(adminDashboard,false);
   const screenCloser={close:hideAdmin};

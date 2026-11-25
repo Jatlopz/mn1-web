@@ -97,3 +97,10 @@ export const loomSharing = Object.freeze({
   }));
  }
 });
+
+export const productionSettingsApi=Object.freeze({
+  async read(plant){return unwrap(await api().database.rpc('st_production_settings_read',{p_plant:plant}));},
+  async publish(plant,team,revision,settings){return unwrap(await api().database.rpc('st_production_settings_publish',{
+    p_plant:plant,p_team:team,p_expected:revision,p_settings:settings
+  }));}
+});

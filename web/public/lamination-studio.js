@@ -59,12 +59,12 @@ export function createLaminationStudio(getServices,{root=document}={}) {
  const saveButton=button('Guardar',()=>void save(),'button button-primary');
  const footer=el('div','lamination-footer'),storageNotice=el('p','hint');footer.append(storageNotice,saveButton);
  dialog.append(heading,context,tabs,laminate,slitter,status,footer);root.body.append(dialog);
- function controls(disabled){for(const input of dialog.querySelectorAll('input,button'))input.disabled=disabled;if(!disabled&&draft){add.disabled=draft.rows.length>=50;rows.querySelector('button').disabled=draft.rows.length===1;}}
+ function controls(disabled){for(const input of dialog.querySelectorAll('input,button'))input.disabled=disabled;if(!disabled&&draft){for(const input of factors.querySelectorAll('input'))input.disabled=getServices().storage.receivesSettings===true;add.disabled=draft.rows.length>=50;rows.querySelector('button').disabled=draft.rows.length===1;}}
  async function save() {
   if(busy||loading||!draft)return false;if(!dirty)return true;
   busy=true;controls(true);status.textContent='Guardando…';
   try{const storage=getServices().storage;await storage.putText(laminationKey(team.id),JSON.stringify(draft));dirty=false;status.textContent=storage.persistent===false?'Sólo durante esta sesión. Al reiniciar la app, estos datos se perderán.':'Guardado en este teléfono';return true;}
-  catch{status.textContent='No se pudo guardar. Tus datos siguen abiertos; vuelve a intentarlo.';return false;}
+  catch(error){status.textContent=error.message||'No se pudo guardar. Tus datos siguen abiertos; vuelve a intentarlo.';return false;}
   finally{busy=false;controls(false);}
  }
  async function close(){if(busy||loading)return false;if(dirty&&!await save())return false;dialog.close();return true;}
@@ -72,10 +72,10 @@ export function createLaminationStudio(getServices,{root=document}={}) {
  return {isOpen:()=>dialog.open,close,async open(nextTeam){
   if(dialog.open||loading)return false;team=nextTeam;draft=null;dirty=false;loading=true;rows.replaceChildren();summary.textContent='';slitterYield.textContent='—';slitterMetres.textContent='—';status.textContent='Abriendo borrador…';storageNotice.textContent=getServices().storage.persistent===false?'Almacenamiento temporal: los datos sólo duran esta sesión. No reinicies la app si necesitas conservarlos.':'Borrador local de este equipo en este teléfono.';context.textContent=team.name+' · Laminado · Planta Sacos';panels.forEach((panel,index)=>panel.hidden=index!==0);tabButtons.forEach((node,index)=>node.setAttribute('aria-pressed',String(index===0)));dialog.showModal();controls(true);
   try{
-   const raw=await getServices().storage.getText(laminationKey(team.id));draft=raw?normalizeLaminationDraft(JSON.parse(raw)):createLaminationDraft();dirty=false;
+   await getServices().storage.prepare?.(team.plantId||'sacos',team.id);const raw=await getServices().storage.getText(laminationKey(team.id));draft=raw?normalizeLaminationDraft(JSON.parse(raw)):createLaminationDraft();dirty=false;
    factors.replaceChildren();for(const [key,label] of [['normal','Aplicación Normal (g/m²)'],['yara','Aplicación Yara (g/m²)'],['faces','Caras de tela'],['inchesPerMetre','Pulgadas por metro'],['gramsPerPound','Gramos por libra']])field(label,draft.settings[key],value=>draft.settings[key]=value,factors,{positive:true});
    slitterFields.replaceChildren();for(const [key,label] of [['difference','Diferencia de libras menos lo consumido'],['metres','Metros de viñeta'],['pounds','Libras de viñeta']])field(label,draft.slitter[key],value=>draft.slitter[key]=value,slitterFields,{positive:key==='pounds',signed:key==='difference'});
-   renderRows();status.textContent='Usa punto o coma decimal, sin separadores de miles.';return true;
+   renderRows();status.textContent=[getServices().storage.message?.(),'Usa punto o coma decimal, sin separadores de miles.'].filter(Boolean).join(' ');return true;
   }catch{status.textContent='No se pudo abrir el borrador. No se ha reemplazado ni borrado. Cierra y vuelve a intentarlo.';rows.replaceChildren();factors.replaceChildren();slitterFields.replaceChildren();summary.textContent='';return false;}
   finally{loading=false;controls(!draft);closeButton.disabled=false;}
  }};

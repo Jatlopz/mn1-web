@@ -70,7 +70,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   const payload=loomDashboardPayload(config,week);
   return enqueue(()=>publish(s,payload));
  }
- function refreshShared(s=shared){
+ function refreshShared(s=shared,alreadyRead=null){
   if(!s||!getServices().sharing)return;
   return enqueue(async()=>{
    if(s!==shared||!dialog.open)return;
@@ -78,7 +78,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     const storage=getServices().storage;
     s.enabled=(await storage.getText(s.enabledKey))==='1';
     s.revision=Number(await storage.getText(s.revisionKey))||0;
-    const remote=await getServices().sharing.read(s.team.plantId,s.monday);
+    const remote=alreadyRead||await getServices().sharing.read(s.team.plantId,s.monday);
     if(s!==shared||!dialog.open)return;
     s.connected=true;s.canPublish=remote.canPublish===true;s.item=remote.item;
     s.notice=s.item?'Dashboard compartido · '+s.item.name:'Todavía no hay un dashboard compartido para esta semana.';
@@ -110,7 +110,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();if(id==='dashboard')void refreshShared();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
  const photoCache=new Map(),photoInputs=new Map();
- const canConfigure=()=>getServices().canConfigure?.()===true;
+ const canConfigure=()=>!getServices().storage.receivesSettings&&getServices().canConfigure?.()===true;
  const message=(text,error=false)=>{status.textContent=text;status.dataset.error=String(error);};
  function lock(value){busy=value;dialog.setAttribute('aria-busy',String(value));for(const c of dialog.querySelectorAll('button,input,select,textarea')){if(value)controlLocks.set(c,c.disabled);c.disabled=value||(loadError&&c!==closeButton)||(controlLocks.get(c)===true);if(!value)controlLocks.delete(c);}}
  function changed(){
@@ -292,6 +292,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     field(group,machine.name,weeklyTarget(week,machine),value=>week.targets[machine.id]=value.trim(),{numeric:true});
    }
   }
+  if(getServices().storage.receivesSettings&&shared?.item){for(const input of content.querySelectorAll('tr select,.looms-week-goals input'))input.disabled=true;content.append(el('p','hint','Asignaciones y metas publicadas por administración.'));}
   if(!config.benches.length)content.append(el('p','looms-empty','Primero crea las bancadas en Configuración.'));
  }
  function renderConfig(){titleFor('Catálogo local de Telares');if(!canConfigure()){content.append(el('p','hint','La configuración del catálogo corresponde al administrador.'));return;}
@@ -406,8 +407,19 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   if(day.getUTCFullYear()>=1&&day.getUTCFullYear()<=9999)return selectWeek(day.toISOString().slice(0,10));
  }
  weekDate.addEventListener('change',()=>void selectWeek(weekDate.value));
- async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;shared=getServices().sharing?sharingState():null;shareStatus.textContent='';assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message('Semana '+info.week);void refreshShared();}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
- async function open(value){if(dialog.open||busy)return false;team={...value};shared=null;shareStatus.textContent='';config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
+ async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);let published=null;
+  if(getServices().storage.receivesSettings&&getServices().sharing){
+    try{published=await getServices().sharing.read(team.plantId,info.startDate);}catch{/* Offline captures stay available. */}
+    if(published?.item){
+      const payload=published.item.payload;
+      next.schedule=sharedLoomView(payload,info.startDate).week.schedule;
+      for(const [id,,,target] of payload.targets)next.targets[id]=target;
+      const known=new Set(config.people.map(p=>p.id));
+      for(const [id,name] of payload.people)if(!known.has(id))config.people.push({id,name,enabled:true,photoKey:''});
+    }
+  }
+  for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;shared=getServices().sharing?sharingState():null;shareStatus.textContent='';assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message(['Semana '+info.week,getServices().storage.message?.()].filter(Boolean).join(' · '));void refreshShared(shared,published);}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
+ async function open(value){if(dialog.open||busy)return false;team={...value};shared=null;shareStatus.textContent='';config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{await getServices().storage.prepare?.(team.plantId,team.id);const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
   try{
    const workers=await getServices().getRoster?.(team.plantId);
    if(workers)config=applyLoomRoster(config,workers);

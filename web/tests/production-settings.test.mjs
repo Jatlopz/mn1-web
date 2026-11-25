@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {collectProductionSettings,publishProductionSettings,productionSettingsStorage} from '../public/production-settings.js';
+import {laminationKey,createLaminationDraft} from '../public/lamination-model.js';
+import {loomConfigKey,createLoomConfig} from '../public/looms-model.js';
+const vault=()=>{const data=new Map();return {getText:async k=>data.get(k)??null,putText:async(k,v)=>data.set(k,v)};};
+test('una publicación se aplica en otro equipo, conserva capturas y solo envía cambios de configuración',async()=>{
+  const owner=vault(),other=vault();let item=null,writes=0;
+  const api={read:async()=>({canPublish:true,item:structuredClone(item)}),publish:async(plant,team,rev,settings)=>{
+    assert.equal(rev,item?.revision??0);writes++;item={revision:rev+1,team,settings:structuredClone(settings)};return item.revision;
+  }};
+  const source=createLaminationDraft();source.settings.normal='22';source.rows[0].reportedPounds='12345';
+  await owner.putText(laminationKey('origin'),JSON.stringify(source));
+  const cfg=createLoomConfig();cfg.people.push({id:'operator',name:'Ejemplo',enabled:true,photoKey:'mn1.loom.pic.'+'a'.repeat(32)});
+  await owner.putText(loomConfigKey('origin'),JSON.stringify(cfg));
+  const packet=await collectProductionSettings(owner,'sacos','origin');
+  assert.equal(packet.looms.machines.length,23);assert.doesNotMatch(JSON.stringify(packet),/reportedPounds|photoKey|12345/);
+  await publishProductionSettings(owner,api,'sacos','origin',0);
+  const recipient=productionSettingsStorage(other,{read:async()=>({item,canPublish:false})});
+  await recipient.prepare('sacos','second');
+  const localRow=createLaminationDraft();localRow.rows[0].reportedPounds='90';
+  await other.putText(laminationKey('second'),JSON.stringify(localRow));
+  const view=JSON.parse(await recipient.getText(laminationKey('second')));
+  assert.equal(view.settings.normal,'22');assert.equal(view.rows[0].reportedPounds,'90');
+  view.rows[0].reportedPounds='99';await recipient.putText(laminationKey('second'),JSON.stringify(view));
+  assert.equal(JSON.parse(await other.getText(laminationKey('second'))).settings.normal,'17');
+  view.settings.normal='30';await assert.rejects(recipient.putText(laminationKey('second'),JSON.stringify(view)),/administración/);
+  const editor=productionSettingsStorage(owner,api);await editor.prepare('sacos','origin');
+  source.rows[0].reportedPounds='9000';await editor.putText(laminationKey('origin'),JSON.stringify(source));assert.equal(writes,1);
+  source.settings.normal='25';await editor.putText(laminationKey('origin'),JSON.stringify(source));assert.equal(writes,2);
+  await recipient.prepare('sacos','second');assert.equal(JSON.parse(await recipient.getText(laminationKey('second'))).settings.normal,'25');
+  assert.equal(JSON.parse(await recipient.getText(laminationKey('second'))).rows[0].reportedPounds,'99');
+});
