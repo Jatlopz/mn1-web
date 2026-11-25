@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {build as bundle} from 'esbuild';
 const INSFORGE_SDK_PATH=fileURLToPath(import.meta.resolve('@insforge/sdk'));
 
-const MODULES = ['insforge-admin.js','theme-bootstrap.js','team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','staff-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js','themes.js','cloud-client.js','cloud-model.js','cloud-workspace.js','app.js','meeting-report.js','bridge.js','profiles.js','renderer.js','starter-templates.js','storage.js','voice.js'];
+const MODULES = ['production-settings.js','insforge-admin.js','theme-bootstrap.js','team-carousel.js','corporate-board.js','creator-info.js','idea-attachment.js','desktop-install.js','looms-model.js','looms-studio.js','lamination-model.js','lamination-studio.js','registry-model.js','registry-admin.js','staff-admin.js','iso-calendar.js','team-tool-library.js','plant-catalog.js','production-model.js','production-pdf.js','production-studio.js','themes.js','cloud-client.js','cloud-model.js','cloud-workspace.js','app.js','meeting-report.js','bridge.js','profiles.js','renderer.js','starter-templates.js','storage.js','voice.js'];
 const LOCAL_IMPORT = /from\s+(['"])\.\/([A-Za-z0-9_-]+\.js)\1/g;
 const MAX_STARTER_IMAGE_BYTES = 4 * 1024 * 1024;
 const THEME_TEXTURES = Object.freeze([

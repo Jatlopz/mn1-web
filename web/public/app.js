@@ -1,4 +1,6 @@
 import {createTeamCarousel,teamInitials} from './team-carousel.js';
+import {productionSettingsStorage} from './production-settings.js';
+import {productionSettingsApi} from './insforge-admin.js';
 import {createLoomStudio} from './looms-studio.js';
 import {installIsoCalendar} from './iso-calendar.js';
 import {createLaminationStudio} from './lamination-studio.js';
@@ -2185,7 +2187,7 @@ export function launchTeamTool(dom,app,id) {
   if(id==='report')void app.reportStudio?.open({teamId:app.workspace.activeProfileId});
   if(id==='production'){const definition=getProfileDefinition(app.workspace.activeProfileId,{catalog:app.catalog});void app.productionStudio?.open({teamId:definition.id,teamName:definition.name,plantId:plantForTeam(definition)});}
   if(id==='looms')void app.loomsStudio?.open({id:team.id,name:team.name,plantId:plantForTeam(team)});
-  if(id==='lamination')void app.laminationStudio?.open({id:team.id,name:team.name});
+  if(id==='lamination')void app.laminationStudio?.open({id:team.id,name:team.name,plantId:plantForTeam(team)});
   return true;
 }
 export async function readTeamLogo(storage, teamId, cache = null) {
@@ -4754,11 +4756,14 @@ async function boot() {
     }
     const files=reportImageFiles(images,report);for(const file of files){const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}return 'Descargas solicitadas por separado. Si el navegador lo pide, permite las descargas múltiples.';
   };
-  app.productionStudio=createProductionStudio(()=>({storage:app.storage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),messageForReport:productionShareMessage,onShareImages:shareProductionImages,onDownloadImages:downloadProductionImages}));
+  const productionStorage=productionSettingsStorage(app.storage,productionSettingsApi);
+  const loomStorage=productionSettingsStorage(app.storage,productionSettingsApi);
+  const laminationStorage=productionSettingsStorage(app.storage,productionSettingsApi);
+  app.productionStudio=createProductionStudio(()=>({storage:productionStorage,onClose:()=>{app.teamToolsOpen=true;renderAll(dom,app,{syncFields:false});dom.teamToolsHome?.focus();},onShare:(report,catalog)=>exportProduction(report,catalog),onDownload:app.mode==='native'?null:(report,catalog)=>exportProduction(report,catalog,true),onPrepareImages:(report,catalog)=>createProductionImages(report,catalog),messageForReport:productionShareMessage,onShareImages:shareProductionImages,onDownloadImages:downloadProductionImages}));
   document.getElementById('open-production').addEventListener('click',()=>launchTeamTool(dom,app,'production'));
-  app.loomsStudio=createLoomStudio(()=>({storage:app.storage,sharing:app.cloud?.loomSharing,openSupervisorLogin:()=>app.cloud?.openSupervisorLogin(),canConfigure:()=>app.cloud?.canConfigureLooms()===true,getRoster:plantId=>app.cloud.readLoomRoster(plantId),getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
+  app.loomsStudio=createLoomStudio(()=>({storage:loomStorage,sharing:app.cloud?.loomSharing,openSupervisorLogin:()=>app.cloud?.openSupervisorLogin(),canConfigure:()=>app.cloud?.canConfigureLooms()===true,getRoster:plantId=>app.cloud.readLoomRoster(plantId),getRegistry:plantId=>app.cloud.readRegistry(plantId)}));
   document.getElementById('open-looms').addEventListener('click',()=>launchTeamTool(dom,app,'looms'));
-  app.laminationStudio=createLaminationStudio(()=>({storage:app.storage}));
+  app.laminationStudio=createLaminationStudio(()=>({storage:laminationStorage}));
   document.getElementById('open-lamination').addEventListener('click',()=>launchTeamTool(dom,app,'lamination'));
   await seedStarterImagesOnBoot(dom, app);
   app.cloud=createCloudWorkspace(()=>({bridge:app.bridge,mode:app.mode,openTeamSpace:async id=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;if(id!==app.workspace?.activeProfileId&&!(await switchWorkspaceProfile(dom,app,id)))return false;return openTeamTools(dom,app,id);},openPersonalSpace:async()=>{if(app.busy||app.switching)return false;if(!(await flushDraftBeforeLeaving(dom,app)))return false;const id=app.workspace?.activeProfileId;const definition=getProfileDefinition(id,{catalog:app.catalog});if(definition&&(!app.selectedPlantId||plantForTeam(definition)===app.selectedPlantId)){openTeamTools(dom,app,id);}else{app.teamToolsOpen=false;app.workspaceView=WORKSPACE_VIEW_TEAMS;app.editorTool=null;renderAll(dom,app,{syncFields:true});}return true;},isEditing:()=>app.busy||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]:not(#cloud-dialog)'))||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),activeProfileId:app.workspace?.activeProfileId,storage:app.storage,catalog:app.catalog,blocked:()=>app.changingTeam||app.busy||app.switching||app.listening||app.dirty||app.workspaceView===WORKSPACE_VIEW_OPEN||Boolean(document.querySelector('dialog[open]'))||!document.getElementById('admin-dashboard').hidden||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen(),flush:()=>flushDraftBeforeLeaving(dom,app),setSyncing:value=>{document.getElementById('sync-indicator').hidden=!value;},setLocked:value=>{app.cloudManualBusy=value;app.busy=value;renderAll(dom,app,{syncFields:false});},commitReceive:async task=>{const manual=app.cloudManualBusy===true;if((app.busy&&!manual)||app.switching||app.dirty||app.listening||(!manual&&(app.workspaceView===WORKSPACE_VIEW_OPEN||!document.getElementById('report-studio').hidden||app.productionStudio?.isOpen()||document.querySelector('dialog[open]'))))throw Object.assign(Error('Se aplaza la recepción mientras trabajas.'),{code:'deferred'});const wasBusy=app.busy;app.busy=true;try{return await enqueueStorageTask(app,task);}finally{app.busy=wasBusy;}},applyState:async state=>{app.workspace=normalizeWorkspaceState(state);app.catalog=profileCatalogForWorkspace(app.workspace);app.draft=cloneDraftFromProfile(activeProfileOf(app));app.cardThumbnailCache=null;app.teamLogoCache?.clear();app.loadedImage=null;app.loadedImageUrl='';app.dirty=false;app.persistedRevision=app.draftRevision;await loadActiveImage(app);renderAll(dom,app,{syncFields:true});}}));
