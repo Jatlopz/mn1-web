@@ -769,5 +769,5 @@ export function createCloudWorkspace(getServices,{client:providedClient=null}={}
     }
     return (await personnelCatalog.read(plantId)).workers;
   }
-  return { start, tick, loomSharing, openSupervisorLogin:()=>corporateBoard.open(), readLoomRoster, canConfigureLooms:()=>siteAdminAccess||access?.admin===true, canManageCatalog:()=>access?.admin===true,readRegistry:async plantId=>{if(!access?.admin)throw Error('Inicia sesión como administrador para consultar el catálogo.');return client.registry(plantId);}, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
+  return { start, tick, loomSharing, openSupervisorLogin:afterSignIn=>corporateBoard.open({afterSignIn}), readLoomRoster, canConfigureLooms:()=>siteAdminAccess||access?.admin===true, canManageCatalog:()=>access?.admin===true,readRegistry:async plantId=>{if(!access?.admin)throw Error('Inicia sesión como administrador para consultar el catálogo.');return client.registry(plantId);}, requestTool:(toolId,teamId)=>{const team=getServices().catalog.find(t=>t.id===teamId);if(!team||isToolEnabledForTeam(toolId,team)||!TEAM_TOOLS.some(t=>t.id===toolId))return false;return openIdeas({toolId,teamId});} };
 }

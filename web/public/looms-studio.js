@@ -118,7 +118,12 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   const s=shared;if(!s)return;
   const controls=el('div','looms-filters');content.append(controls);
   controls.append(btn('Actualizar dashboard',()=>refreshShared(shared,null,true)));
-  if(!s.connected)controls.append(btn('Acceder como supervisor',async()=>{if(await close())await getServices().openSupervisorLogin?.();}));
+  if(!s.connected)controls.append(btn('Acceder como supervisor',async()=>{
+   const requested=s;
+   await getServices().openSupervisorLogin?.(async()=>{
+    if(dialog.open&&shared===requested)await refreshShared(requested,null,true);
+   });
+  }));
  }
  const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();if(id==='dashboard')void refreshShared();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
