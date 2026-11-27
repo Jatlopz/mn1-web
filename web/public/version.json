@@ -1,6 +1,6 @@
 {
-  "version": "0.5.17",
+  "version": "0.5.18",
   "protocol": 1,
-  "updated": "2026-10-24",
-  "notes": "Administración disponible en Settings: dashboard privado del buzón y seguimiento de solicitudes."
+  "updated": "2026-11-26",
+  "notes": "Telares compartidos por planta y semana para supervisores autorizados."
 }

@@ -41,40 +41,50 @@ async function choosePhoto(){const picker=root.querySelector('input[type=file]')
 button('Configuración').click();await pause();fail=true;await choosePhoto();check(!JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey,'Fallo de imagen conserva foto anterior');fail=false;await choosePhoto();check(!JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey,'Foto espera guardar configuración');button('Guardar cambios').click();await pause();const savedPhotoKey=JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey;check(savedPhotoKey?.startsWith('mn1.loom.pic.'),'Referencia local de foto guardada');check(data.get(savedPhotoKey)?.startsWith('data:image/jpeg;base64,'),'Foto JPEG local');button('Dashboard').click();await pause();check(root.querySelector('.looms-chart-person img')?.getAttribute('src').startsWith('data:image/jpeg;base64,'),'Foto junto a gráfica de persona');await studio.close();admin=false;await studio.open(team);check(Boolean(root.querySelector('.looms-chart-person img')),'Foto persiste al reabrir');check(!root.querySelector('.looms-avatar-button'),'Usuario sin edición de foto');await studio.close();admin=true;await studio.open(team);button('Configuración').click();await pause();button('Quitar foto').click();button('Guardar cambios').click();await pause();check(JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey==='','Quita referencia');check(data.has(savedPhotoKey),'Conserva imagen anterior para respaldo');await choosePhoto();button('Guardar cambios').click();await pause();check(Boolean(JSON.parse(data.get(loomConfigKey(team.id))).people[0].photoKey),'Reemplazo tras guardar usa catálogo vigente');button('Dashboard').click();await pause();check(Boolean(root.querySelector('.looms-chart-person img')),'Foto vuelve a la gráfica después de quitar y agregar');
 // Two independent vaults and one shared dashboard, as on two supervisors' devices.
 let published=null,writes=0,online=true;
-async function client(isOwner,teamId){
+async function client(isOrigin,teamId){
  const frame=document.createElement('iframe');document.body.append(frame);const doc=frame.contentDocument;
- const local=new Map(isOwner?[[loomConfigKey(teamId),data.get(loomConfigKey(team.id))],[loomWeekKey(teamId,'2026-11-04'),data.get(loomWeekKey(team.id,'2026-11-04'))]]:[]);
- const sharing={read:async(plant,monday)=>({canPublish:isOwner,item:monday==='2026-11-02'?structuredClone(published):null}),publish:async(t,day,rev,payload)=>{
-  if(!online)throw Error('Sin conexión');if(!isOwner||rev!==(published?.revision||0))throw Error('Conflicto');
+ const local=new Map([[loomConfigKey(teamId),data.get(loomConfigKey(team.id))],...(isOrigin?[[loomWeekKey(teamId,'2026-11-04'),data.get(loomWeekKey(team.id,'2026-11-04'))]]:[])]);
+ const sharing={read:async(plant,monday)=>({canPublish:true,item:monday==='2026-11-02'?structuredClone(published):null}),publish:async(t,day,rev,payload)=>{
+  if(!online)throw Error('Sin conexión');if(rev!==(published?.revision||0))throw Error('Conflicto');
   writes++;published={team:t.id,name:t.name,revision:rev+1,payload:structuredClone(payload)};return rev+1;
  }};
- const tool=createLoomStudio(()=>({sharing,storage:{getText:async k=>local.get(k)??null,putText:async(k,v)=>local.set(k,v)}}),{root:doc,now:()=>new Date(2026,10,4)});
+ const tool=createLoomStudio(()=>({sharing,storage:{receivesSettings:!isOrigin,getText:async k=>local.get(k)??null,putText:async(k,v)=>local.set(k,v)}}),{root:doc,now:()=>new Date(2026,10,4)});
  await tool.open({...team,id:teamId});await pause();
  const click=name=>[...doc.querySelectorAll('button')].find(b=>b.textContent===name).click();
  return {tool,doc,local,click};
 }
-const author=await client(true,'qa-writer');author.click('Compartir mis datos de Telares');await pause();
+const author=await client(true,'qa-writer');
 check(writes===1&&published.payload.captures.length>0,'Publica la semana ya capturada');
 check(!JSON.stringify(published.payload).includes('data:image'),'La proyección excluye fotos');
 const viewer=await client(false,'qa-reader');
 check(viewer.doc.querySelector('.looms-kpi strong').textContent==='100 %','Otro equipo ve la misma eficiencia al entrar');
 check(!viewer.local.has(loomWeekKey('qa-reader','2026-11-04')),'Leer no reemplaza capturas del otro equipo');
-author.click('Captura');await pause();const amount=[...author.doc.querySelectorAll('label')].find(l=>l.firstChild.textContent==='Metros TA · Telar de ejemplo 1').querySelector('input');
-amount.value='300';amount.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,2100));
-check(writes===2,'Guarda y publica una modificación automáticamente');
-viewer.click('Actualizar dashboard');await pause();
-check(viewer.doc.querySelector('.looms-kpi strong').textContent==='80 %','El supervisor recibe el cambio posterior');
+ viewer.click('Captura');await pause();const viewerAmount=[...viewer.doc.querySelectorAll('label')].find(l=>l.textContent.includes('Metros TA · Telar de ejemplo 1')).querySelector('input');
+viewerAmount.value='300';viewerAmount.dispatchEvent(new Event('input'));viewer.click('Guardar cambios');await pause();
+check(writes===2&&published.team==='qa-reader'&&published.payload.captures.some(row=>row[6]==='300'),'Un supervisor publica desde otro equipo');
+await author.tool.close();await author.tool.open({...team,id:'qa-writer'});await new Promise(r=>setTimeout(r,160));
+const authorEfficiency=author.doc.querySelector('.looms-kpi strong')?.textContent;
+check(authorEfficiency==='80 %','Una copia local atrasada adopta la revisión compartida: '+authorEfficiency);
+author.click('Actualizar dashboard');await new Promise(r=>setTimeout(r,160));
+check(author.doc.querySelector('.looms-kpi strong')?.textContent==='80 %','Actualizar conserva la revisión compartida');
+ author.click('Captura');await pause();const amount=[...author.doc.querySelectorAll('label')].find(l=>l.textContent.includes('Metros TA · Telar de ejemplo 1')).querySelector('input');
 online=false;amount.value='150';amount.dispatchEvent(new Event('input'));author.click('Guardar cambios');await pause();
 check(author.doc.body.textContent.includes('Publicación pendiente'),'Sin red el cambio queda pendiente');
-online=true;author.click('Dashboard');await pause();check(writes===3,'Reintenta al regresar al dashboard');
-viewer.click('Actualizar dashboard');await pause();check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','El lector ve la recuperación');
+await author.tool.close();online=true;await author.tool.open({...team,id:'qa-writer'});await new Promise(r=>setTimeout(r,160));check(writes===3,'Reintenta una publicación pendiente al reabrir con conexión');
+viewer.click('Dashboard');await pause();viewer.click('Actualizar dashboard');await new Promise(r=>setTimeout(r,160));check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','El lector ve la recuperación');
+viewer.click('Captura');await pause();const pendingAmount=[...viewer.doc.querySelectorAll('label')].find(l=>l.textContent.includes('Metros TA · Telar de ejemplo 1')).querySelector('input');
+online=false;pendingAmount.value='120';pendingAmount.dispatchEvent(new Event('input'));viewer.click('Guardar cambios');await pause();
+const externalPayload=structuredClone(published.payload);externalPayload.captures.find(row=>row[0]==='loom-a')[6]='210';writes++;published={team:'qa-external',name:'Otro supervisor',revision:4,payload:externalPayload};
+await viewer.tool.close();online=true;await viewer.tool.open({...team,id:'qa-reader'});await new Promise(r=>setTimeout(r,160));
+check(writes===4&&viewer.doc.body.textContent.includes('cambió en otro equipo'),'Un pendiente concurrente no sobrescribe la revisión remota');
+viewer.click('Actualizar dashboard');await new Promise(r=>setTimeout(r,160));check(viewer.doc.querySelector('.looms-kpi strong').textContent==='74 %','La reconciliación adopta la revisión compartida');
 viewer.click('Semana siguiente →');await pause();
 check(viewer.doc.querySelector('.looms-kpi strong').textContent==='—','Una semana vacía no reutiliza datos de otra');
 viewer.click('← Semana anterior');await pause();
-check(viewer.doc.querySelector('.looms-kpi strong').textContent==='70 %','La semana anterior recupera el dashboard publicado');
+check(viewer.doc.querySelector('.looms-kpi strong').textContent==='74 %','La semana anterior recupera el dashboard publicado');
 viewer.click('← Semana anterior');await pause();viewer.click('Semana actual');await pause();
 check(viewer.doc.querySelector('input[type=date]').value==='2026-11-02','Vuelve a la semana vigente');
 await author.tool.close();await viewer.tool.close();
 document.getElementById('qa').textContent='PASS · '+count+' pruebas de captura, dashboard, guardado y conservación';document.documentElement.dataset.qa='pass';
-}catch(e){document.getElementById('qa').textContent='FAIL · '+e.message;document.documentElement.dataset.qa='fail';}
+}catch(e){document.getElementById('qa').textContent='FAIL · '+e.message+' · '+(e.stack||'');document.documentElement.dataset.qa='fail';}
 </script></html>

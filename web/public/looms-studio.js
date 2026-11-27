@@ -29,7 +29,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  const tabs=el('nav','looms-tabs');tabs.setAttribute('aria-label','Secciones de Telares');const content=el('section','looms-content');
  const discardDialog=el('dialog','dialog looms-discard');discardDialog.setAttribute('aria-label','Descartar edición de Telares');discardDialog.append(el('h3','','¿Cerrar sin guardar esta edición?'),el('p','hint','La última versión guardada se conservará. Los cambios pendientes de esta pantalla se descartarán.'),btn('Seguir editando',()=>discardDialog.close()),btn('Descartar edición y cerrar',()=>{discardDialog.close();dirty=false;dialog.close();}));root.body.append(discardDialog);
  const discardButton=btn('Cerrar sin guardar',()=>discardDialog.showModal());discardButton.hidden=true;
- const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Captura por equipo'),discardButton,saveButton);
+ const saveButton=btn('Guardar cambios',save,'button button-primary'),footer=el('footer','looms-footer');footer.append(el('small','','Metros · Meta base de 12 horas · Captura compartida por planta'),discardButton,saveButton);
  dialog.append(header,toolbar,tabs,status,content,footer);root.body.append(dialog);
  let team=null,config=null,week=null,date='',assignmentDate='',dashboardDate='',active='dashboard',dirty=false,busy=false,formRows=[],personFilter='',dashboardShift='',loadError=false,loadedConfigRaw=null,loadedWeekRaw=null;
  let shared=null,network=Promise.resolve(),autoTimer;
@@ -38,8 +38,8 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
  function enqueue(fn){const task=network.then(fn);network=task.catch(()=>{});return task;}
  function sharingState(){
   return {team:{...team},monday:week.startDate,enabledKey:'mn1.loom.share.'+team.id,
-   revisionKey:loomWeekKey(team.id,week.startDate).replace('mn1.l.','mn1.s.'),revision:0,
-   enabled:false,canPublish:false,item:null,connected:false,notice:''};
+    revisionKey:loomWeekKey(team.id,week.startDate).replace('mn1.l.','mn1.s.'),pendingKey:loomWeekKey(team.id,week.startDate).replace('mn1.l.','mn1.p.'),revision:0,
+    enabled:false,canPublish:false,item:null,pendingConflict:false,connected:false,notice:''};
  }
  function showShare(s){
   if(s!==shared||!dialog.open)return;
@@ -47,10 +47,19 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   if(active==='dashboard')render();
  }
  function samePayload(a,b){return Object.keys(a).every(k=>JSON.stringify(a[k])===JSON.stringify(b[k]));}
+ function hasDashboardData(payload){return payload.captures.length>0||payload.schedule.length>0||payload.targets.some(row=>row[3]);}
+ function adoptShared(item){
+  if(!item||dirty)return false;
+  const view=sharedLoomView(item.payload,week.startDate),knownPeople=new Set(config.people.map(person=>person.id));
+  week=view.week;
+  for(const person of view.config.people)if(!knownPeople.has(person.id))config.people.push({...person,photoKey:''});
+  return true;
+ }
  async function publish(s,payload){
   if(!s.enabled)return;
   try{
-   if(s.item?.team===s.team.id&&s.item.name===s.team.name&&samePayload(payload,s.item.payload)){
+    await getServices().storage.putText(s.pendingKey,'1');
+   if(s.item&&samePayload(payload,s.item.payload)){
     await getServices().storage.putText(s.revisionKey,String(s.item.revision));s.revision=s.item.revision;
    }else{
     const rev=await getServices().sharing.publish(s.team,s.monday,s.revision,payload);
@@ -58,7 +67,8 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     s.item={team:s.team.id,name:s.team.name,revision:s.revision,payload};
     await getServices().storage.putText(s.revisionKey,String(s.revision));
    }
-   s.connected=true;s.notice='Guardado y compartido con los supervisores.';
+    await getServices().storage.putText(s.pendingKey,'0');
+    s.pendingConflict=false;s.connected=true;s.notice='Guardado y compartido con los supervisores.';
   }catch(e){
    s.notice='Guardado en este dispositivo. Publicación pendiente. '+e.message;
   }
@@ -70,42 +80,45 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   const payload=loomDashboardPayload(config,week);
   return enqueue(()=>publish(s,payload));
  }
- function refreshShared(s=shared,alreadyRead=null){
+ function refreshShared(s=shared,alreadyRead=null,adopt=false,publishPending=false){
   if(!s||!getServices().sharing)return;
   return enqueue(async()=>{
    if(s!==shared||!dialog.open)return;
    try{
     const storage=getServices().storage;
-    s.enabled=(await storage.getText(s.enabledKey))==='1';
+    const localSharing=(await storage.getText(s.enabledKey))==='1';
     s.revision=Number(await storage.getText(s.revisionKey))||0;
+    const localRevision=s.revision;
+     const pending=(await storage.getText(s.pendingKey))==='1';
     const remote=alreadyRead||await getServices().sharing.read(s.team.plantId,s.monday);
     if(s!==shared||!dialog.open)return;
     s.connected=true;s.canPublish=remote.canPublish===true;s.item=remote.item;
-    s.notice=s.item?'Dashboard compartido · '+s.item.name:'Todavía no hay un dashboard compartido para esta semana.';
-    if(s.enabled&&s.canPublish&&!dirty&&loadedWeekRaw!==null){
-     await publish(s,loomDashboardPayload(config,week));return;
+     const remoteRevision=Number(s.item?.revision)||0;
+     s.pendingConflict=Boolean(s.item&&pending&&localRevision<remoteRevision);
+     if(s.item&&!s.pendingConflict)s.revision=remoteRevision;
+    s.enabled=s.canPublish||localSharing;
+     s.notice=s.pendingConflict?'La semana cambió en otro equipo mientras tu publicación estaba pendiente. Tu copia local se conserva; usa Actualizar dashboard para adoptar la versión compartida.':s.item?'Dashboard compartido · '+s.item.name:'Todavía no hay un dashboard compartido para esta semana.';
+     if(adopt&&s.item&&adoptShared(s.item)){
+      loadedWeekRaw=await persist(loomWeekKey(s.team.id,s.monday),JSON.stringify(week),loadedWeekRaw);
+      await storage.putText(s.revisionKey,String(remoteRevision));
+      await storage.putText(s.pendingKey,'0');
+      s.revision=remoteRevision;s.pendingConflict=false;s.notice='Datos compartidos actualizados · '+s.item.name;
+     }
+     if(publishPending&&!s.pendingConflict&&s.enabled&&s.canPublish&&!dirty&&loadedWeekRaw!==null){
+     const payload=loomDashboardPayload(config,week);
+     const pendingAgainstCurrent=s.item&&localRevision===Number(s.item.revision||0)&&!samePayload(payload,s.item.payload);
+     if(hasDashboardData(payload)&&(!s.item||pendingAgainstCurrent)){await publish(s,payload);return;}
     }
    }catch(e){s.connected=false;s.canPublish=false;s.item=null;s.notice='Vista local. Para consultar el dashboard compartido, conecta tu cuenta de supervisor y actualiza. '+e.message;}
    showShare(s);
   });
  }
- root.defaultView?.addEventListener('online',()=>{if(dialog.open&&shared)void refreshShared();});
+ root.defaultView?.addEventListener('online',()=>{if(dialog.open&&shared)void queuePublication();});
  function shareControls(){
   const s=shared;if(!s)return;
   const controls=el('div','looms-filters');content.append(controls);
-  controls.append(btn('Actualizar dashboard',()=>refreshShared()));
+  controls.append(btn('Actualizar dashboard',()=>refreshShared(shared,null,true)));
   if(!s.connected)controls.append(btn('Acceder como supervisor',async()=>{if(await close())await getServices().openSupervisorLogin?.();}));
-  if(s.connected&&s.canPublish&&!s.enabled&&!s.item){
-   controls.append(btn('Compartir mis datos de Telares',async()=>{
-    if(s!==shared||s.enabled)return;
-    const payload=loomDashboardPayload(config,week);
-    if(!payload.captures.length&&!payload.schedule.length&&!payload.targets.some(t=>t[3])){
-     s.notice='Registra una captura, meta o asignación antes de compartir esta semana.';showShare(s);return;
-    }
-    try{await getServices().storage.putText(s.enabledKey,'1');s.enabled=true;await enqueue(()=>publish(s,payload));}
-    catch(e){s.notice='No se pudo activar el guardado compartido. '+e.message;showShare(s);}
-   }));
-  }
  }
  const tabButtons=new Map();for(const [id,label] of [['dashboard','Dashboard'],['capture','Captura'],['assign','Asignaciones'],['config','Configuración']]){const b=btn(label,async()=>{if(await save()){active=id;render();if(id==='dashboard')void refreshShared();}},'looms-tab');tabButtons.set(id,b);tabs.append(b);}
  let controlLocks=new WeakMap();
@@ -292,7 +305,7 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
     field(group,machine.name,weeklyTarget(week,machine),value=>week.targets[machine.id]=value.trim(),{numeric:true});
    }
   }
-  if(getServices().storage.receivesSettings&&shared?.item){for(const input of content.querySelectorAll('tr select,.looms-week-goals input'))input.disabled=true;content.append(el('p','hint','Asignaciones y metas publicadas por administración.'));}
+  if(getServices().storage.receivesSettings&&shared?.item)content.append(el('p','hint','Asignaciones y metas compartidas por la planta. Los cambios guardados se publican para los demás supervisores.'));
   if(!config.benches.length)content.append(el('p','looms-empty','Primero crea las bancadas en Configuración.'));
  }
  function renderConfig(){titleFor('Catálogo local de Telares');if(!canConfigure()){content.append(el('p','hint','La configuración del catálogo corresponde al administrador.'));return;}
@@ -407,18 +420,21 @@ export function createLoomStudio(getServices,{root=document,now=()=>new Date()}=
   if(day.getUTCFullYear()>=1&&day.getUTCFullYear()<=9999)return selectWeek(day.toISOString().slice(0,10));
  }
  weekDate.addEventListener('change',()=>void selectWeek(weekDate.value));
- async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));const next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);let published=null;
-  if(getServices().storage.receivesSettings&&getServices().sharing){
+  async function loadWeek(selected){lock(true);try{const info=isoWeekInfo(selected),raw=await getServices().storage.getText(loomWeekKey(team.id,selected));let next=raw?normalizeLoomWeek(JSON.parse(raw),selected):createLoomWeek(selected);let published=null,pendingConflict=false;
+  if(getServices().sharing){
     try{published=await getServices().sharing.read(team.plantId,info.startDate);}catch{/* Offline captures stay available. */}
     if(published?.item){
-      const payload=published.item.payload;
-      next.schedule=sharedLoomView(payload,info.startDate).week.schedule;
-      for(const [id,,,target] of payload.targets)next.targets[id]=target;
+      const payload=published.item.payload,view=sharedLoomView(payload,info.startDate);
+      const revisionKey=loomWeekKey(team.id,info.startDate).replace('mn1.l.','mn1.s.');
+       const pendingKey=loomWeekKey(team.id,info.startDate).replace('mn1.l.','mn1.p.');
+      const localRevision=Number(await getServices().storage.getText(revisionKey))||0;
+       pendingConflict=raw!==null&&(await getServices().storage.getText(pendingKey))==='1'&&localRevision<Number(published.item.revision||0);
+       if(!pendingConflict&&(raw===null||localRevision<Number(published.item.revision||0)))next=view.week;
       const known=new Set(config.people.map(p=>p.id));
-      for(const [id,name] of payload.people)if(!known.has(id))config.people.push({id,name,enabled:true,photoKey:''});
+      for(const person of view.config.people)if(!known.has(person.id))config.people.push({...person,photoKey:''});
     }
   }
-  for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;shared=getServices().sharing?sharingState():null;shareStatus.textContent='';assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message(['Semana '+info.week,getServices().storage.message?.()].filter(Boolean).join(' · '));void refreshShared(shared,published);}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
+  for(const m of config.machines){if(!Object.hasOwn(next.targets,m.id)&&weeklyTarget(next,m))next.targets[m.id]=weeklyTarget(next,m);}week=next;loadedWeekRaw=raw;shared=getServices().sharing?sharingState():null;if(shared)shared.pendingConflict=pendingConflict;shareStatus.textContent='';assignmentDate='';dashboardDate='';date=info.date;dirty=false;loadError=false;render();message(['Semana '+info.week,getServices().storage.message?.()].filter(Boolean).join(' · '));void refreshShared(shared,published,false,true);}catch{loadError=true;message('No se pudo leer la semana. El original no se reemplazará. Cierra y vuelve a intentar.',true);}finally{lock(false);}}
  async function open(value){if(dialog.open||busy)return false;team={...value};shared=null;shareStatus.textContent='';config=null;week=null;loadError=false;dirty=false;controlLocks=new WeakMap();for(const c of dialog.querySelectorAll('button,input,select,textarea'))c.disabled=false;discardButton.hidden=true;active='dashboard';personFilter='';dashboardShift='';subtitle.textContent=team.name+' · Metros · TA / TC';content.replaceChildren();dialog.showModal();lock(true);message('Cargando Telares…');try{await getServices().storage.prepare?.(team.plantId,team.id);const raw=await getServices().storage.getText(loomConfigKey(team.id));config=raw?normalizeLoomConfig(JSON.parse(raw)):createLoomConfig();if(team.plantId==='sacos')config=provisionSacosLooms(config);loadedConfigRaw=raw;}catch{loadError=true;message('No se pudo leer la configuración. No se modificó ningún dato.',true);lock(false);return false;}let rosterMessage='';
   try{
    const workers=await getServices().getRoster?.(team.plantId);
