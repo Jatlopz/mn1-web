@@ -124,9 +124,16 @@ export function loomDashboardPayload(config,week){
  };
 }
 export function sharedLoomView(payload,startDate){
- const week=createLoomWeek(startDate);
- week.captures=payload.captures.map(([machineId,date,shift,personId,personName,state,actual,baseTarget,hours])=>({machineId,date,shift,personId,personName,state,actual,baseTarget,hours}));
- week.schedule=payload.schedule.map(([benchId,shift,personId,date])=>({benchId,shift,personId,...(date?{date}:{})}));
  const named=([id,name])=>({id,name,enabled:true});
- return {week,config:{benches:payload.benches.map(named),people:payload.people.map(named)}};
+ const benches=payload.benches.map(named),benchNames=new Map(payload.benches);
+ const machines=payload.targets.map(([id,name,benchId,goal])=>({id,name,benchId,baseTarget:goal,enabled:true}));
+ const machineById=new Map(machines.map(machine=>[machine.id,machine]));
+ const week=createLoomWeek(startDate);
+ week.schedule=payload.schedule.map(([benchId,shift,personId,date])=>({benchId,shift,personId,...(date?{date}:{})}));
+ week.targets=Object.fromEntries(payload.targets.map(([id,,,goal])=>[id,goal]));
+ week.captures=payload.captures.map(([machineId,date,shift,personId,personName,state,actual,baseTarget,hours])=>{
+  const machine=machineById.get(machineId),benchId=machine?.benchId||'';
+  return {machineId,date,shift,personId,personName,state,actual,baseTarget,hours,machineName:machine?.name||machineId,benchId,benchName:benchNames.get(benchId)||'',note:''};
+ });
+ return {week:normalizeLoomWeek(week,startDate),config:normalizeLoomConfig({version:1,benches,people:payload.people.map(named),machines})};
 }

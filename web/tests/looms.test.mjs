@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createLoomConfig,normalizeLoomConfig,createLoomWeek,normalizeLoomWeek,saveLoomShift,loomMetric,loomDashboard,loomWeekKey,loomDays,isLoomPhotoKey,isLoomPhoto} from '../public/looms-model.js';
+import {createLoomConfig,normalizeLoomConfig,createLoomWeek,normalizeLoomWeek,saveLoomShift,loomMetric,loomDashboard,loomDashboardPayload,sharedLoomView,loomWeekKey,loomDays,isLoomPhotoKey,isLoomPhoto} from '../public/looms-model.js';
 const config=()=>normalizeLoomConfig({version:1,people:[{id:'person-a',name:'Persona de prueba',enabled:true}],benches:[{id:'bench-a',name:'Bancada ficticia',enabled:true}],machines:[{id:'loom-a',name:'Telar ficticio',enabled:true,benchId:'bench-a',baseTarget:'1200'}]});
 const entry=(overrides={})=>({machineId:'loom-a',benchId:'bench-a',personId:'person-a',baseTarget:'1200',actual:'600',hours:'6',state:'recorded',note:'',...overrides});
 test('12 horas predeterminadas, metas proporcionales y cero real distinto de pendiente',()=>{
@@ -41,4 +41,17 @@ test('usa personal activo de Telares y conserva los registros locales',async()=>
  workers[0].active=false;
  assert.equal(applyLoomRoster(next,workers).people[1].enabled,false);
  assert.deepEqual(next.machines,config().machines);
+});
+
+test('el dashboard compartido reconstruye una semana editable desde cualquier equipo',()=>{
+ const c=config();
+ const captured=saveLoomShift(createLoomWeek('2026-11-04'),c,'2026-11-04','TA',[entry()]);
+ captured.schedule=[{benchId:'bench-a',shift:'TA',personId:'person-a'}];
+ captured.targets={'loom-a':'1200'};
+ const shared=sharedLoomView(loomDashboardPayload(c,captured),'2026-11-02');
+ assert.deepEqual(normalizeLoomConfig(shared.config),shared.config);
+ assert.deepEqual(normalizeLoomWeek(shared.week,'2026-11-02'),shared.week);
+ assert.equal(shared.week.captures[0].machineName,'Telar ficticio');
+ assert.equal(shared.week.captures[0].benchName,'Bancada ficticia');
+ assert.equal(loomDashboard(shared.week).efficiency,100);
 });
