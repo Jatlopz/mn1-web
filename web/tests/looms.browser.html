@@ -85,6 +85,26 @@ check(viewer.doc.querySelector('.looms-kpi strong').textContent==='74 %','La sem
 viewer.click('← Semana anterior');await pause();viewer.click('Semana actual');await pause();
 check(viewer.doc.querySelector('input[type=date]').value==='2026-11-02','Vuelve a la semana vigente');
 await author.tool.close();await viewer.tool.close();
+
+// A supervisor who opens Telares without an InsForge session signs in without
+// losing the selected week, then receives the shared dashboard immediately.
+const authFrame=document.createElement('iframe');document.body.append(authFrame);const authDoc=authFrame.contentDocument;
+let signedIn=false,loginOpened=false;
+const authLocal=new Map([[loomConfigKey('qa-auth-reader'),data.get(loomConfigKey(team.id))]]);
+const authSharing={
+ read:async()=>{if(!signedIn)throw Error('permission denied for function st_loom_read');return {canPublish:true,item:structuredClone(published)};},
+ publish:async()=>{throw Error('No debe publicar al iniciar sesión');}
+};
+let authTool;
+authTool=createLoomStudio(()=>({sharing:authSharing,storage:{receivesSettings:true,getText:async k=>authLocal.get(k)??null,putText:async(k,v)=>authLocal.set(k,v)},openSupervisorLogin:async onAuthenticated=>{
+ loginOpened=true;check(authTool.isOpen(),'Telares permanece abierto durante el acceso');signedIn=true;await onAuthenticated?.();
+}}),{root:authDoc,now:()=>new Date(2026,10,4)});
+await authTool.open({...team,id:'qa-auth-reader'});await pause();
+const authButton=[...authDoc.querySelectorAll('button')].find(b=>b.textContent==='Acceder como supervisor');
+check(Boolean(authButton),'Ofrece acceso cuando InsForge rechaza la lectura anónima');authButton.click();await new Promise(r=>setTimeout(r,160));
+check(loginOpened&&authTool.isOpen(),'El acceso no cierra Telares');
+check(authDoc.querySelector('.looms-kpi strong').textContent==='74 %','Carga la misma semana compartida después de iniciar sesión');
+await authTool.close();
 document.getElementById('qa').textContent='PASS · '+count+' pruebas de captura, dashboard, guardado y conservación';document.documentElement.dataset.qa='pass';
 }catch(e){document.getElementById('qa').textContent='FAIL · '+e.message+' · '+(e.stack||'');document.documentElement.dataset.qa='fail';}
 </script></html>

@@ -18,7 +18,7 @@ const client={
 };
 try{
  const board=installCorporateBoard({client,confirmDiscard:()=>true});
- await board.open();assert(!$('board-auth').hidden&&$('board-notes').children.length===0,'Sin sesión: contenido privado');
+ let continued=0;await board.open({afterSignIn:async()=>{continued++;}});assert(!$('board-auth').hidden&&$('board-notes').children.length===0,'Sin sesión: contenido privado');
  $('board-email').value='supervisor@example.invalid';$('board-setup').open=true;$('board-reset-send').click();await pause();
  assert(!$('board-reset-form').hidden&&requested==='supervisor@example.invalid','Primer acceso solicita código al correo indicado');
  $('board-reset-code').value='000000';$('board-new-password').value=$('board-confirm-password').value='ficticia-123';$('board-reset-form').requestSubmit();await pause();
@@ -26,7 +26,7 @@ try{
  $('board-reset-code').value='123456';$('board-reset-form').requestSubmit();await pause();
  assert(chosen==='ficticia-123'&&$('board-new-password').value==='','Contraseña elegida se guarda y se limpia del formulario');
  $('board-password').value='ficticia-123';$('board-password-login').requestSubmit();await pause();
- assert(!$('board-new').hidden&&$('board-publishers').hidden&&$('board-auth').hidden,'Supervisor entra al mural sin gestión de accesos');
+ assert(!$('board-new').hidden&&$('board-publishers').hidden&&$('board-auth').hidden,'Supervisor entra al mural sin gestión de accesos');assert(continued===1,'Continúa la herramienta que solicitó el acceso');
  $('board-sign-out').click();await pause();assert(!$('board-auth').hidden&&!$('board-notes').children.length,'Cerrar sesión borra los datos del mural');
  user={id:'fixture-owner'};await board.open();assert(!$('board-new').hidden&&!$('board-publishers').hidden,'Creador: permisos de gestión');
  assert(!$('board-notes').querySelector('img')&&$('board-notes').textContent.includes('<img'),'Texto hostil no se interpreta como HTML');

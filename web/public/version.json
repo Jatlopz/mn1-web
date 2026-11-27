@@ -1,6 +1,6 @@
 {
-  "version": "0.5.18",
+  "version": "0.5.19",
   "protocol": 1,
   "updated": "2026-11-26",
-  "notes": "Telares compartidos por planta y semana para supervisores autorizados."
+  "notes": "El acceso de supervisor vuelve automáticamente a Telares y carga la semana compartida."
 }
